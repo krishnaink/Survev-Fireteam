@@ -406,50 +406,50 @@ export class Editor {
         this.playersTab = players;
 
         //
-        // Cheats
+        // Quick Add
         //
         {
-            // Give item
-            const giveFolder = cheats.addFolder({ title: "Give Item", expanded: true });
+            // // Give item
+            // const giveFolder = cheats.addFolder({ title: "Give Item", expanded: true });
 
-            const giveItemBind = giveFolder.addBinding(this.toolParams, "cheatGiveItem", {
-                label: "Item type",
-            });
-            const giveInput = giveItemBind.element.querySelector("input") as HTMLInputElement;
-            giveInput.addEventListener("keyup", (e) => e.stopPropagation());
-            giveInput.addEventListener("keydown", (e) => {
-                e.stopPropagation();
-                if (e.key === "Enter") {
-                    this.sendCheatGive = true;
-                    this.sendMsg = true;
-                    this.config.set("debugTools", this.toolParams);
-                }
-            });
+            // const giveItemBind = giveFolder.addBinding(this.toolParams, "cheatGiveItem", {
+            //     label: "Item type",
+            // });
+            // const giveInput = giveItemBind.element.querySelector("input") as HTMLInputElement;
+            // giveInput.addEventListener("keyup", (e) => e.stopPropagation());
+            // giveInput.addEventListener("keydown", (e) => {
+            //     e.stopPropagation();
+            //     if (e.key === "Enter") {
+            //         this.sendCheatGive = true;
+            //         this.sendMsg = true;
+            //         this.config.set("debugTools", this.toolParams);
+            //     }
+            // });
 
-            // Autocomplete datalist for all loot items
-            const giveDL = document.createElement("datalist");
-            giveDL.id = "editor-cheat-give-list";
-            giveInput.setAttribute("list", giveDL.id);
-            giveInput.parentElement?.appendChild(giveDL);
-            for (const lt of availableLoot) {
-                const opt = document.createElement("option");
-                opt.value = lt;
-                giveDL.appendChild(opt);
-            }
+            // // Autocomplete datalist for all loot items
+            // const giveDL = document.createElement("datalist");
+            // giveDL.id = "editor-cheat-give-list";
+            // giveInput.setAttribute("list", giveDL.id);
+            // giveInput.parentElement?.appendChild(giveDL);
+            // for (const lt of availableLoot) {
+            //     const opt = document.createElement("option");
+            //     opt.value = lt;
+            //     giveDL.appendChild(opt);
+            // }
 
-            giveFolder.addBinding(this.toolParams, "cheatGiveCount", {
-                label: "Count",
-                min: 1,
-                max: 999,
-                step: 1,
-            });
+            // giveFolder.addBinding(this.toolParams, "cheatGiveCount", {
+            //     label: "Count",
+            //     min: 1,
+            //     max: 999,
+            //     step: 1,
+            // });
 
-            const giveBtn = giveFolder.addButton({ title: "Give" });
-            giveBtn.on("click", () => {
-                this.sendCheatGive = true;
-                this.sendMsg = true;
-                this.config.set("debugTools", this.toolParams);
-            });
+            // const giveBtn = giveFolder.addButton({ title: "Give" });
+            // giveBtn.on("click", () => {
+            //     this.sendCheatGive = true;
+            //     this.sendMsg = true;
+            //     this.config.set("debugTools", this.toolParams);
+            // });
 
             // Quick-give buttons for common consumables
             const quickFolder = cheats.addFolder({ title: "Quick Fill", expanded: true });
@@ -465,9 +465,9 @@ export class Editor {
             };
             addQuick("Max frags", "frag", 9);
             addQuick("Max strobes", "strobe", 5);
-            addQuick("Max smoke", "smoke", 9);
+            addQuick("Max mirv", "mirv", 9);
             addQuick("Fill bandages", "bandage", 10);
-            addQuick("Fill kits", "healthkit", 3);
+            addQuick("Fill medkits", "healthkit", 3);
             addQuick("Fill soda", "soda", 10);
             addQuick("Fill painkillers", "painkiller", 4);
             addQuick("Fill 9mm", "9mm", 999);
@@ -501,7 +501,7 @@ export class Editor {
             waveFolder.addBinding(this.toolParams, "cheatSetWave", {
                 label: "Wave",
                 min: 1,
-                max: 30,
+                max: 99,
                 step: 1,
             });
             const waveBtn = waveFolder.addButton({ title: "Jump to Wave" });
@@ -679,7 +679,7 @@ export class Editor {
             msg.setHealth = Math.max(1, Math.min(200, this.toolParams.cheatSetHealth || 100));
         }
         if (this.sendCheatWave) {
-            msg.setWave = Math.max(1, Math.min(30, this.toolParams.cheatSetWave || 1));
+            msg.setWave = Math.max(1, Math.min(90, this.toolParams.cheatSetWave || 1));
         }
 
         return msg;
