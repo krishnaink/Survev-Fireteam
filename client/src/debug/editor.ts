@@ -76,6 +76,11 @@ export class Editor {
     /** Server allowEditMsg / NPC spawn debug. Editor stays closed when false. */
     debugAllowed = false;
 
+    // Cheat one-shot flags
+    sendCheatGive = true;
+    sendCheatHealth = true;
+    sendCheatWave = true;
+
     constructor(config: ConfigManager) {
         this.config = config;
         this.config.addModifiedListener(this.onConfigModified.bind(this));
@@ -115,9 +120,12 @@ export class Editor {
                 {
                     title: "Players",
                 },
+                {
+                    title: "Cheats",
+                },
             ],
         });
-        const [tools, render, HUD, players] = tabs.pages;
+        const [tools, render, HUD, players, cheats] = tabs.pages;
 
         //
         // Tools
@@ -397,6 +405,121 @@ export class Editor {
         players.element.style.display = "none";
         this.playersTab = players;
 
+        //
+        // Cheats
+        //
+        {
+            // Give item
+            const giveFolder = cheats.addFolder({ title: "Give Item", expanded: true });
+
+            const giveItemBind = giveFolder.addBinding(this.toolParams, "cheatGiveItem", {
+                label: "Item type",
+            });
+            const giveInput = giveItemBind.element.querySelector("input") as HTMLInputElement;
+            giveInput.addEventListener("keyup", (e) => e.stopPropagation());
+            giveInput.addEventListener("keydown", (e) => {
+                e.stopPropagation();
+                if (e.key === "Enter") {
+                    this.sendCheatGive = true;
+                    this.sendMsg = true;
+                    this.config.set("debugTools", this.toolParams);
+                }
+            });
+
+            // Autocomplete datalist for all loot items
+            const giveDL = document.createElement("datalist");
+            giveDL.id = "editor-cheat-give-list";
+            giveInput.setAttribute("list", giveDL.id);
+            giveInput.parentElement?.appendChild(giveDL);
+            for (const lt of availableLoot) {
+                const opt = document.createElement("option");
+                opt.value = lt;
+                giveDL.appendChild(opt);
+            }
+
+            giveFolder.addBinding(this.toolParams, "cheatGiveCount", {
+                label: "Count",
+                min: 1,
+                max: 999,
+                step: 1,
+            });
+
+            const giveBtn = giveFolder.addButton({ title: "Give" });
+            giveBtn.on("click", () => {
+                this.sendCheatGive = true;
+                this.sendMsg = true;
+                this.config.set("debugTools", this.toolParams);
+            });
+
+            // Quick-give buttons for common consumables
+            const quickFolder = cheats.addFolder({ title: "Quick Fill", expanded: true });
+            const addQuick = (label: string, item: string, count: number) => {
+                const btn = quickFolder.addButton({ title: label });
+                btn.on("click", () => {
+                    this.toolParams.cheatGiveItem = item;
+                    this.toolParams.cheatGiveCount = count;
+                    this.sendCheatGive = true;
+                    this.sendMsg = true;
+                    this.config.set("debugTools", this.toolParams);
+                });
+            };
+            addQuick("Max frags", "frag", 9);
+            addQuick("Max strobes", "strobe", 5);
+            addQuick("Max smoke", "smoke", 9);
+            addQuick("Fill bandages", "bandage", 10);
+            addQuick("Fill kits", "healthkit", 3);
+            addQuick("Fill soda", "soda", 10);
+            addQuick("Fill painkillers", "painkiller", 4);
+            addQuick("Fill 9mm", "9mm", 999);
+            addQuick("Fill 5.56mm", "556mm", 999);
+            addQuick("Fill 7.62mm", "762mm", 999);
+            addQuick("Fill 12ga", "12gauge", 90);
+
+            // Health
+            const hpFolder = cheats.addFolder({ title: "Health", expanded: true });
+            hpFolder.addBinding(this.toolParams, "cheatSetHealth", {
+                label: "HP",
+                min: 1,
+                max: 200,
+                step: 1,
+            });
+            const hpBtn = hpFolder.addButton({ title: "Set HP" });
+            hpBtn.on("click", () => {
+                this.sendCheatHealth = true;
+                this.sendMsg = true;
+                this.config.set("debugTools", this.toolParams);
+            });
+            const fullHpBtn = hpFolder.addButton({ title: "Full HP" });
+            fullHpBtn.on("click", () => {
+                this.toolParams.cheatSetHealth = 200;
+                this.sendCheatHealth = true;
+                this.sendMsg = true;
+            });
+
+            // Wave jump
+            const waveFolder = cheats.addFolder({ title: "Wave Jump (Spec Ops)", expanded: true });
+            waveFolder.addBinding(this.toolParams, "cheatSetWave", {
+                label: "Wave",
+                min: 1,
+                max: 30,
+                step: 1,
+            });
+            const waveBtn = waveFolder.addButton({ title: "Jump to Wave" });
+            waveBtn.on("click", () => {
+                this.sendCheatWave = true;
+                this.sendMsg = true;
+                this.config.set("debugTools", this.toolParams);
+            });
+
+            // Prevent cheat panel clicks from firing game inputs
+            cheats.element.querySelectorAll<HTMLElement>("input, button").forEach((el) => {
+                el.addEventListener("click", () => el.blur());
+                el.addEventListener("keyup", (e) => e.stopPropagation());
+                el.addEventListener("keydown", (e) => e.stopPropagation());
+            });
+        }
+        this.cheatsTab = cheats;
+
         // we dont want to focus buttons because they can mess with keybinds
         // like if you click on "toggle layer" and dont click on anything else
         // the button will remain focused and will activate if you press enter or space
@@ -427,6 +550,7 @@ export class Editor {
     }
 
     playersTab!: TabPageApi;
+    cheatsTab!: TabPageApi;
 
     setDebugAllowed(enabled: boolean) {
         this.debugAllowed = enabled;
@@ -546,6 +670,18 @@ export class Editor {
             }
         }
 
+        // Cheat panel
+        if (this.sendCheatGive && this.toolParams.cheatGiveItem) {
+            msg.giveItem = this.toolParams.cheatGiveItem;
+            msg.giveItemCount = Math.max(1, Math.min(999, this.toolParams.cheatGiveCount || 1));
+        }
+        if (this.sendCheatHealth) {
+            msg.setHealth = Math.max(1, Math.min(200, this.toolParams.cheatSetHealth || 100));
+        }
+        if (this.sendCheatWave) {
+            msg.setWave = Math.max(1, Math.min(30, this.toolParams.cheatSetWave || 1));
+        }
+
         return msg;
     }
 
@@ -563,6 +699,12 @@ export class Editor {
         this.toggleLayer = false;
         this.spawnNpc = false;
         this.spawnNpcOneOfEach = false;
+
+        // Cheat one-shot resets
+        this.sendCheatGive = false;
+        this.sendCheatHealth = false;
+        this.sendCheatWave = false;
+
         this.sendMsg = false;
     }
 }

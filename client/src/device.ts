@@ -123,7 +123,7 @@ class Device {
         this.screenHeight = window.innerHeight;
         const layoutDim = this.isLandscape ? this.screenWidth : this.screenHeight;
         this.uiLayout = this.mobile || this.steamDeck || layoutDim <= 850
-            || (layoutDim <= 900 && this.pixelRatio >= 3)
+                || (layoutDim <= 900 && this.pixelRatio >= 3)
             ? this.UiLayout.Sm
             : this.UiLayout.Lg;
     }

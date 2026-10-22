@@ -1,8 +1,5 @@
 import { expect, test } from "vitest";
-import {
-    ensureTeamSocketData,
-    getTeamSocketData,
-} from "../../server/src/teamSocketState.ts";
+import { ensureTeamSocketData, getTeamSocketData } from "../../server/src/teamSocketState.ts";
 import {
     applyTeamJoin,
     clientRoomPayload,

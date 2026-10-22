@@ -2014,7 +2014,8 @@ export class GameMap {
                     const isWindow = !!obs.isWindow;
                     const hasLoot = Array.isArray(obs.loot) && obs.loot.length > 0;
                     // Also strip common indoor breakables that drop loot tables.
-                    const lootProp = /crate|cabinet|drawer|desk|locker|fridge|toilet|vending|bookshelf|gun_mount|class_crate|case_|ammo_crate|melee_crate|aegis_crate|treasure_chest/;
+                    const lootProp =
+                        /crate|cabinet|drawer|desk|locker|fridge|toilet|vending|bookshelf|gun_mount|class_crate|case_|ammo_crate|melee_crate|aegis_crate|treasure_chest/;
                     if ((hasLoot || lootProp.test(partType)) && !isDoor && !isWindow) {
                         continue;
                     }

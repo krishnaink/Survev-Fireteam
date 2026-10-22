@@ -1,9 +1,9 @@
 import $ from "jquery";
 import * as PIXI from "pixi.js-legacy";
-import type { PublicGameInfo } from "../../shared/types/api.ts";
-import { GameConfig, TeamMode } from "../../shared/gameConfig.ts";
 import { parseSpecOpsDifficulty } from "../../shared/defs/maps/specOpsShop.ts";
+import { GameConfig, TeamMode } from "../../shared/gameConfig.ts";
 import * as net from "../../shared/net/net.ts";
+import type { PublicGameInfo } from "../../shared/types/api.ts";
 import type {
     FindGameBody,
     FindGameError,
@@ -11,8 +11,8 @@ import type {
     FindGameResponse,
     GameWsDisconnectReason,
 } from "../../shared/types/api.ts";
-import { math } from "../../shared/utils/math.ts";
 import { normalizeTeamRoomKey } from "../../shared/types/team.ts";
+import { math } from "../../shared/utils/math.ts";
 import { Account } from "./account.ts";
 import { Ambiance } from "./ambiance.ts";
 import { api } from "./api.ts";
@@ -34,6 +34,7 @@ import { helpers } from "./helpers.ts";
 import { InputHandler } from "./input.ts";
 import { InputBinds, InputBindUi } from "./inputBinds.ts";
 import {
+    type ActiveMatchSession,
     clearMatchSession,
     clearRejoinUrlParams,
     ensureRejoinAfterReload,
@@ -51,26 +52,25 @@ import {
     syncRejoinUrl,
     teamRoomCode,
     touchActiveMatchIdentity,
-    type ActiveMatchSession,
 } from "./matchRejoin.ts";
+import { setupMenuGamepad } from "./menuGamepadSetup.ts";
 import { PingTest } from "./pingTest.ts";
 import { proxy } from "./proxy.ts";
 import { ResourceManager } from "./resources.ts";
 import { SDK } from "./sdk/sdk.ts";
 import { resolveServerId, SiteInfo } from "./siteInfo.ts";
+import { focusGameCanvas, requestSteamDeckFullscreen, setupSteamDeck } from "./steamDeck.ts";
 import { LoadoutMenu } from "./ui/loadoutMenu.ts";
 import { Localization } from "./ui/localization.ts";
 import Menu from "./ui/menu.ts";
+import { MenuLeaderboard } from "./ui/menuLeaderboard.ts";
 import { MenuModal } from "./ui/menuModal.ts";
 import { LoadoutDisplay } from "./ui/opponentDisplay.ts";
 import { Pass } from "./ui/pass.ts";
 import { ProfileUi } from "./ui/profileUi.ts";
-import { MenuLeaderboard } from "./ui/menuLeaderboard.ts";
 import { ServerBrowser } from "./ui/serverBrowser.ts";
-import { TeamMenu, teamHashJoin } from "./ui/teamMenu.ts";
+import { teamHashJoin, TeamMenu } from "./ui/teamMenu.ts";
 import { loadStaticDomImages } from "./ui/ui2.ts";
-import { setupMenuGamepad } from "./menuGamepadSetup.ts";
-import { focusGameCanvas, requestSteamDeckFullscreen, setupSteamDeck } from "./steamDeck.ts";
 
 export class Application {
     nameInput = $("#player-name-input-solo");
@@ -1386,7 +1386,7 @@ export class Application {
         };
 
         return new Promise((resolve) => {
-                this.findGame(
+            this.findGame(
                 {
                     version: GameConfig.protocolVersion,
                     region: meta.region,

@@ -8,6 +8,7 @@ import {
 } from "../../server/src/config.ts";
 import { SpecOpsDeadBodyCap, SpecOpsDeadBodyLifetime } from "../../server/src/game/objects/deadBody.ts";
 import { SpecOpsLootCap, SpecOpsLootLifetime } from "../../server/src/game/objects/loot.ts";
+import { NoOpSocket } from "../../server/src/game/socket.ts";
 import { SpecOpsAbandonedTimeout, SpecOpsIdleTimeout, SpecOpsManager } from "../../server/src/game/specOpsManager.ts";
 import { GunDefs } from "../../shared/defs/gameObjects/gunDefs.ts";
 import { MeleeDefs } from "../../shared/defs/gameObjects/meleeDefs.ts";
@@ -16,54 +17,53 @@ import { MapDefs } from "../../shared/defs/mapDefs.ts";
 import { isSpecOpsMapName, pickSpecOpsMapName, SpecOpsMapPool } from "../../shared/defs/maps/specOpsDefs.ts";
 import {
     shopApproachBlocked,
+    specOpsAllyDamageMult,
+    specOpsAllyHealth,
     SpecOpsAllyRoles,
+    SpecOpsArmorSatchelCosts,
+    SpecOpsArmorSatchelGear,
+    SpecOpsArmorSatchelSkus,
     SpecOpsBuyablePerks,
     specOpsBuybackCost,
     specOpsBuybackSku,
+    specOpsCanBuySelfRevive,
     specOpsEarlyStartBonus,
     specOpsEnemyGear,
     specOpsEnemyHealth,
-    specOpsAllyDamageMult,
-    specOpsAllyHealth,
     SpecOpsHelperGroupSize,
     SpecOpsHelpersPerWave,
     SpecOpsJoinLockFlag,
     SpecOpsJoinLockWave,
+    specOpsKillBountyAmount,
+    SpecOpsMaxPerks,
     SpecOpsMaxSupportUnits,
+    specOpsPerkShopCost,
+    specOpsPerkShopRefund,
+    SpecOpsReviveImmunity,
+    specOpsSelfReviveAllowed,
+    specOpsSelfReviveCost,
+    SpecOpsSelfReviveSku,
     SpecOpsSentryClip,
     SpecOpsSentryReloadTime,
-    SpecOpsMaxPerks,
-    SpecOpsReviveImmunity,
-    SpecOpsSelfReviveSku,
-    specOpsCanBuySelfRevive,
-    specOpsSelfReviveCost,
-    specOpsSelfReviveAllowed,
-    SpecOpsTargetingBountyMult,
-    specOpsKillBountyAmount,
-    specOpsShopItemAvailable,
     SpecOpsShopBySku,
     SpecOpsShopCatalog,
     SpecOpsShopExcludedMelee,
-    SpecOpsArmorSatchelCosts,
-    SpecOpsArmorSatchelGear,
-    SpecOpsArmorSatchelSkus,
-    specOpsPerkShopCost,
-    specOpsPerkShopRefund,
+    specOpsShopItemAvailable,
     specOpsShopItemCost,
     SpecOpsShopRange,
     specOpsShopStationItems,
     specOpsStationFromType,
+    SpecOpsTargetingBountyMult,
     specOpsUnequipSku,
 } from "../../shared/defs/maps/specOpsShop.ts";
 import { GameObjectDefs } from "../../shared/defs/register.ts";
 import { GameConfig, GasMode, TeamMode } from "../../shared/gameConfig.ts";
 import { InputMsg } from "../../shared/net/inputMsg.ts";
 import { JoinMsg } from "../../shared/net/joinMsg.ts";
-import { BitStream, MsgType, SpectateMsg } from "../../shared/net/net.ts";
 import { KillMsg } from "../../shared/net/killMsg.ts";
+import { BitStream, MsgType, SpectateMsg } from "../../shared/net/net.ts";
 import { ObjectType } from "../../shared/net/objectSerializeFns.ts";
 import { SpectateAction } from "../../shared/net/spectateMsg.ts";
-import { NoOpSocket } from "../../server/src/game/socket.ts";
 import { coldet } from "../../shared/utils/coldet.ts";
 import { collider } from "../../shared/utils/collider.ts";
 import { v2 } from "../../shared/utils/v2.ts";
@@ -72,8 +72,8 @@ import "./testHelpers.ts";
 import type { Game } from "../../server/src/game/game.ts";
 import type { Obstacle } from "../../server/src/game/objects/obstacle.ts";
 import type { Player } from "../../server/src/game/objects/player.ts";
-import { util } from "../../shared/utils/util.ts";
 import { stairAtPos } from "../../server/src/game/specOpsNav.ts";
+import { util } from "../../shared/utils/util.ts";
 
 /** Prefer ground-floor stations so buy tests work without changing player layer. */
 function findSpecOpsStation(game: Game, type: string, layer = 0): Obstacle {
@@ -1798,9 +1798,11 @@ test("Spec Ops sentry uses 300-round belt and 9s reload; combined support cap is
     expect(game.specOps!.tryBuy(player, "specops_sentry")).toBe(true);
     const sentry = game.playerBarn.livingPlayers.find((p) => p.specOpsKind === "sentry")!;
     expect(sentry.weapons[GameConfig.WeaponSlot.Primary].ammo).toBe(SpecOpsSentryClip);
-    expect(sentry.weaponManager.getAmmoStats(
-        GameObjectDefs.typeToDef("m249", "gun"),
-    ).maxClip).toBe(SpecOpsSentryClip);
+    expect(
+        sentry.weaponManager.getAmmoStats(
+            GameObjectDefs.typeToDef("m249", "gun"),
+        ).maxClip,
+    ).toBe(SpecOpsSentryClip);
 
     // Mix of allies + sentries share one 12-unit hired cap.
     for (let i = 0; i < 11; i++) {

@@ -1,13 +1,8 @@
-import { existsSync } from "node:fs";
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-    getConfig,
-    configRunsApi,
-    configRunsFrontend,
-    configRunsGame,
-} from "../config.ts";
+import { configRunsApi, configRunsFrontend, configRunsGame, getConfig } from "../config.ts";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const env = { ...process.env, NODE_ENV: "production" };

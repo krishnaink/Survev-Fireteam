@@ -8,8 +8,15 @@ import { GameObjectDefs } from "../../../../../shared/defs/register.ts";
 import { TeamMode } from "../../../../../shared/gameConfig.ts";
 import { zGiveItemParams, zRemoveItemParams } from "../../../../../shared/types/moderation.ts";
 import { serverConfigPath } from "../../../config.ts";
+import { Config } from "../../../config.ts";
 import { isBehindProxy } from "../../../utils/proxyCheck.ts";
-import { type SaveGameBody, zHandshakeBody, zSetClientThemeBody, zSetGameModeBody, zUpdateRegionBody } from "../../../utils/types.ts";
+import {
+    type SaveGameBody,
+    zHandshakeBody,
+    zSetClientThemeBody,
+    zSetGameModeBody,
+    zUpdateRegionBody,
+} from "../../../utils/types.ts";
 import { server } from "../../apiServer.ts";
 import { databaseEnabledMiddleware, privateMiddleware, validateParams } from "../../auth/middleware.ts";
 import { getRedisClient } from "../../cache/index.ts";
@@ -21,7 +28,6 @@ import { mongoStore } from "../../db/mongoStore.ts";
 import { itemsTable, type MatchDataTable, matchDataTable, userQuestTable, usersTable } from "../../db/schema.ts";
 import { insertIgnore } from "../../db/sqlHelpers.ts";
 import type { Context } from "../../index.ts";
-import { Config } from "../../../config.ts";
 import { MOCK_USER_ID } from "../user/auth/mock.ts";
 import { isBanned, logPlayerIPs, ModerationRouter } from "./ModerationRouter.ts";
 import { incrementPassXp } from "./passXp.ts";

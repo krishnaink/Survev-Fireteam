@@ -1,12 +1,12 @@
 import { expect, test } from "vitest";
 import {
+    type ActiveMatchSession,
     buildRejoinUrl,
     MATCH_REJOIN_TTL_MS,
     mergeRejoinSessions,
     parseRejoinFromLocation,
     rejoinSecondsLeft,
     resolveTeamRoomUrl,
-    type ActiveMatchSession,
 } from "../../client/src/matchRejoin.ts";
 
 test("buildRejoinUrl encodes match parameters", () => {

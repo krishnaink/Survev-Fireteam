@@ -1,8 +1,8 @@
 import type { SQL } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { Config } from "../../config.ts";
-import { db } from "./index.ts";
 import { isMysql } from "./dialect.ts";
+import { db } from "./index.ts";
 
 /** Insert rows, ignoring primary/unique conflicts (PG onConflictDoNothing / MySQL IGNORE). */
 export async function insertIgnore(

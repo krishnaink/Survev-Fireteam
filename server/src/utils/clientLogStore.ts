@@ -1,4 +1,4 @@
-import { mkdir, appendFile } from "node:fs/promises";
+import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { Config } from "../config.ts";
 

@@ -1,16 +1,12 @@
 import { randomUUID } from "node:crypto";
-import type {
-    LeaderboardRequest,
-    LeaderboardResponse,
-    UserStatsResponse,
-} from "../../../../shared/types/stats.ts";
 import { TeamMode } from "../../../../shared/gameConfig.ts";
+import type { LeaderboardRequest, LeaderboardResponse, UserStatsResponse } from "../../../../shared/types/stats.ts";
 import { resolveLeaderboardLimit } from "../../../../shared/types/stats.ts";
 import { ALL_MAPS } from "../../../../shared/types/stats.ts";
 import type { Loadout } from "../../../../shared/utils/loadout.ts";
 import { loadout as loadoutUtil } from "../../../../shared/utils/loadout.ts";
-import type { MatchDataTable, UsersTableInsert, UsersTableSelect } from "./schema.pg.ts";
 import { getMongoDb } from "./index.ts";
+import type { MatchDataTable, UsersTableInsert, UsersTableSelect } from "./schema.pg.ts";
 
 function col<T extends Document = Document>(name: string) {
     return getMongoDb().collection<T>(name);
@@ -168,10 +164,22 @@ export const mongoStore = {
                         difficultyRank: {
                             $switch: {
                                 branches: [
-                                    { case: { $eq: [{ $toLower: { $ifNull: ["$difficulty", ""] } }, "veteran"] }, then: 4 },
-                                    { case: { $eq: [{ $toLower: { $ifNull: ["$difficulty", ""] } }, "hardened"] }, then: 3 },
-                                    { case: { $eq: [{ $toLower: { $ifNull: ["$difficulty", ""] } }, "regular"] }, then: 2 },
-                                    { case: { $eq: [{ $toLower: { $ifNull: ["$difficulty", ""] } }, "recruit"] }, then: 1 },
+                                    {
+                                        case: { $eq: [{ $toLower: { $ifNull: ["$difficulty", ""] } }, "veteran"] },
+                                        then: 4,
+                                    },
+                                    {
+                                        case: { $eq: [{ $toLower: { $ifNull: ["$difficulty", ""] } }, "hardened"] },
+                                        then: 3,
+                                    },
+                                    {
+                                        case: { $eq: [{ $toLower: { $ifNull: ["$difficulty", ""] } }, "regular"] },
+                                        then: 2,
+                                    },
+                                    {
+                                        case: { $eq: [{ $toLower: { $ifNull: ["$difficulty", ""] } }, "recruit"] },
+                                        then: 1,
+                                    },
                                 ],
                                 default: 0,
                             },
@@ -225,9 +233,7 @@ export const mongoStore = {
                         mapId,
                         squadName,
                     });
-                    members = roster.map(String).filter(Boolean).sort((a, b) =>
-                        a.localeCompare(b)
-                    );
+                    members = roster.map(String).filter(Boolean).sort((a, b) => a.localeCompare(b));
                     if (!members.length) members = undefined;
                 }
                 out.push({

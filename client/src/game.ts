@@ -9,14 +9,14 @@ import type { Ambiance } from "./ambiance.ts";
 import type { AudioManager } from "./audioManager.ts";
 import { Camera } from "./camera.ts";
 import type { ConfigManager, DebugRenderOpts } from "./config.ts";
-import {
-    clampRenderScale,
-    parseGraphicsQuality,
-    resolveGraphicsProfile,
-    type GraphicsProfile,
-} from "./graphicsQuality.ts";
 import { DebugHUD } from "./debug/debugHUD.ts";
 import { debugLines } from "./debug/debugLines.ts";
+import {
+    clampRenderScale,
+    type GraphicsProfile,
+    parseGraphicsQuality,
+    resolveGraphicsProfile,
+} from "./graphicsQuality.ts";
 
 /* STRIP_FROM_PROD_CLIENT:START */
 import { Editor } from "./debug/editor.ts";
@@ -28,11 +28,6 @@ import type { GameWsDisconnectReason } from "../../shared/types/api.ts";
 import { device } from "./device.ts";
 import { EmoteBarn } from "./emote.ts";
 import { errorLogManager } from "./errorLogs.ts";
-import {
-    getActiveMatchSession,
-    getRejoinSession,
-    touchActiveMatchIdentity,
-} from "./matchRejoin.ts";
 import { GamepadHandler } from "./gamepad.ts";
 import { Gas } from "./gas.ts";
 import { helpers } from "./helpers.ts";
@@ -40,7 +35,7 @@ import { type InputHandler, Key } from "./input.ts";
 import type { InputBinds, InputBindUi } from "./inputBinds.ts";
 import type { SoundHandle } from "./lib/createJS.ts";
 import { Map } from "./map.ts";
-import { ThrowableRadial } from "./throwableRadial.ts";
+import { getActiveMatchSession, getRejoinSession, touchActiveMatchIdentity } from "./matchRejoin.ts";
 import { AirdropBarn } from "./objects/airdrop.ts";
 import { BulletBarn, createBullet } from "./objects/bullet.ts";
 import { DeadBodyBarn } from "./objects/deadBody.ts";
@@ -58,6 +53,7 @@ import { SmokeBarn } from "./objects/smoke.ts";
 import { Renderer } from "./renderer.ts";
 import type { ResourceManager } from "./resources.ts";
 import { SDK } from "./sdk/sdk.ts";
+import { ThrowableRadial } from "./throwableRadial.ts";
 import type { Localization } from "./ui/localization.ts";
 import { Touch } from "./ui/touch.ts";
 import { UiManager } from "./ui/ui.ts";
@@ -1636,7 +1632,12 @@ export class Game {
                 const msg = new net.RoleAnnouncementMsg();
                 msg.deserialize(stream);
                 const roleDef = GameObjectDefs.typeToDefSafe(msg.role) as
-                    | { type?: string; sound?: { assign?: string; dead?: string }; killFeed?: { assign?: boolean; dead?: boolean }; announce?: boolean }
+                    | {
+                        type?: string;
+                        sound?: { assign?: string; dead?: string };
+                        killFeed?: { assign?: boolean; dead?: boolean };
+                        announce?: boolean;
+                    }
                     | undefined;
                 if (!roleDef || roleDef.type !== "role" || this.m_map.specOpsMode) {
                     break;

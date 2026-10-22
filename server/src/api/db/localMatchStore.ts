@@ -1,12 +1,12 @@
 import { Database } from "bun:sqlite";
 import fs from "node:fs";
 import path from "node:path";
+import { TeamMode } from "../../../../shared/gameConfig.ts";
 import {
     type LeaderboardRequest,
     type LeaderboardResponse,
     resolveLeaderboardLimit,
 } from "../../../../shared/types/stats.ts";
-import { TeamMode } from "../../../../shared/gameConfig.ts";
 import { Config } from "../../config.ts";
 import type { SaveGameBody } from "../../utils/types.ts";
 import { isMongo } from "./dialect.ts";
@@ -321,9 +321,7 @@ export function queryLocalLeaderboard(params: LeaderboardRequest): LeaderboardRe
             ${outerOrder}
             ${limitClause}`
         : `SELECT username, region, gameId, 0 AS isTeam, val, timeAlive, games, submittedAt, version, difficulty FROM (
-                ${
-            bestRowSelect("username, region", "username", "", 0)
-        }
+                ${bestRowSelect("username, region", "username", "", 0)}
             ) ranked
             WHERE rn = 1
             ${outerOrder}
@@ -347,7 +345,7 @@ export function queryLocalLeaderboard(params: LeaderboardRequest): LeaderboardRe
                 submittedAt: string;
                 version: string;
                 difficulty: string;
-            }>,
+            }>
     );
 
     const memberStmt = useFireteamNames
@@ -371,7 +369,7 @@ export function queryLocalLeaderboard(params: LeaderboardRequest): LeaderboardRe
                     $teamMode: teamMode,
                     $mapId: mapId,
                     $squadName: row.username,
-                }) as Array<{ name: string }>,
+                }) as Array<{ name: string }>
             ).map((r) => r.name).filter(Boolean);
             if (names.length) members = names;
         }

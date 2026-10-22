@@ -462,9 +462,9 @@ export class GameProcessManager {
                         && seatsLeft(proc) >= partySize
                         && game.teamMode === body.teamMode
                         && teamSizeForMode(
-                            game.teamMode,
-                            game.squadSize ?? Config.maxSquadSize,
-                        ) === requestedTeamSize
+                                game.teamMode,
+                                game.squadSize ?? Config.maxSquadSize,
+                            ) === requestedTeamSize
                         && (specOps
                             ? specOpsMapMatches(body.mapName, game.mapName)
                             : game.mapName === body.mapName)

@@ -1,9 +1,6 @@
 import $ from "jquery";
 import { MapId } from "../../../shared/gameConfig.ts";
-import {
-    LEADERBOARD_DEFAULT_COUNT,
-    type LeaderboardResponse,
-} from "../../../shared/types/stats.ts";
+import { LEADERBOARD_DEFAULT_COUNT, type LeaderboardResponse } from "../../../shared/types/stats.ts";
 import { api } from "../api.ts";
 import { helpers } from "../helpers.ts";
 import type { Localization } from "./localization.ts";

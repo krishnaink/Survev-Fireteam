@@ -1,10 +1,7 @@
 import type { Hono } from "hono";
 import type { UpgradeWebSocket } from "hono/ws";
-import type {
-    FindGamePrivateError,
-    SiteInfoRes,
-} from "../../../shared/types/api.ts";
 import { parseServerEndpoint } from "../../../config.ts";
+import type { FindGamePrivateError, SiteInfoRes } from "../../../shared/types/api.ts";
 import { Config } from "../config.ts";
 import { TeamMenu } from "../teamMenu.ts";
 import { GIT_VERSION } from "../utils/gitRevision.ts";
@@ -146,7 +143,7 @@ export class ApiServer {
             url = existing?.url;
         }
 
-        const name = (opts.name?.trim() || titleCaseServerId(regionId));
+        const name = opts.name?.trim() || titleCaseServerId(regionId);
         const endpoint: RegionEndpoint = {
             address,
             publicAddress,
@@ -192,12 +189,16 @@ export class ApiServer {
 
             if (!region.seededFromConfig) {
                 this.logger.warn(
-                    `Region ${regionId} missed heartbeats (>${REGION_HEARTBEAT_STALE_MS / 1000}s) — removed from Server list`,
+                    `Region ${regionId} missed heartbeats (>${
+                        REGION_HEARTBEAT_STALE_MS / 1000
+                    }s) — removed from Server list`,
                 );
                 delete this.regions[regionId];
             } else {
                 this.logger.warn(
-                    `Region ${regionId} has not sent a heartbeat in more than ${REGION_HEARTBEAT_STALE_MS / 1000} seconds`,
+                    `Region ${regionId} has not sent a heartbeat in more than ${
+                        REGION_HEARTBEAT_STALE_MS / 1000
+                    } seconds`,
                 );
                 // Keep slot for local re-link; hide from pops via isAlive.
                 region.lastUpdateTime = 0;
@@ -264,7 +265,9 @@ export class ApiServer {
         region.lastUpdateTime = 0;
         this.publicGames = this.publicGames.filter((g) => g.region !== regionId);
         this.logger.warn(
-            `Region ${regionId} marked unreachable${reason ? ` (${reason})` : ""} — dropped from Server list until next heartbeat`,
+            `Region ${regionId} marked unreachable${
+                reason ? ` (${reason})` : ""
+            } — dropped from Server list until next heartbeat`,
         );
         if (!region.seededFromConfig) {
             delete this.regions[regionId];

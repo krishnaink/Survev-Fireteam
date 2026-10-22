@@ -1,5 +1,5 @@
-import type { AbstractMsg, BitStream } from "./net.ts";
 import { v2, type Vec2 } from "../utils/v2.ts";
+import type { AbstractMsg, BitStream } from "./net.ts";
 
 export class PerkModeRoleSelectMsg implements AbstractMsg {
     role = "";

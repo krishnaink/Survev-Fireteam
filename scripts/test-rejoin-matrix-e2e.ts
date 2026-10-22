@@ -434,7 +434,9 @@ for (const scenario of scenarios) {
     console.log(`\n--- ${scenario.name} (players=${scenario.players}, squadSize=${scenario.squadSize}) ---`);
     const result = await runScenario(scenario);
     results.push(result);
-    console.log(result.skipped ? `SKIP ${result.detail}` : result.ok ? `PASS ${result.detail}` : `FAIL ${result.detail}`);
+    console.log(
+        result.skipped ? `SKIP ${result.detail}` : result.ok ? `PASS ${result.detail}` : `FAIL ${result.detail}`,
+    );
     await sleep(500);
 }
 

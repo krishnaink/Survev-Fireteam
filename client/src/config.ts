@@ -3,16 +3,16 @@ import { GameConfig } from "../../shared/gameConfig.ts";
 import loadout from "../../shared/utils/loadout.ts";
 import { util } from "../../shared/utils/util.ts";
 import { v2 } from "../../shared/utils/v2.ts";
-import type { Locale } from "./ui/localization.ts";
 import {
     advancedDefaultsForQuality,
     clampRenderScale,
     COMMUNITY_ANNOUNCEMENT_VERSION,
     defaultRenderScaleForQuality,
     detectRecommendedQuality,
-    parseGraphicsQuality,
     type GraphicsQuality,
+    parseGraphicsQuality,
 } from "./graphicsQuality.ts";
+import type { Locale } from "./ui/localization.ts";
 
 export const debugToolsConfig = {
     enabled: false,
@@ -41,6 +41,12 @@ export const debugToolsConfig = {
     spawnNpcType: "militia",
     spawnNpcCount: 1,
     npcIgnoreOperators: false,
+
+    // Cheat panel
+    cheatGiveItem: "",
+    cheatGiveCount: 1,
+    cheatSetHealth: 100,
+    cheatSetWave: 1,
 };
 
 export const debugRenderConfig = {

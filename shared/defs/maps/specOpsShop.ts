@@ -1,7 +1,7 @@
+import { HudTeammateSlots, TeamMode } from "../../gameConfig.ts";
 import type { Collider } from "../../utils/coldet.ts";
 import { collider } from "../../utils/collider.ts";
 import { v2, type Vec2 } from "../../utils/v2.ts";
-import { HudTeammateSlots, TeamMode } from "../../gameConfig.ts";
 import { GunDefs } from "../gameObjects/gunDefs.ts";
 
 export type SpecOpsStation = "weapon" | "gear" | "armor" | "support" | "perk";
@@ -802,7 +802,13 @@ const SpecOpsWeaponShopItems: SpecOpsShopItem[] = Object.keys(GunDefs)
 export const SpecOpsShopCatalog: SpecOpsShopItem[] = [
     ...SpecOpsWeaponShopItems,
 
-    { sku: SpecOpsArmorPlateSku, cost: 800, station: "armor", amount: SpecOpsArmorPlatePackSize, label: "Armor plates (x3)" },
+    {
+        sku: SpecOpsArmorPlateSku,
+        cost: 800,
+        station: "armor",
+        amount: SpecOpsArmorPlatePackSize,
+        label: "Armor plates (x3)",
+    },
 
     { sku: "specops_ammo", cost: 300, station: "gear", label: "Ammo resupply" },
     { sku: SpecOpsSelfReviveSku, cost: SpecOpsSelfReviveBaseCost, station: "gear", label: "Self Revive" },
@@ -910,7 +916,8 @@ export function specOpsShopStationItems(
     difficulty: SpecOpsDifficulty = "regular",
 ): SpecOpsShopItem[] {
     const stationItems = SpecOpsShopCatalog.filter(
-        (item) => item.station === station
+        (item) =>
+            item.station === station
             && item.sku !== "specops_ammo"
             && item.sku !== SpecOpsSelfReviveSku
             && specOpsShopItemAvailable(item.sku, mapName),
@@ -1009,9 +1016,11 @@ function specOpsGunCategory(
     sku: string,
     def: { fireMode?: string; maxClip?: number; bulletCount?: number; ammo?: string },
 ): number {
-    if (sku.includes("dual") || sku === "m9" || sku === "m93r" || sku === "glock"
+    if (
+        sku.includes("dual") || sku === "m9" || sku === "m93r" || sku === "glock"
         || sku === "ot38" || sku === "ots38" || sku === "colt45" || sku === "m1911"
-        || sku === "deagle" || sku === "p30l" || sku === "sw500") {
+        || sku === "deagle" || sku === "p30l" || sku === "sw500"
+    ) {
         return 0; // pistols
     }
     if (def.ammo === "12gauge" || (def.bulletCount && def.bulletCount > 1)) {

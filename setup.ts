@@ -13,8 +13,7 @@ const prompt = enquirer.prompt;
 async function importKeys(config: PartialConfig) {
     config.secrets ??= {};
     const apiKey = await prompt<{ value: string }>({
-        message:
-            "Enter the shared SURVEV_API_KEY (same secret as the main/master API host — required handshake):",
+        message: "Enter the shared SURVEV_API_KEY (same secret as the main/master API host — required handshake):",
         name: "value",
         type: "text",
         required: true,
@@ -65,16 +64,14 @@ async function setupGameServer(config: PartialConfig, opts?: { askApiUrl?: boole
         });
 
         const url = await prompt<{ value: string }>({
-            message:
-                "Player connect URL (https://domain, http://ip:8001, or host:port)",
+            message: "Player connect URL (https://domain, http://ip:8001, or host:port)",
             name: "value",
             type: "text",
             required: true,
         });
 
         const address = await prompt<{ value: string }>({
-            message:
-                "API → game address on this machine (plain HTTP, usually 127.0.0.1:8001)",
+            message: "API → game address on this machine (plain HTTP, usually 127.0.0.1:8001)",
             name: "value",
             type: "text",
             initial: "127.0.0.1:8001",
@@ -195,8 +192,7 @@ async function setupAccounts(config: PartialConfig) {
 
 async function setupAPIServer(config: PartialConfig) {
     const shouldImportKeys = await prompt<{ value: "import" | "random" }>({
-        message:
-            "SURVEV_API_KEY for game ↔ API handshake — import an existing key or generate a new one?",
+        message: "SURVEV_API_KEY for game ↔ API handshake — import an existing key or generate a new one?",
         name: "value",
         type: "select",
         choices: [
@@ -239,16 +235,14 @@ async function setupRegions(config: PartialConfig) {
         });
 
         const url = await prompt<{ value: string }>({
-            message:
-                "Player connect URL (https://domain, http://ip:8001, or host:port)",
+            message: "Player connect URL (https://domain, http://ip:8001, or host:port)",
             name: "value",
             type: "text",
             required: true,
         });
 
         const address = await prompt<{ value: string }>({
-            message:
-                "API → game address (plain HTTP from this API host, e.g. 127.0.0.1:8001 or 10.0.0.8:8001)",
+            message: "API → game address (plain HTTP from this API host, e.g. 127.0.0.1:8001 or 10.0.0.8:8001)",
             name: "value",
             type: "text",
             initial: "127.0.0.1:8001",
@@ -381,22 +375,20 @@ async function setupProductionConfig(config: PartialConfig) {
     });
 
     config.instanceRole = hostRole.value;
-    const flags =
-        hostRole.value === "all"
-            ? { api: true, game: true, client: true }
-            : hostRole.value === "api"
-            ? { api: true, game: false, client: false }
-            : hostRole.value === "game"
-            ? { api: false, game: true, client: false }
-            : { api: false, game: false, client: true };
+    const flags = hostRole.value === "all"
+        ? { api: true, game: true, client: true }
+        : hostRole.value === "api"
+        ? { api: true, game: false, client: false }
+        : hostRole.value === "game"
+        ? { api: false, game: true, client: false }
+        : { api: false, game: false, client: true };
     config.apiServer = { ...config.apiServer, enabled: flags.api };
     config.gameServer = { ...config.gameServer, enabled: flags.game };
     config.vite = { ...config.vite, enabled: flags.client };
 
     if (hostRole.value === "api" || hostRole.value === "all") {
         const apiRole = await prompt<{ value: "master" | "point" }>({
-            message:
-                "API setup — is this the main/master API, or should it point at another master?",
+            message: "API setup — is this the main/master API, or should it point at another master?",
             name: "value",
             type: "select",
             choices: [
@@ -406,8 +398,7 @@ async function setupProductionConfig(config: PartialConfig) {
                 },
                 {
                     name: "point",
-                    message:
-                        "Point this host at an existing master API (remote matchmaking)",
+                    message: "Point this host at an existing master API (remote matchmaking)",
                 },
             ],
         });
@@ -439,8 +430,7 @@ async function setupProductionConfig(config: PartialConfig) {
         await setupRegions(config);
 
         if (hostRole.value === "all") {
-            config.gameServer.apiServerUrl =
-                `http://127.0.0.1:${config.apiServer?.port ?? 8000}`;
+            config.gameServer.apiServerUrl = `http://127.0.0.1:${config.apiServer?.port ?? 8000}`;
             config.apiUrl = config.gameServer.apiServerUrl;
             await setupGameServer(config, { askApiUrl: false });
         }

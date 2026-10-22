@@ -4,10 +4,10 @@
  *
  * WAN players only need port 3000 forwarded.
  */
+import { createProxyServer } from "http-proxy";
 import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Socket } from "node:net";
-import { createProxyServer } from "http-proxy";
 import { WebSocket, WebSocketServer } from "ws";
 import { getConfig } from "../config.ts";
 

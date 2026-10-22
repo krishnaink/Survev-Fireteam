@@ -11,8 +11,8 @@ import { Config } from "../../../config.ts";
 import { server } from "../../apiServer.ts";
 import { rateLimitMiddleware, validateParams } from "../../auth/middleware.ts";
 import { leaderboardCache } from "../../cache/leaderboard.ts";
-import { db } from "../../db/index.ts";
 import { isMongo, sqlMatchedUsersAgg } from "../../db/dialect.ts";
+import { db } from "../../db/index.ts";
 import { queryLocalLeaderboard } from "../../db/localMatchStore.ts";
 import { mongoStore } from "../../db/mongoStore.ts";
 import { matchDataTable, usersTable } from "../../db/schema.ts";
@@ -46,7 +46,8 @@ leaderboardRouter.post(
             return c.json<LeaderboardResponse[]>(data, 200);
         }
 
-        const { type, teamMode } = params;        const cachedResult = await leaderboardCache.get(params);
+        const { type, teamMode } = params;
+        const cachedResult = await leaderboardCache.get(params);
 
         if (cachedResult) {
             server.logger.debug(

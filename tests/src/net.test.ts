@@ -2,7 +2,7 @@ import { beforeEach, expect, test } from "vitest";
 import { Main } from "../../shared/defs/maps/baseDefs.ts";
 import { GameConfig, GasMode, HasteType } from "../../shared/gameConfig.ts";
 import * as net from "../../shared/net/net.ts";
-import { ObjectSerializeFns, ObjectType, type ObjectData } from "../../shared/net/objectSerializeFns.ts";
+import { type ObjectData, ObjectSerializeFns, ObjectType } from "../../shared/net/objectSerializeFns.ts";
 import { PerkModeRoleSelectMsg } from "../../shared/net/perkModeRoleSelectMsg.ts";
 import type { AABB, Circle } from "../../shared/utils/coldet.ts";
 import { collider } from "../../shared/utils/collider.ts";

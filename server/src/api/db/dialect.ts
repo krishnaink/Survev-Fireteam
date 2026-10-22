@@ -1,7 +1,7 @@
 /**
  * SQL/Mongo dialect helpers for accounts DB.
  */
-import { sql, type SQL } from "drizzle-orm";
+import { type SQL, sql } from "drizzle-orm";
 import { Config } from "../../config.ts";
 
 export function isPostgres(): boolean {

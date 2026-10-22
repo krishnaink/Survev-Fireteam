@@ -1,7 +1,4 @@
-import {
-    SpecOpsBuyablePerks,
-    specOpsUnequipSku,
-} from "../maps/specOpsShop.ts";
+import { SpecOpsBuyablePerks, specOpsUnequipSku } from "../maps/specOpsShop.ts";
 import type { UnlockDef } from "./unlockDefs.ts";
 
 /** Dummy game types so Spec Ops shop SKUs can ride PerkModeRoleSelect. */

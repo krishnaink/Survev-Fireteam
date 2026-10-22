@@ -4,8 +4,8 @@ import { GameConfig, Input } from "../../shared/gameConfig.ts";
 import { v2, type Vec2 } from "../../shared/utils/v2.ts";
 import { helpers } from "./helpers.ts";
 import { MouseButton } from "./input.ts";
-import type { InputBinds } from "./inputBinds.ts";
 import type { InputHandler } from "./input.ts";
+import type { InputBinds } from "./inputBinds.ts";
 import type { Player } from "./objects/player.ts";
 
 const HoldOpenSeconds = 0.18;

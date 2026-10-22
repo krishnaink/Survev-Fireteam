@@ -14,20 +14,20 @@ import type { MeleeDef } from "../../../../shared/defs/gameObjects/meleeDefs.ts"
 import { PerkProperties } from "../../../../shared/defs/gameObjects/perkDefs.ts";
 import type { ThrowableDef } from "../../../../shared/defs/gameObjects/throwableDefs.ts";
 import { UnlockDefs } from "../../../../shared/defs/gameObjects/unlockDefs.ts";
-import { GameObjectDefs, MapObjectDefs } from "../../../../shared/defs/register.ts";
 import {
     SpecOpsAirstrikeDamageMult,
+    SpecOpsAllyMaxHealth,
     SpecOpsBoostDecay,
+    SpecOpsEnemyMaxHealth,
     SpecOpsFlakAirstrikeDamageMult,
+    specOpsKillBountyAmount,
     SpecOpsLifelineDecayMult,
     SpecOpsMaxArmor,
     SpecOpsMaxHealth,
-    SpecOpsEnemyMaxHealth,
-    SpecOpsAllyMaxHealth,
     SpecOpsReviveHealth,
     SpecOpsReviveImmunity,
-    specOpsKillBountyAmount,
 } from "../../../../shared/defs/maps/specOpsShop.ts";
+import { GameObjectDefs, MapObjectDefs } from "../../../../shared/defs/register.ts";
 import {
     type Action,
     type Anim,
@@ -103,7 +103,22 @@ export class PlayerBarn {
     killedPlayers: Player[] = [];
     // 200 = AI horde team; 201 legacy support; 202-215 = per-hire support units.
     groupIdAllocator = new IDAllocator(255, [
-        200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215,
+        200,
+        201,
+        202,
+        203,
+        204,
+        205,
+        206,
+        207,
+        208,
+        209,
+        210,
+        211,
+        212,
+        213,
+        214,
+        215,
     ]);
     aliveCountDirty = false;
 
@@ -2688,9 +2703,12 @@ export class Player extends BaseGameObject {
                 || params.gameSourceType === "explosion_mirv"
                 || params.gameSourceType === "explosion_mirv_mini")
         ) {
-            finalDamage = math.min(finalDamage, params.isExplosion || params.damageType === GameConfig.DamageType.Airstrike
-                ? 6
-                : 8);
+            finalDamage = math.min(
+                finalDamage,
+                params.isExplosion || params.damageType === GameConfig.DamageType.Airstrike
+                    ? 6
+                    : 8,
+            );
         } else if (
             this.specOpsStrobeTank
             && !params.isExplosion
@@ -3277,123 +3295,123 @@ export class Player extends BaseGameObject {
         // Spec Ops humans keep loadout so teammates can buy them back into the fight.
         const keepLoadout = this.game.map.specOpsMode && !this.specOpsAi;
         if (!keepLoadout) {
-        //
-        // drop loot
-        //
+            //
+            // drop loot
+            //
 
-        for (let i = 0; i < GameConfig.WeaponSlot.Count; i++) {
-            const weap = this.weapons[i];
-            if (!weap.type) continue;
-            const def = GameObjectDefs.typeToDef(weap.type);
-            switch (def.type) {
-                case "gun":
-                    // Spec Ops bots: no farming bugles / flare guns / role kit from kills.
-                    if (
-                        this.game.map.specOpsMode
-                        && this.specOpsAi
-                        && (weap.type === "bugle"
-                            || weap.type === "flare_gun"
-                            || weap.type === "flare_gun_dual"
-                            || def.noDrop)
-                    ) {
+            for (let i = 0; i < GameConfig.WeaponSlot.Count; i++) {
+                const weap = this.weapons[i];
+                if (!weap.type) continue;
+                const def = GameObjectDefs.typeToDef(weap.type);
+                switch (def.type) {
+                    case "gun":
+                        // Spec Ops bots: no farming bugles / flare guns / role kit from kills.
+                        if (
+                            this.game.map.specOpsMode
+                            && this.specOpsAi
+                            && (weap.type === "bugle"
+                                || weap.type === "flare_gun"
+                                || weap.type === "flare_gun_dual"
+                                || def.noDrop)
+                        ) {
+                            weap.type = "";
+                            weap.ammo = 0;
+                            break;
+                        }
+                        this.weaponManager.dropGun(i);
                         weap.type = "";
-                        weap.ammo = 0;
                         break;
+                    case "melee":
+                        if (def.noDropOnDeath || weap.type === "fists") break;
+                        this.game.lootBarn.addLoot(weap.type, this.pos, this.layer, 1, {
+                            pushSpeed: util.random(7.5, 11),
+                            dir: v2.randomUnit(),
+                        });
+                        weap.type = "fists";
+                        break;
+                    case "throwable":
+                        weap.type = "";
+                        break;
+                }
+            }
+            this.weaponManager.setCurWeapIndex(GameConfig.WeaponSlot.Melee);
+
+            for (const item of Object.keys(this.invManager.items) as InventoryItem[]) {
+                // const def = GameObjectDefs[item] as AmmoDef | HealDef;
+                if (item == "1xscope") {
+                    continue;
+                }
+                if (this.game.map.specOpsMode && this.specOpsAi) {
+                    if (
+                        item.endsWith("scope")
+                        || item === "flare"
+                        || item.startsWith("chest")
+                        || item.startsWith("helmet")
+                        || item.startsWith("backpack")
+                    ) {
+                        continue;
                     }
-                    this.weaponManager.dropGun(i);
-                    weap.type = "";
-                    break;
-                case "melee":
-                    if (def.noDropOnDeath || weap.type === "fists") break;
-                    this.game.lootBarn.addLoot(weap.type, this.pos, this.layer, 1, {
+                }
+
+                const amount = this.invManager.get(item);
+                if (amount > 0) {
+                    this.game.lootBarn.addLoot(item, this.pos, this.layer, amount, {
                         pushSpeed: util.random(7.5, 11),
                         dir: v2.randomUnit(),
                     });
-                    weap.type = "fists";
-                    break;
-                case "throwable":
-                    weap.type = "";
-                    break;
-            }
-        }
-        this.weaponManager.setCurWeapIndex(GameConfig.WeaponSlot.Melee);
-
-        for (const item of Object.keys(this.invManager.items) as InventoryItem[]) {
-            // const def = GameObjectDefs[item] as AmmoDef | HealDef;
-            if (item == "1xscope") {
-                continue;
-            }
-            if (this.game.map.specOpsMode && this.specOpsAi) {
-                if (
-                    item.endsWith("scope")
-                    || item === "flare"
-                    || item.startsWith("chest")
-                    || item.startsWith("helmet")
-                    || item.startsWith("backpack")
-                ) {
-                    continue;
                 }
             }
 
-            const amount = this.invManager.get(item);
-            if (amount > 0) {
-                this.game.lootBarn.addLoot(item, this.pos, this.layer, amount, {
-                    pushSpeed: util.random(7.5, 11),
-                    dir: v2.randomUnit(),
-                });
-            }
-        }
-
-        if (!(this.game.map.specOpsMode && this.specOpsAi)) {
-            for (const item of GEAR_TYPES) {
-                const type = this[item];
-                if (!type) continue;
-                const def = GameObjectDefs.typeToDef(type) as HelmetDef | ChestDef | BackpackDef;
-                if (!!(def as ChestDef).noDrop || def.level < 1) continue;
-                this.game.lootBarn.addLoot(type, this.pos, this.layer, 1, {
-                    pushSpeed: util.random(7.5, 11),
-                    dir: v2.randomUnit(),
-                });
-            }
-        }
-
-        if (this.outfit) {
-            const def = GameObjectDefs.typeToDef(this.outfit, "outfit");
-            if (!def.noDropOnDeath && !def.noDrop && this.outfit !== this.loadout.outfit) {
-                this.game.lootBarn.addLoot(this.outfit, this.pos, this.layer, 1, {
-                    pushSpeed: util.random(7.5, 11),
-                    dir: v2.randomUnit(),
-                });
-            }
-        }
-
-        for (let i = this.perks.length - 1; i >= 0; i--) {
-            const perk = this.perks[i];
-            if (
-                !(this.game.map.specOpsMode && this.specOpsAi)
-                && (perk.droppable || perk.replaceOnDeath)
-            ) {
-                this.game.lootBarn.addLoot(
-                    perk.replaceOnDeath || perk.type,
-                    this.pos,
-                    this.layer,
-                    1,
-                    {
+            if (!(this.game.map.specOpsMode && this.specOpsAi)) {
+                for (const item of GEAR_TYPES) {
+                    const type = this[item];
+                    if (!type) continue;
+                    const def = GameObjectDefs.typeToDef(type) as HelmetDef | ChestDef | BackpackDef;
+                    if (!!(def as ChestDef).noDrop || def.level < 1) continue;
+                    this.game.lootBarn.addLoot(type, this.pos, this.layer, 1, {
                         pushSpeed: util.random(7.5, 11),
                         dir: v2.randomUnit(),
-                    },
-                );
+                    });
+                }
             }
-        }
-        this._perks.length = 0;
-        this._perkTypes.length = 0;
 
-        // Wipe inventory
-        this.invManager.wipeInventory();
-        this.chest = "";
-        this.helmet = "";
-        this.backpack = "backpack00";
-        this.weaponManager.showNextThrowable();
+            if (this.outfit) {
+                const def = GameObjectDefs.typeToDef(this.outfit, "outfit");
+                if (!def.noDropOnDeath && !def.noDrop && this.outfit !== this.loadout.outfit) {
+                    this.game.lootBarn.addLoot(this.outfit, this.pos, this.layer, 1, {
+                        pushSpeed: util.random(7.5, 11),
+                        dir: v2.randomUnit(),
+                    });
+                }
+            }
+
+            for (let i = this.perks.length - 1; i >= 0; i--) {
+                const perk = this.perks[i];
+                if (
+                    !(this.game.map.specOpsMode && this.specOpsAi)
+                    && (perk.droppable || perk.replaceOnDeath)
+                ) {
+                    this.game.lootBarn.addLoot(
+                        perk.replaceOnDeath || perk.type,
+                        this.pos,
+                        this.layer,
+                        1,
+                        {
+                            pushSpeed: util.random(7.5, 11),
+                            dir: v2.randomUnit(),
+                        },
+                    );
+                }
+            }
+            this._perks.length = 0;
+            this._perkTypes.length = 0;
+
+            // Wipe inventory
+            this.invManager.wipeInventory();
+            this.chest = "";
+            this.helmet = "";
+            this.backpack = "backpack00";
+            this.weaponManager.showNextThrowable();
         }
 
         // death emote
@@ -4919,6 +4937,86 @@ export class Player extends BaseGameObject {
             this.health = this.maxHealth;
             this.setDirty();
         }
+
+        // ── Cheat panel handlers ────────────────────────────────────────────
+        if (msg.giveItem) {
+            const count = Math.max(1, Math.min(999, msg.giveItemCount || 1));
+            const def = GameObjectDefs.typeToDefSafe(msg.giveItem);
+            if (def) {
+                switch (def.type) {
+                    case "gun": {
+                        // Equip into the first free primary/secondary slot, or
+                        // replace primary if both are occupied.
+                        const gunDef = def as GunDef;
+                        const primarySlot = this.weapons[GameConfig.WeaponSlot.Primary].type
+                            ? GameConfig.WeaponSlot.Secondary
+                            : GameConfig.WeaponSlot.Primary;
+                        const slot = this.weapons[primarySlot].type
+                            ? GameConfig.WeaponSlot.Primary
+                            : primarySlot;
+                        const ammoStats = this.weaponManager.getAmmoStats(gunDef, msg.giveItem);
+                        this.weaponManager.setWeapon(slot, msg.giveItem, ammoStats.maxClip);
+                        // Fill ammo reserves too.
+                        if (this.invManager.isValid(gunDef.ammo as InventoryItem)) {
+                            this.invManager.give(
+                                gunDef.ammo as InventoryItem,
+                                gunDef.ammoSpawnCount ?? ammoStats.maxClip * 3,
+                            );
+                        }
+                        break;
+                    }
+                    case "melee":
+                        this.weaponManager.setWeapon(GameConfig.WeaponSlot.Melee, msg.giveItem, 0);
+                        break;
+                    case "throwable":
+                    case "ammo":
+                    case "heal":
+                    case "boost":
+                    case "scope":
+                        if (this.invManager.isValid(msg.giveItem)) {
+                            this.invManager.give(msg.giveItem as InventoryItem, count);
+                        }
+                        break;
+                    case "chest":
+                        this.chest = msg.giveItem;
+                        this.setDirty();
+                        break;
+                    case "helmet":
+                        this.helmet = msg.giveItem;
+                        this.setDirty();
+                        break;
+                    case "backpack":
+                        this.backpack = msg.giveItem;
+                        this.setDirty();
+                        break;
+                    default:
+                        // For anything else, drop it as loot on the floor (existing behaviour).
+                        if ("lootImg" in def) {
+                            this.game.lootBarn.addLoot(msg.giveItem, this.pos, this.layer, count, {
+                                pushSpeed: 0,
+                            });
+                        }
+                        break;
+                }
+                this.setDirty();
+                this.game.logger.info(`[cheat] Gave ${count}× ${msg.giveItem} to ${this.name}`);
+            }
+        }
+
+        if (msg.setHealth > 0) {
+            this.health = Math.min(msg.setHealth, this.maxHealth);
+            this.setDirty();
+            this.game.logger.info(`[cheat] Set health=${this.health} for ${this.name}`);
+        }
+
+        if (
+            msg.setWave > 0
+            && this.game.map.specOpsMode
+            && this.game.specOps
+        ) {
+            this.game.specOps.jumpToWave(msg.setWave);
+        }
+        // ────────────────────────────────────────────────────────────────────
     }
 
     doAction(
@@ -5176,9 +5274,9 @@ export class Player extends BaseGameObject {
         // if melee is selected increase speed
         const weaponDef = (GameObjectDefs.typeToDefSafe(this.activeWeapon)
             ?? GameObjectDefs.typeToDef("fists", "melee")) as
-            | GunDef
-            | MeleeDef
-            | ThrowableDef;
+                | GunDef
+                | MeleeDef
+                | ThrowableDef;
         if (this.weaponManager.meleeAttacks.length == 0) {
             let equipSpeed = weaponDef.speed.equip;
             if (this.hasPerk("small_arms") && weaponDef.type == "gun") {

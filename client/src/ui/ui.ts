@@ -4,33 +4,33 @@ import * as PIXI from "pixi.js-legacy";
 import { PingDefs } from "../../../shared/defs/gameObjects/pingDefs.ts";
 import type { RoleDef } from "../../../shared/defs/gameObjects/roleDefs.ts";
 import type { MapDef } from "../../../shared/defs/mapDefs.ts";
+import { formatSpecOpsContractHud } from "../../../shared/defs/maps/specOpsContracts.ts";
 import {
-    SpecOpsAllyRoles,
-    SpecOpsJoinLockFlag,
-    SpecOpsMaxHealth,
-    SpecOpsMaxSupportUnits,
-    SpecOpsShopCatalog,
-    SpecOpsShopBySku,
-    SpecOpsSelfReviveSku,
-    specOpsPerkShopRefund,
-    specOpsShopStationItems,
-    SpecOpsShopRange,
-    SpecOpsStationUnlockWave,
+    parseSpecOpsDifficulty,
     shopApproachBlocked,
+    SpecOpsAllyRoles,
     specOpsBuybackCost,
     specOpsBuybackSku,
     specOpsCanBuySelfRevive,
     specOpsEventBossForWave,
+    SpecOpsJoinLockFlag,
+    SpecOpsMaxHealth,
+    SpecOpsMaxSupportUnits,
+    specOpsPerkShopRefund,
     specOpsScalePrice,
     specOpsSelfReviveAllowed,
     specOpsSelfReviveCost,
-    parseSpecOpsDifficulty,
+    SpecOpsSelfReviveSku,
+    SpecOpsShopBySku,
+    SpecOpsShopCatalog,
+    SpecOpsShopRange,
+    specOpsShopStationItems,
+    type SpecOpsStation,
     specOpsStationFromType,
     specOpsStationUnlocked,
+    SpecOpsStationUnlockWave,
     specOpsUnequipSku,
-    type SpecOpsStation,
 } from "../../../shared/defs/maps/specOpsShop.ts";
-import { formatSpecOpsContractHud } from "../../../shared/defs/maps/specOpsContracts.ts";
 import { GameObjectDefs } from "../../../shared/defs/register.ts";
 import { Action, GameConfig, GasMode, HudTeammateSlots, TeamMode } from "../../../shared/gameConfig.ts";
 import type { PlayerStatsMsg } from "../../../shared/net/playerStatsMsg.ts";
@@ -102,8 +102,9 @@ function ensureTeammateHudSlots(slotCount: number) {
                 clone.setAttribute("data-id", String(i));
                 const color = clone.querySelector(".ui-team-member-color");
                 if (color) {
-                    color.className =
-                        `ui-team-member-color ui-background-${TeammateHudColors[i % TeammateHudColors.length]}`;
+                    color.className = `ui-team-member-color ui-background-${
+                        TeammateHudColors[i % TeammateHudColors.length]
+                    }`;
                 }
                 teamRoot.appendChild(clone);
             }
@@ -120,8 +121,9 @@ function ensureTeammateHudSlots(slotCount: number) {
             clone.setAttribute("data-id", String(i));
             const pos = clone.querySelector(".ui-team-indicator-pos");
             if (pos) {
-                pos.className =
-                    `ui-team-indicator-pos ui-background-${TeammateHudColors[i % TeammateHudColors.length]}`;
+                pos.className = `ui-team-indicator-pos ui-background-${
+                    TeammateHudColors[i % TeammateHudColors.length]
+                }`;
             }
             indicators.appendChild(clone);
         }
@@ -748,9 +750,11 @@ export class UiManager {
     ) {
         if (!this.specOpsMapTargetSku || !this.bigmapDisplayed) return;
         const target = e.target as HTMLElement | null;
-        if (target?.closest?.(
-            "#big-map-close, #ui-menu-display, .ui-settings-button, .ui-game-menu, #ui-esc-menu",
-        )) {
+        if (
+            target?.closest?.(
+                "#big-map-close, #ui-menu-display, .ui-settings-button, .ui-game-menu, #ui-esc-menu",
+            )
+        ) {
             return;
         }
 
@@ -1988,13 +1992,11 @@ export class UiManager {
         );
         const title = specOps
             ? this.localization.translate("game-specops-wait-title")
-            : `${this.localization.translate("game-You")} ${
-                this.localization.translate("game-you-died")
-            }.`;
+            : `${this.localization.translate("game-You")} ${this.localization.translate("game-you-died")}.`;
         const overview = specOps
-            ? `<div class="ui-specops-wait-overview">${
-                this.localization.translate("game-specops-wait-desc")
-            } ${this.localization.translate("game-specops-wait-cost")} $${buybackCost}.</div>`
+            ? `<div class="ui-specops-wait-overview">${this.localization.translate("game-specops-wait-desc")} ${
+                this.localization.translate("game-specops-wait-cost")
+            } $${buybackCost}.</div>`
             : `<div><span class="ui-stats-header-stat">${
                 this.localization.translate("game-kills")
             } </span><span class="ui-stats-header-value">${playerStats.kills}</span></div>`;
@@ -2381,237 +2383,239 @@ export class UiManager {
             this.lastSpecOpsStation = undefined;
             this.lastSpecOpsPerkKey = "";
         } else {
-        const wave = Math.max(this.lastSpecOpsWave, 0);
-        const unlocked = specOpsStationUnlocked(station, wave);
+            const wave = Math.max(this.lastSpecOpsWave, 0);
+            const unlocked = specOpsStationUnlocked(station, wave);
 
-        const titles: Record<SpecOpsStation, string> = {
-            weapon: this.localization.translate("game-specops-buy-weapons"),
-            armor: this.localization.translate("game-specops-buy-armor"),
-            gear: this.localization.translate("game-specops-buy-gear"),
-            support: this.localization.translate("game-specops-buy-support"),
-            perk: this.localization.translate("game-specops-buy-perks"),
-        };
-        this.specOpsShopTitle.text(
-            unlocked
-                ? titles[station]
-                : `${titles[station]} — ${
-                    this.localization.translate("game-specops-locked")
-                } (W${SpecOpsStationUnlockWave[station]})`,
-        );
-
-        const perkKey = player.perks.map((p) => p.type).sort().join(",");
-        if (
-            station !== this.lastSpecOpsStation
-            || deadKey !== this.lastSpecOpsDeadKey
-            || perkKey !== this.lastSpecOpsPerkKey
-        ) {
-            this.lastSpecOpsStation = station;
-            this.lastSpecOpsDeadKey = deadKey;
-            this.lastSpecOpsPerkKey = perkKey;
-            const teamMode = this.game.teamMode;
-            const mapName = this.game.m_map.mapName;
-            const difficulty = this.specOpsDifficulty();
-            const selfReviveCost = specOpsSelfReviveCost(wave, difficulty);
-            const showSelfRevive = specOpsSelfReviveAllowed(difficulty)
-                && specOpsCanBuySelfRevive(player);
-            const ammoItem = SpecOpsShopCatalog.find((item) => item.sku === "specops_ammo");
-            const ammoCost = ammoItem
-                ? specOpsScalePrice(ammoItem.cost, difficulty)
-                : 0;
-            const selfReviveItem = showSelfRevive
-                ? SpecOpsShopCatalog.find((item) => item.sku === SpecOpsSelfReviveSku)
-                : undefined;
-            const items = specOpsShopStationItems(
-                station,
-                teamMode,
-                mapName,
-                player.perks.length,
-                wave,
-                difficulty,
+            const titles: Record<SpecOpsStation, string> = {
+                weapon: this.localization.translate("game-specops-buy-weapons"),
+                armor: this.localization.translate("game-specops-buy-armor"),
+                gear: this.localization.translate("game-specops-buy-gear"),
+                support: this.localization.translate("game-specops-buy-support"),
+                perk: this.localization.translate("game-specops-buy-perks"),
+            };
+            this.specOpsShopTitle.text(
+                unlocked
+                    ? titles[station]
+                    : `${titles[station]} — ${this.localization.translate("game-specops-locked")} (W${
+                        SpecOpsStationUnlockWave[station]
+                    })`,
             );
-            const shopRows: Array<{
-                sku: string;
-                cost: number;
-                label: string;
-                owned?: boolean;
-                refund?: number;
-            }> = [];
-            for (let i = 0; i < deadTeammates.length; i++) {
-                const mate = deadTeammates[i];
-                shopRows.push({
-                    sku: mate.sku,
-                    cost: buybackCost,
-                    label: `${this.localization.translate("game-specops-buyback")} ${mate.name}`,
-                });
-            }
-            for (let i = 0; i < items.length; i++) {
-                const item = items[i];
-                const baseLabel = item.label
-                    || this.localization.translate(`game-hud-${item.sku}`)
-                    || this.localization.translate(`game-${item.sku}`)
-                    || item.sku;
-                const label = item.label
-                    || (item.amount && item.amount > 1
-                        ? `${baseLabel} (x${item.amount})`
-                        : baseLabel);
-                if (station === "perk" && player.m_hasPerk(item.sku)) {
-                    shopRows.push({
-                        sku: specOpsUnequipSku(item.sku),
-                        cost: 0,
-                        label,
-                        owned: true,
-                        refund: specOpsPerkShopRefund(player.perks.length, difficulty),
-                    });
-                } else {
-                    shopRows.push({
-                        sku: item.sku,
-                        cost: item.cost,
-                        label,
-                    });
-                }
-            }
-            // Keep server catalog order (ammo/category groups). Owned perks float to top.
-            shopRows.sort((a, b) => {
-                if (!!a.owned !== !!b.owned) return a.owned ? -1 : 1;
-                return 0;
-            });
-            this.specOpsShopItems.html("");
-            if (!unlocked) {
-                this.specOpsShopItems.append(
-                    $(
-                        `<div class="ui-specops-shop-locked">${
-                            this.localization.translate("game-specops-station-locked-desc")
-                        }</div>`,
-                    ),
+
+            const perkKey = player.perks.map((p) => p.type).sort().join(",");
+            if (
+                station !== this.lastSpecOpsStation
+                || deadKey !== this.lastSpecOpsDeadKey
+                || perkKey !== this.lastSpecOpsPerkKey
+            ) {
+                this.lastSpecOpsStation = station;
+                this.lastSpecOpsDeadKey = deadKey;
+                this.lastSpecOpsPerkKey = perkKey;
+                const teamMode = this.game.teamMode;
+                const mapName = this.game.m_map.mapName;
+                const difficulty = this.specOpsDifficulty();
+                const selfReviveCost = specOpsSelfReviveCost(wave, difficulty);
+                const showSelfRevive = specOpsSelfReviveAllowed(difficulty)
+                    && specOpsCanBuySelfRevive(player);
+                const ammoItem = SpecOpsShopCatalog.find((item) => item.sku === "specops_ammo");
+                const ammoCost = ammoItem
+                    ? specOpsScalePrice(ammoItem.cost, difficulty)
+                    : 0;
+                const selfReviveItem = showSelfRevive
+                    ? SpecOpsShopCatalog.find((item) => item.sku === SpecOpsSelfReviveSku)
+                    : undefined;
+                const items = specOpsShopStationItems(
+                    station,
+                    teamMode,
+                    mapName,
+                    player.perks.length,
+                    wave,
+                    difficulty,
                 );
-            } else {
-                if (ammoItem) {
-                    const label = ammoItem.label
-                        || this.localization.translate(`game-hud-${ammoItem.sku}`)
-                        || ammoItem.sku;
-                    this.specOpsShopItems.append(
-                        $(
-                            `<button type="button" class="ui-specops-shop-row" data-sku="${ammoItem.sku}" data-cost="${ammoCost}"><span class="ui-specops-shop-name">${label}</span><span class="ui-specops-shop-cost">$${ammoCost}</span></button>`,
-                        ),
-                    );
+                const shopRows: Array<{
+                    sku: string;
+                    cost: number;
+                    label: string;
+                    owned?: boolean;
+                    refund?: number;
+                }> = [];
+                for (let i = 0; i < deadTeammates.length; i++) {
+                    const mate = deadTeammates[i];
+                    shopRows.push({
+                        sku: mate.sku,
+                        cost: buybackCost,
+                        label: `${this.localization.translate("game-specops-buyback")} ${mate.name}`,
+                    });
                 }
-                if (selfReviveItem) {
-                    const label = selfReviveItem.label
-                        || this.localization.translate("game-self_revive")
-                        || selfReviveItem.sku;
-                    this.specOpsShopItems.append(
-                        $(
-                            `<button type="button" class="ui-specops-shop-row" data-sku="${selfReviveItem.sku}" data-cost="${selfReviveCost}"><span class="ui-specops-shop-name">${label}</span><span class="ui-specops-shop-cost">$${selfReviveCost}</span></button>`,
-                        ),
-                    );
-                }
-                const sellLabel = this.localization.translate("game-specops-sell");
-                for (let i = 0; i < shopRows.length; i++) {
-                    const row = shopRows[i];
-                    if (row.owned) {
-                        this.specOpsShopItems.append(
-                            $(
-                                `<button type="button" class="ui-specops-shop-row ui-specops-shop-owned" data-sku="${row.sku}" data-cost="0"><span class="ui-specops-shop-name">${row.label}</span><span class="ui-specops-shop-cost">${sellLabel} $${row.refund ?? 0}</span></button>`,
-                            ),
-                        );
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    const baseLabel = item.label
+                        || this.localization.translate(`game-hud-${item.sku}`)
+                        || this.localization.translate(`game-${item.sku}`)
+                        || item.sku;
+                    const label = item.label
+                        || (item.amount && item.amount > 1
+                            ? `${baseLabel} (x${item.amount})`
+                            : baseLabel);
+                    if (station === "perk" && player.m_hasPerk(item.sku)) {
+                        shopRows.push({
+                            sku: specOpsUnequipSku(item.sku),
+                            cost: 0,
+                            label,
+                            owned: true,
+                            refund: specOpsPerkShopRefund(player.perks.length, difficulty),
+                        });
                     } else {
+                        shopRows.push({
+                            sku: item.sku,
+                            cost: item.cost,
+                            label,
+                        });
+                    }
+                }
+                // Keep server catalog order (ammo/category groups). Owned perks float to top.
+                shopRows.sort((a, b) => {
+                    if (!!a.owned !== !!b.owned) return a.owned ? -1 : 1;
+                    return 0;
+                });
+                this.specOpsShopItems.html("");
+                if (!unlocked) {
+                    this.specOpsShopItems.append(
+                        $(
+                            `<div class="ui-specops-shop-locked">${
+                                this.localization.translate("game-specops-station-locked-desc")
+                            }</div>`,
+                        ),
+                    );
+                } else {
+                    if (ammoItem) {
+                        const label = ammoItem.label
+                            || this.localization.translate(`game-hud-${ammoItem.sku}`)
+                            || ammoItem.sku;
                         this.specOpsShopItems.append(
                             $(
-                                `<button type="button" class="ui-specops-shop-row" data-sku="${row.sku}" data-cost="${row.cost}"><span class="ui-specops-shop-name">${row.label}</span><span class="ui-specops-shop-cost">$${row.cost}</span></button>`,
+                                `<button type="button" class="ui-specops-shop-row" data-sku="${ammoItem.sku}" data-cost="${ammoCost}"><span class="ui-specops-shop-name">${label}</span><span class="ui-specops-shop-cost">$${ammoCost}</span></button>`,
                             ),
                         );
                     }
-                }
-                this.specOpsShopItems.off("click touchend").on("click touchend", ".ui-specops-shop-row", (ev) => {
-                    const row = $(ev.currentTarget);
-                    if (row.hasClass("ui-specops-shop-disabled")) return;
-                    const sku = row.attr("data-sku");
-                    if (!sku) return;
-                    // Touch: stop the game stick / touch-area from eating the press.
-                    // Debounce so touchend + synthetic click don't double-buy.
-                    const now = performance.now();
-                    if (now - this.lastSpecOpsShopTapMs < 320) {
+                    if (selfReviveItem) {
+                        const label = selfReviveItem.label
+                            || this.localization.translate("game-self_revive")
+                            || selfReviveItem.sku;
+                        this.specOpsShopItems.append(
+                            $(
+                                `<button type="button" class="ui-specops-shop-row" data-sku="${selfReviveItem.sku}" data-cost="${selfReviveCost}"><span class="ui-specops-shop-name">${label}</span><span class="ui-specops-shop-cost">$${selfReviveCost}</span></button>`,
+                            ),
+                        );
+                    }
+                    const sellLabel = this.localization.translate("game-specops-sell");
+                    for (let i = 0; i < shopRows.length; i++) {
+                        const row = shopRows[i];
+                        if (row.owned) {
+                            this.specOpsShopItems.append(
+                                $(
+                                    `<button type="button" class="ui-specops-shop-row ui-specops-shop-owned" data-sku="${row.sku}" data-cost="0"><span class="ui-specops-shop-name">${row.label}</span><span class="ui-specops-shop-cost">${sellLabel} $${
+                                        row.refund ?? 0
+                                    }</span></button>`,
+                                ),
+                            );
+                        } else {
+                            this.specOpsShopItems.append(
+                                $(
+                                    `<button type="button" class="ui-specops-shop-row" data-sku="${row.sku}" data-cost="${row.cost}"><span class="ui-specops-shop-name">${row.label}</span><span class="ui-specops-shop-cost">$${row.cost}</span></button>`,
+                                ),
+                            );
+                        }
+                    }
+                    this.specOpsShopItems.off("click touchend").on("click touchend", ".ui-specops-shop-row", (ev) => {
+                        const row = $(ev.currentTarget);
+                        if (row.hasClass("ui-specops-shop-disabled")) return;
+                        const sku = row.attr("data-sku");
+                        if (!sku) return;
+                        // Touch: stop the game stick / touch-area from eating the press.
+                        // Debounce so touchend + synthetic click don't double-buy.
+                        const now = performance.now();
+                        if (now - this.lastSpecOpsShopTapMs < 320) {
+                            ev.preventDefault();
+                            ev.stopPropagation();
+                            return;
+                        }
+                        this.lastSpecOpsShopTapMs = now;
                         ev.preventDefault();
                         ev.stopPropagation();
-                        return;
-                    }
-                    this.lastSpecOpsShopTapMs = now;
-                    ev.preventDefault();
-                    ev.stopPropagation();
-                    if (sku === "specops_airstrike" || sku === "specops_carepackage") {
-                        this.beginSpecOpsMapTarget(sku);
-                        return;
-                    }
-                    this.specOpsBuySku = sku;
-                    this.specOpsBuyPos = null;
-                });
-                // Block stick capture while scrolling / tapping the shop panel.
-                this.specOpsShopElem.off("touchstart.specops-shop").on("touchstart.specops-shop", (ev) => {
-                    ev.stopPropagation();
-                });
-                this.specOpsShopItems.off("touchstart.specops-shop").on("touchstart.specops-shop", (ev) => {
-                    ev.stopPropagation();
-                });
+                        if (sku === "specops_airstrike" || sku === "specops_carepackage") {
+                            this.beginSpecOpsMapTarget(sku);
+                            return;
+                        }
+                        this.specOpsBuySku = sku;
+                        this.specOpsBuyPos = null;
+                    });
+                    // Block stick capture while scrolling / tapping the shop panel.
+                    this.specOpsShopElem.off("touchstart.specops-shop").on("touchstart.specops-shop", (ev) => {
+                        ev.stopPropagation();
+                    });
+                    this.specOpsShopItems.off("touchstart.specops-shop").on("touchstart.specops-shop", (ev) => {
+                        ev.stopPropagation();
+                    });
+                }
             }
-        }
 
-        this.specOpsShopItems.children(".ui-specops-shop-row").each((_i, el) => {
-            const row = $(el);
-            const cost = Number(row.data("cost"));
-            const sku = String(row.attr("data-sku") ?? "");
-            const isUnequip = sku.startsWith("specops_unequip_");
-            const selfReviveOwned = sku === SpecOpsSelfReviveSku && player.m_hasPerk("self_revive");
-            let supportBlocked = false;
-            let inventoryFull = false;
-            const catalogItem = SpecOpsShopBySku[sku];
-            if (catalogItem?.fillToMax) {
-                const have = player.m_localData.m_inventory[sku] || 0;
-                const mapBags = map.getMapDef().gameConfig.bagSizes as
-                    | Record<string, number[]>
-                    | undefined;
-                const sizes = mapBags?.[sku] ?? GameConfig.bagSizes[sku as keyof typeof GameConfig.bagSizes];
-                const bagLevel = player.m_getBagLevel();
-                const max = sizes?.[bagLevel] ?? 0;
-                inventoryFull = max > 0 && have >= max;
-            }
-            if (station === "support") {
-                const local = playerBarn.getPlayerInfo(player.__id);
-                let hired = 0;
-                const keys = Object.keys(playerBarn.playerStatus);
-                for (let i = 0; i < keys.length; i++) {
-                    const status = playerBarn.playerStatus[keys[i] as unknown as number];
-                    const playerId = status.playerId ?? Number(keys[i]);
-                    if (playerId === player.__id || status.dead) continue;
-                    const info = playerBarn.getPlayerInfo(playerId);
-                    if (!info || info.teamId !== local.teamId) continue;
-                    if (info.groupId === local.groupId) continue;
-                    // Support drones share teamId but not operator groupId.
-                    // Free glory helpers use fodder names — only count shop units.
-                    const name = (info.name || "").toLowerCase();
-                    const isSentry = name === "sentry";
-                    const isAllyRole = name === "juggernaut"
-                        || (SpecOpsAllyRoles as readonly string[]).some(
-                            (role) => name === role.replace(/_/g, " ") || name === role,
-                        );
-                    if (isSentry || isAllyRole) hired++;
+            this.specOpsShopItems.children(".ui-specops-shop-row").each((_i, el) => {
+                const row = $(el);
+                const cost = Number(row.data("cost"));
+                const sku = String(row.attr("data-sku") ?? "");
+                const isUnequip = sku.startsWith("specops_unequip_");
+                const selfReviveOwned = sku === SpecOpsSelfReviveSku && player.m_hasPerk("self_revive");
+                let supportBlocked = false;
+                let inventoryFull = false;
+                const catalogItem = SpecOpsShopBySku[sku];
+                if (catalogItem?.fillToMax) {
+                    const have = player.m_localData.m_inventory[sku] || 0;
+                    const mapBags = map.getMapDef().gameConfig.bagSizes as
+                        | Record<string, number[]>
+                        | undefined;
+                    const sizes = mapBags?.[sku] ?? GameConfig.bagSizes[sku as keyof typeof GameConfig.bagSizes];
+                    const bagLevel = player.m_getBagLevel();
+                    const max = sizes?.[bagLevel] ?? 0;
+                    inventoryFull = max > 0 && have >= max;
                 }
-                if (
-                    sku === "specops_sentry"
-                    || (SpecOpsAllyRoles as readonly string[]).includes(sku)
-                ) {
-                    supportBlocked = hired >= SpecOpsMaxSupportUnits;
+                if (station === "support") {
+                    const local = playerBarn.getPlayerInfo(player.__id);
+                    let hired = 0;
+                    const keys = Object.keys(playerBarn.playerStatus);
+                    for (let i = 0; i < keys.length; i++) {
+                        const status = playerBarn.playerStatus[keys[i] as unknown as number];
+                        const playerId = status.playerId ?? Number(keys[i]);
+                        if (playerId === player.__id || status.dead) continue;
+                        const info = playerBarn.getPlayerInfo(playerId);
+                        if (!info || info.teamId !== local.teamId) continue;
+                        if (info.groupId === local.groupId) continue;
+                        // Support drones share teamId but not operator groupId.
+                        // Free glory helpers use fodder names — only count shop units.
+                        const name = (info.name || "").toLowerCase();
+                        const isSentry = name === "sentry";
+                        const isAllyRole = name === "juggernaut"
+                            || (SpecOpsAllyRoles as readonly string[]).some(
+                                (role) => name === role.replace(/_/g, " ") || name === role,
+                            );
+                        if (isSentry || isAllyRole) hired++;
+                    }
+                    if (
+                        sku === "specops_sentry"
+                        || (SpecOpsAllyRoles as readonly string[]).includes(sku)
+                    ) {
+                        supportBlocked = hired >= SpecOpsMaxSupportUnits;
+                    }
                 }
-            }
-            row.toggleClass(
-                "ui-specops-shop-disabled",
-                !unlocked
-                    || selfReviveOwned
-                    || inventoryFull
-                    || (!isUnequip && (cash < cost || supportBlocked)),
-            );
-        });
-        this.specOpsShopOpen = true;
-        this.specOpsShopElem.css("display", "block");
+                row.toggleClass(
+                    "ui-specops-shop-disabled",
+                    !unlocked
+                        || selfReviveOwned
+                        || inventoryFull
+                        || (!isUnequip && (cash < cost || supportBlocked)),
+                );
+            });
+            this.specOpsShopOpen = true;
+            this.specOpsShopElem.css("display", "block");
         }
 
         this.lastSpecOpsDeadKey = deadKey;
@@ -2657,7 +2661,9 @@ export class UiManager {
                 : math.clamp(status.health ?? 100, 0, 100);
             const name = helpers.htmlEscape(info.nameTruncated || info.name || "Support");
             rows.push(
-                `<div class="ui-specops-drone${status.dead ? " is-dead" : ""}"><span class="ui-specops-drone-name">${name}</span><div class="ui-specops-drone-bar"><div class="ui-specops-drone-hp" style="width:${hp}%"></div></div></div>`,
+                `<div class="ui-specops-drone${
+                    status.dead ? " is-dead" : ""
+                }"><span class="ui-specops-drone-name">${name}</span><div class="ui-specops-drone-bar"><div class="ui-specops-drone-hp" style="width:${hp}%"></div></div></div>`,
             );
         }
         const html = rows.join("");
@@ -2868,9 +2874,7 @@ export class UiManager {
                         break;
                     }
                     message = this.localization.translate("game-specops-next-wave");
-                    message += ` ${Math.max(Math.floor(timeLeft), 0)} ${
-                        this.localization.translate("game-seconds")
-                    }`;
+                    message += ` ${Math.max(Math.floor(timeLeft), 0)} ${this.localization.translate("game-seconds")}`;
                     message += ` — ${this.localization.translate("game-specops-start-early")}`;
                     break;
                 }

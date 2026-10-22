@@ -2,16 +2,16 @@ import {
     packSpecOpsContractHud,
     pickSpecOpsContractKind,
     pickSpecOpsContractWeapon,
+    specOpsContractCash,
     SpecOpsContractCooldownWaves,
     SpecOpsContractDurationWaves,
     SpecOpsContractHoldRadius,
     SpecOpsContractHoldSeconds,
+    type SpecOpsContractKind,
     SpecOpsContractOfferDelay,
     SpecOpsContractStartWave,
     SpecOpsContractWantedProximity,
     SpecOpsContractWeaponCashMult,
-    specOpsContractCash,
-    type SpecOpsContractKind,
 } from "../../../shared/defs/maps/specOpsContracts.ts";
 import { GameConfig } from "../../../shared/gameConfig.ts";
 import { util } from "../../../shared/utils/util.ts";

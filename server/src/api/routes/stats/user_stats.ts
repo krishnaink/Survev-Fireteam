@@ -7,7 +7,7 @@ import {
     zUserStatsRequest,
 } from "../../../../../shared/types/stats.ts";
 import { databaseEnabledMiddleware, rateLimitMiddleware, validateParams } from "../../auth/middleware.ts";
-import { isMongo, isMysql, sqlLoadoutPlayerIcon, sqlIdent } from "../../db/dialect.ts";
+import { isMongo, isMysql, sqlIdent, sqlLoadoutPlayerIcon } from "../../db/dialect.ts";
 import { db } from "../../db/index.ts";
 import { mongoStore } from "../../db/mongoStore.ts";
 import { matchDataTable, usersTable } from "../../db/schema.ts";

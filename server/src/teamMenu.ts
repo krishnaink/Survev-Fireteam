@@ -2,19 +2,20 @@ import type { Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import type { UpgradeWebSocket, WSContext } from "hono/ws";
 import { randomUUID } from "node:crypto";
+import { parseSpecOpsDifficulty } from "../../shared/defs/maps/specOpsShop.ts";
 import { GameConfig, TeamMode } from "../../shared/gameConfig.ts";
 import type { FindGamePrivateError } from "../../shared/types/api.ts";
 import {
     type ClientRoomData,
     type ClientToServerTeamMsg,
+    normalizeTeamRoomKey,
+    resolveTeamJoinSlot,
     type RoomData,
     type ServerToClientTeamMsg,
     type TeamErrorMsg,
     type TeamMenuErrorType,
     type TeamMenuPlayer,
     type TeamPlayGameMsg,
-    resolveTeamJoinSlot,
-    normalizeTeamRoomKey,
     zTeamClientMsg,
 } from "../../shared/types/team.ts";
 import { assert, util } from "../../shared/utils/util.ts";
@@ -22,19 +23,18 @@ import { getFindGamePlayerData, getHonoIp, verifyTurnsStile } from "./api/apiHel
 import type { ApiServer } from "./api/apiServer.ts";
 import { validateSessionToken } from "./api/auth/index.ts";
 import { hashIp, isBanned } from "./api/routes/private/ModerationRouter.ts";
-import { Config, teamSizeForMode, clampMaxSquadSize } from "./config.ts";
-import { parseSpecOpsDifficulty } from "../../shared/defs/maps/specOpsShop.ts";
-import { validateSquadName, validateUserName } from "./utils/badWords.ts";
-import { ServerLogger } from "./utils/logger.ts";
-import { isBehindProxy } from "./utils/proxyCheck.ts";
-import { HTTPRateLimit, WebSocketRateLimit } from "./utils/rateLimit.ts";
-import type { FindGamePrivateBody } from "./utils/types.ts";
+import { clampMaxSquadSize, Config, teamSizeForMode } from "./config.ts";
 import {
     bindTeamSocketData,
     ensureTeamSocketData,
     getTeamSocketData,
     type TeamSocketState,
 } from "./teamSocketState.ts";
+import { validateSquadName, validateUserName } from "./utils/badWords.ts";
+import { ServerLogger } from "./utils/logger.ts";
+import { isBehindProxy } from "./utils/proxyCheck.ts";
+import { HTTPRateLimit, WebSocketRateLimit } from "./utils/rateLimit.ts";
+import type { FindGamePrivateBody } from "./utils/types.ts";
 
 type SocketData = TeamSocketState<Player>;
 
@@ -283,8 +283,7 @@ class Room {
             : (this.data.endless ?? Config.endless ?? false);
         const squadName = validateSquadName(props.squadName ?? this.data.squadName);
 
-        const unchanged =
-            this.data.region === region
+        const unchanged = this.data.region === region
             && this.data.gameModeIdx === gameModeIdx
             && this.data.maxPlayers === maxPlayers
             && this.data.squadSize === squadSize

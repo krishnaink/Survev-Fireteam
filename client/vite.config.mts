@@ -48,14 +48,12 @@ export default defineConfig(({ mode }) => {
 
     const Config = getConfig(!isDev, "");
 
-    const viteConnect =
-        Config.vite.host === "0.0.0.0" || Config.vite.host === "::"
-            ? "127.0.0.1"
-            : Config.vite.host;
-    const apiConnect =
-        Config.apiServer.host === "0.0.0.0" || Config.apiServer.host === "::"
-            ? "127.0.0.1"
-            : Config.apiServer.host;
+    const viteConnect = Config.vite.host === "0.0.0.0" || Config.vite.host === "::"
+        ? "127.0.0.1"
+        : Config.vite.host;
+    const apiConnect = Config.apiServer.host === "0.0.0.0" || Config.apiServer.host === "::"
+        ? "127.0.0.1"
+        : Config.apiServer.host;
 
     process.env.VITE_TURNSTILE_SCRIPT = "";
     if (Config.secrets.TURNSTILE_SITE_KEY) {

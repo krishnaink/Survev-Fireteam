@@ -43,13 +43,13 @@ export interface RoomData {
 
 /** Room code without a leading `#`. Join URLs, hashes, and WS payloads all use this. */
 export {
-    normalizeTeamRoomKey,
+    applyTeamJoin,
     clientRoomPayload,
     findTeamPlayerReclaimIndex,
+    normalizeTeamRoomKey,
     resolveTeamJoinSlot,
-    applyTeamJoin,
 } from "./teamHelpers.ts";
-export type { TeamPlayerIdentity, TeamJoinIncoming, TeamJoinDecision } from "./teamHelpers.ts";
+export type { TeamJoinDecision, TeamJoinIncoming, TeamPlayerIdentity } from "./teamHelpers.ts";
 
 //
 // Team msgs that the server sends to clients

@@ -1,13 +1,13 @@
+import type { ServerWebSocket } from "bun";
 import fs from "node:fs";
 import { platform } from "node:os";
 import path from "node:path";
-import type { ServerWebSocket } from "bun";
-import { TeamMode } from "../../../shared/gameConfig.ts";
 import { FIRETEAM_VERSION } from "../../../shared/fireteamVersion.ts";
+import { TeamMode } from "../../../shared/gameConfig.ts";
 import type { GameWsDisconnectReason } from "../../../shared/types/api.ts";
 import { Logger } from "../../../shared/utils/logger.ts";
-import { Config } from "../config.ts";
 import { insertLocalMatchData } from "../api/db/localMatchStore.ts";
+import { Config } from "../config.ts";
 import { apiPrivateRouter, checkIp } from "../utils/apiRouter.ts";
 import { resolveFireteamSquadName } from "../utils/badWords.ts";
 import { logErrorToWebhook } from "../utils/logger.ts";
@@ -85,9 +85,11 @@ async function saveGame(gameId: string, values: SaveGameBody["matchData"]) {
     }
 
     // Always push to the API host (master leaderboards / primary DB).
-    let res: Awaited<
-        ReturnType<typeof apiPrivateRouter.save_game.$post>
-    > | undefined = undefined;
+    let res:
+        | Awaited<
+            ReturnType<typeof apiPrivateRouter.save_game.$post>
+        >
+        | undefined = undefined;
     try {
         res = await apiPrivateRouter.save_game.$post({
             json: {
@@ -446,14 +448,16 @@ Bun.serve<GameSocketData>({
 
         gameWsRateLimit.ipConnected(ip);
 
-        if (bunServer.upgrade(req, {
-            data: {
-                rateLimit: {},
-                ip,
-                disconnectReason: undefined,
-                clientSocket: undefined,
-            },
-        })) {
+        if (
+            bunServer.upgrade(req, {
+                data: {
+                    rateLimit: {},
+                    ip,
+                    disconnectReason: undefined,
+                    clientSocket: undefined,
+                },
+            })
+        ) {
             return;
         }
 

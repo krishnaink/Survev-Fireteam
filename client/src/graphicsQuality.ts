@@ -44,7 +44,7 @@ export interface GraphicsOverrides {
 
 const QualityDefaults: Record<
     GraphicsQuality,
-    Omit<GraphicsProfile, "quality" | "renderScale" | "foliageCulling" | "uncapFps" | "highResTex">
+    & Omit<GraphicsProfile, "quality" | "renderScale" | "foliageCulling" | "uncapFps" | "highResTex">
     & { highResTex: boolean }
 > = {
     low: {

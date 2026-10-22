@@ -44,8 +44,7 @@ describe("api URL resolution", () => {
             (globalThis as unknown as { PROXY_DEFS: unknown }).PROXY_DEFS = saved.PROXY_DEFS;
         }
         if (saved.window !== undefined) {
-            (globalThis as unknown as { window: typeof globalThis.window }).window =
-                saved.window;
+            (globalThis as unknown as { window: typeof globalThis.window }).window = saved.window;
         }
     });
 

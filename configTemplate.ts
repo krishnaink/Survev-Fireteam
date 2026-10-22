@@ -1,9 +1,4 @@
-import type {
-    CompactGameModes,
-    InstanceRole,
-    PartialConfig,
-    ServerMode,
-} from "./configType.ts";
+import type { CompactGameModes, InstanceRole, PartialConfig, ServerMode } from "./configType.ts";
 import { TeamMode } from "./shared/gameConfig.ts";
 
 function q(value: string): string {
@@ -242,9 +237,7 @@ export function buildCommentedConfigHjson(
     return `serverMode: ${q(serverMode)}                 // "dev" | "live"
 bind: ${q(bind)}                   // listen host; game nodes often "0.0.0.0"
 advertiseHost: ${q(advertise)}
-${proxyHeader ? `proxyIPHeader: ${q(proxyHeader)}\n` : ""}${
-        extra.length ? `${extra.join("\n")}\n` : ""
-    }
+${proxyHeader ? `proxyIPHeader: ${q(proxyHeader)}\n` : ""}${extra.length ? `${extra.join("\n")}\n` : ""}
 api: {
   enabled: ${bool(apiOn, true)}                     // master matchmaking
   port: ${apiPort}

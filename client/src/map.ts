@@ -20,14 +20,10 @@ import type { Ambiance } from "./ambiance.ts";
 import type { AudioManager } from "./audioManager.ts";
 import type { Camera } from "./camera.ts";
 import type { DebugRenderOpts } from "./config.ts";
-import {
-    expandViewAabb,
-    resolveGraphicsProfile,
-    type GraphicsProfile,
-} from "./graphicsQuality.ts";
 import { renderSpline } from "./debug/debugHelpers.ts";
 import { debugLines } from "./debug/debugLines.ts";
 import { device } from "./device.ts";
+import { expandViewAabb, type GraphicsProfile, resolveGraphicsProfile } from "./graphicsQuality.ts";
 import { Building } from "./objects/building.ts";
 import type { DecalBarn } from "./objects/decal.ts";
 import { Pool } from "./objects/objectPool.ts";

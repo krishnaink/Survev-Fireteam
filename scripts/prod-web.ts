@@ -5,8 +5,8 @@
 import { createReadStream, existsSync, statSync } from "node:fs";
 import http from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { extname, join, normalize } from "node:path";
 import type { Socket } from "node:net";
+import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocket, WebSocketServer } from "ws";
 import { getConfig } from "../config.ts";
@@ -326,9 +326,10 @@ function handleHttp(req: IncomingMessage, res: ServerResponse) {
         proxyGameSession(req, res);
         return;
     }
-    if (url.pathname === "/api" || url.pathname.startsWith("/api/")
-        || url.pathname === "/private" || url.pathname.startsWith("/private/"))
-    {
+    if (
+        url.pathname === "/api" || url.pathname.startsWith("/api/")
+        || url.pathname === "/private" || url.pathname.startsWith("/private/")
+    ) {
         proxyApi(req, res);
         return;
     }

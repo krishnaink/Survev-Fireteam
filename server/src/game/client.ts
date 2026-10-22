@@ -310,11 +310,13 @@ export class ClientBarn {
                 // JSON.stringify doesn't work on buffers, so need to convert to an Uint8Array first
                 // and then to a regular array... 😭
                 // the slice is to make sure it doesn't overflow the error webhook
-                JSON.stringify([...new Uint8Array(
-                    payload instanceof ArrayBuffer
-                        ? payload.slice(0, 255)
-                        : payload.subarray(0, 255),
-                )]),
+                JSON.stringify([
+                    ...new Uint8Array(
+                        payload instanceof ArrayBuffer
+                            ? payload.slice(0, 255)
+                            : payload.subarray(0, 255),
+                    ),
+                ]),
             );
             socket.close("invalid_packet");
             return;

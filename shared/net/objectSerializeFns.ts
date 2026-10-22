@@ -8,8 +8,7 @@ const GameTypeBits = 10;
 const MaxPerks = 64;
 const MaxSerializedPerks = (1 << getBits(MaxPerks)) - 1;
 /** Worst-case player full sync with every optional field and max perks. */
-const PlayerSerializedFullMaxBits =
-    5 * GameTypeBits
+const PlayerSerializedFullMaxBits = 5 * GameTypeBits
     + 2 + 1 + 1
     + getBits(GameConfig.Anim.Count) + 3 + getBits(GameConfig.Action.Count) + 3
     + 3

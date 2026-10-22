@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { buildCommentedConfigHjson } from "./configTemplate.ts";
 import type {
     CompactGameModes,
     ConfigType,
@@ -11,7 +12,6 @@ import type {
     PartialConfig,
     ServerMode,
 } from "./configType.ts";
-import { buildCommentedConfigHjson } from "./configTemplate.ts";
 import { parseSpecOpsDifficulty } from "./shared/defs/maps/specOpsShop.ts";
 import { HudTeammateSlots, TeamMode } from "./shared/gameConfig.ts";
 import { util } from "./shared/utils/util.ts";
@@ -195,10 +195,9 @@ function assertDatabaseEngine(config: ConfigType): void {
     const engine = config.database.engine;
     if (!config.database.enabled) return;
     if (engine === "postgres" || engine === "mariadb" || engine === "mongodb") return;
-    const msg =
-        engine === "sqlite"
-            ? "database.engine 'sqlite' cannot host accounts/stats; set enabled: false for local leaderboard, or engine: postgres|mariadb|mongodb"
-            : `database.engine '${engine}' is not supported`;
+    const msg = engine === "sqlite"
+        ? "database.engine 'sqlite' cannot host accounts/stats; set enabled: false for local leaderboard, or engine: postgres|mariadb|mongodb"
+        : `database.engine '${engine}' is not supported`;
     console.error(msg);
     throw new Error(msg);
 }
@@ -634,8 +633,7 @@ function advertiseHost(fromConfig?: string): string {
             if (net.internal) continue;
             if (net.address.startsWith("169.254.")) continue;
             if (hostOnlyLan.test(net.address)) continue;
-            const lan =
-                net.address.startsWith("192.168.")
+            const lan = net.address.startsWith("192.168.")
                 || net.address.startsWith("10.")
                 || /^172\.(1[6-9]|2\d|3[01])\./.test(net.address);
             (lan ? preferred : others).push(net.address);
@@ -897,8 +895,7 @@ export function getConfig(isProduction: boolean, dir: string) {
 
     if (!config.gameServer.apiServerUrl) {
         if (roleNeedsRemoteApiUrl(config.instanceRole)) {
-            const msg =
-                `game.enabled without api.enabled requires game.apiUrl `
+            const msg = `game.enabled without api.enabled requires game.apiUrl `
                 + `(or apiUrl) pointing at your master API host`;
             console.error(msg);
             throw new Error(msg);
@@ -1003,9 +1000,9 @@ export function getConfig(isProduction: boolean, dir: string) {
     ].filter(Boolean).join("+");
     console.log(
         `Services: ${services || "none"}`
-        + (roleNeedsRemoteApiUrl(config.instanceRole)
-            ? ` (API at ${config.gameServer.apiServerUrl})`
-            : ""),
+            + (roleNeedsRemoteApiUrl(config.instanceRole)
+                ? ` (API at ${config.gameServer.apiServerUrl})`
+                : ""),
     );
 
     return config;

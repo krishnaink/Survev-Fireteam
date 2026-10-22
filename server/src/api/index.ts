@@ -1,16 +1,21 @@
-import { upgradeWebSocket, websocket } from "hono/bun";
 import { Cron } from "croner";
 import { Hono } from "hono";
+import { upgradeWebSocket, websocket } from "hono/bun";
 import { getCookie } from "hono/cookie";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { randomUUID } from "node:crypto";
 import pkgJson from "../../../package.json" with { type: "json" };
-import { type FindGameResponse, type PublicGamesResponse, type SiteInfoRes, zFindGameBody } from "../../../shared/types/api.ts";
+import {
+    type FindGameResponse,
+    type PublicGamesResponse,
+    type SiteInfoRes,
+    zFindGameBody,
+} from "../../../shared/types/api.ts";
 import { Config, loadedConfigPath } from "../config.ts";
+import { appendClientLog, appendClientLogs } from "../utils/clientLogStore.ts";
 import { GIT_VERSION } from "../utils/gitRevision.ts";
 import { logErrorToWebhook } from "../utils/logger.ts";
-import { appendClientLog, appendClientLogs } from "../utils/clientLogStore.ts";
 import { isBehindProxy } from "../utils/proxyCheck.ts";
 import { HTTPRateLimit } from "../utils/rateLimit.ts";
 import { getFindGamePlayerData } from "./apiHelpers.ts";
@@ -18,14 +23,14 @@ import { getHonoIp, verifyTurnsStile } from "./apiHelpers.ts";
 import { server } from "./apiServer.ts";
 import { deleteExpiredSessions, validateSessionToken } from "./auth/index.ts";
 import { rateLimitMiddleware, validateParams } from "./auth/middleware.ts";
+import { initAccountsDatabase } from "./db/index.ts";
+import { backupLocalMatchDatabase, drainLocalMatchStore } from "./db/localMatchStore.ts";
 import type { SessionTableSelect, UsersTableSelect } from "./db/schema.ts";
 import { cleanupOldLogs, isBanned } from "./routes/private/ModerationRouter.ts";
 import { PrivateRouter } from "./routes/private/private.ts";
 import { StatsRouter } from "./routes/stats/StatsRouter.ts";
 import { AuthRouter } from "./routes/user/AuthRouter.ts";
 import { UserRouter } from "./routes/user/UserRouter.ts";
-import { backupLocalMatchDatabase, drainLocalMatchStore } from "./db/localMatchStore.ts";
-import { initAccountsDatabase } from "./db/index.ts";
 
 export type Context = {
     Variables: {

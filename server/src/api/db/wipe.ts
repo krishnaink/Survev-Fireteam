@@ -1,10 +1,10 @@
-import mysql from "mysql2/promise";
 import { MongoClient } from "mongodb";
+import mysql from "mysql2/promise";
 import pg from "pg";
 import { Config } from "../../config.ts";
 
 function pgIdent(id: string) {
-    return `"${String(id).replace(/"/g, '""')}"`;
+    return `"${String(id).replace(/"/g, "\"\"")}"`;
 }
 
 const engine = Config.database.engine;

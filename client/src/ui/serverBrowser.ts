@@ -1,5 +1,5 @@
 import $ from "jquery";
-import { MapDefs, type MapDefKey } from "../../../shared/defs/mapDefs.ts";
+import { type MapDefKey, MapDefs } from "../../../shared/defs/mapDefs.ts";
 import { GameConfig, MapId, TeamMode } from "../../../shared/gameConfig.ts";
 import type { PublicGameInfo, PublicGamesResponse } from "../../../shared/types/api.ts";
 import { api } from "../api.ts";
@@ -73,7 +73,9 @@ export class ServerBrowser {
             })
             .catch(() => {
                 this.list.html(
-                    `<div class="server-browser-empty">${this.localization.translate("index-server-browser-error")}</div>`,
+                    `<div class="server-browser-empty">${
+                        this.localization.translate("index-server-browser-error")
+                    }</div>`,
                 );
             });
     }

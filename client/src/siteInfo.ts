@@ -5,10 +5,7 @@ import type { SiteInfoRes } from "../../shared/types/api.ts";
 import { api } from "./api.ts";
 import type { ConfigManager } from "./config.ts";
 import { device } from "./device.ts";
-import {
-    resolveServerId,
-    serverRegistry,
-} from "./serverRegistry.ts";
+import { resolveServerId, serverRegistry } from "./serverRegistry.ts";
 import type { Localization } from "./ui/localization.ts";
 
 export { defaultServerId, resolveServerId, serverRegistry } from "./serverRegistry.ts";
@@ -38,7 +35,9 @@ export class SiteInfo {
             const name = (data.name && String(data.name).trim())
                 || (data.l10n ? this.localization.translate(data.l10n) : "")
                 || region;
-            const elm = `<option value='${region}' data-l10n='${data.l10n || ""}' data-label='${name}'>${name}</option>`;
+            const elm = `<option value='${region}' data-l10n='${
+                data.l10n || ""
+            }' data-label='${name}'>${name}</option>`;
             mainSelector.append(elm);
             teamSelector.append(elm);
         }
@@ -152,7 +151,9 @@ export class SiteInfo {
                 let sel = root.children(`option[value="${region}"]`);
                 if (!sel.length) {
                     root.append(
-                        `<option value='${region}' data-l10n='${data.l10n || ""}' data-label='${label}'>${label}</option>`,
+                        `<option value='${region}' data-l10n='${
+                            data.l10n || ""
+                        }' data-label='${label}'>${label}</option>`,
                     );
                     sel = root.children(`option[value="${region}"]`);
                 }

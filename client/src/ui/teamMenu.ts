@@ -1,11 +1,6 @@
 import $ from "jquery";
-import {
-    SpecOpsBotDebugMapName,
-} from "../../../shared/defs/maps/specOpsNpcDebug.ts";
-import {
-    SpecOpsMapPool,
-    specOpsMapDisplayName,
-} from "../../../shared/defs/maps/specOpsDefs.ts";
+import { specOpsMapDisplayName, SpecOpsMapPool } from "../../../shared/defs/maps/specOpsDefs.ts";
+import { SpecOpsBotDebugMapName } from "../../../shared/defs/maps/specOpsNpcDebug.ts";
 import { parseSpecOpsDifficulty } from "../../../shared/defs/maps/specOpsShop.ts";
 import { GameConfig, TeamMode } from "../../../shared/gameConfig.ts";
 import * as net from "../../../shared/net/net.ts";
@@ -20,17 +15,17 @@ import type {
 } from "../../../shared/types/team.ts";
 import { clientRoomPayload, normalizeTeamRoomKey } from "../../../shared/types/team.ts";
 import { api } from "../api.ts";
-import { errorLogManager } from "../errorLogs.ts";
 import type { AudioManager } from "../audioManager.ts";
 import type { ConfigManager } from "../config.ts";
+import { device } from "../device.ts";
+import { errorLogManager } from "../errorLogs.ts";
+import { helpers } from "../helpers.ts";
 import {
+    clearTeamLobbySession,
     getActiveMatchSession,
     getRejoinSession,
     saveTeamLobbySession,
-    clearTeamLobbySession,
 } from "../matchRejoin.ts";
-import { device } from "../device.ts";
-import { helpers } from "../helpers.ts";
 import type { PingTest } from "../pingTest.ts";
 import { SDK } from "../sdk/sdk.ts";
 import { resolveServerId, type SiteInfo } from "../siteInfo.ts";
@@ -788,10 +783,11 @@ export class TeamMenu {
     /** Prefer live site_info modes; fall back to Solo/Duo/Squad button index. */
     private resolveRoomTeamMode(): number {
         const mode = this.siteInfo.info.modes?.[this.roomData.gameModeIdx];
-        if (mode?.teamMode === TeamMode.Solo
+        if (
+            mode?.teamMode === TeamMode.Solo
             || mode?.teamMode === TeamMode.Duo
-            || mode?.teamMode === TeamMode.Squad)
-        {
+            || mode?.teamMode === TeamMode.Squad
+        ) {
             return mode.teamMode;
         }
         if (this.roomData.gameModeIdx === 1) return TeamMode.Duo;

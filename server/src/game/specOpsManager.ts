@@ -1,17 +1,18 @@
 import type { GunDef } from "../../../shared/defs/gameObjects/gunDefs.ts";
 import { SpecOpsEnemyClasses } from "../../../shared/defs/maps/specOpsNpcDebug.ts";
 import {
+    isSpecOpsArmorSatchel,
     parseSpecOpsDifficulty,
     shopApproachBlocked,
     specOpsAllyDamageMult,
     specOpsAllyHealth,
     SpecOpsAllyRoles,
-    SpecOpsArmorSatchelGear,
     SpecOpsArmorSatchelCosts,
-    isSpecOpsArmorSatchel,
+    SpecOpsArmorSatchelGear,
     SpecOpsBuybackArmor,
     specOpsBuybackCost,
     specOpsBuybackSlot,
+    specOpsCanBuySelfRevive,
     SpecOpsCashCap,
     type SpecOpsDifficulty,
     specOpsDifficultyMods,
@@ -21,39 +22,38 @@ import {
     specOpsEnemyHealth,
     specOpsEventBossForWave,
     SpecOpsEventBossRotation,
-    SpecOpsEventMiniBossRotation,
     specOpsEventMiniBossForWave,
+    SpecOpsEventMiniBossRotation,
     SpecOpsFinalWave,
     SpecOpsHelperGroupSize,
     SpecOpsHelperInterval,
     SpecOpsHelpersPerWave,
     SpecOpsHelperStartWave,
+    SpecOpsIroncladCrawlSeconds,
+    SpecOpsIroncladMirvCount,
+    SpecOpsIroncladPerPlayer,
+    SpecOpsIroncladWave,
     SpecOpsJoinLockFlag,
     SpecOpsJoinLockWave,
     SpecOpsKillBounty,
     SpecOpsMaxArmor,
     SpecOpsMaxPerks,
     SpecOpsMaxSupportUnits,
-    SpecOpsSentryClip,
     SpecOpsReviveHealth,
-    SpecOpsSelfReviveSku,
-    specOpsCanBuySelfRevive,
+    specOpsScalePrice,
     specOpsSelfReviveAllowed,
     specOpsSelfReviveCost,
+    SpecOpsSelfReviveSku,
+    SpecOpsSentryClip,
     SpecOpsSentryLifetime,
     SpecOpsShopBySku,
-    specOpsShopItemCost,
     specOpsShopItemAvailable,
+    specOpsShopItemCost,
     SpecOpsShopRange,
-    SpecOpsIroncladMirvCount,
-    SpecOpsIroncladPerPlayer,
-    SpecOpsIroncladCrawlSeconds,
-    SpecOpsIroncladWave,
-    specOpsScalePrice,
     specOpsStartingArmor,
     specOpsStartingCash,
-    specOpsStartingWave,
     SpecOpsStartingHealth,
+    specOpsStartingWave,
     type SpecOpsStation,
     specOpsStationFromType,
     SpecOpsStationMarkerTypes,
@@ -64,9 +64,9 @@ import {
 } from "../../../shared/defs/maps/specOpsShop.ts";
 import { GameObjectDefs, MapObjectDefs } from "../../../shared/defs/register.ts";
 import type { ObstacleDef } from "../../../shared/defs/types/obstacle.ts";
-import { GameConfig, TeamMode, type InventoryItem } from "../../../shared/gameConfig.ts";
+import { GameConfig, type InventoryItem, TeamMode } from "../../../shared/gameConfig.ts";
 import { ObjectType } from "../../../shared/net/objectSerializeFns.ts";
-import { coldet, type AABB } from "../../../shared/utils/coldet.ts";
+import { type AABB, coldet } from "../../../shared/utils/coldet.ts";
 import { collider } from "../../../shared/utils/collider.ts";
 import { collisionHelpers } from "../../../shared/utils/collisionHelpers.ts";
 import { mapHelpers } from "../../../shared/utils/mapHelpers.ts";
@@ -80,8 +80,8 @@ import type { Building } from "./objects/building.ts";
 import type { Obstacle } from "./objects/obstacle.ts";
 import type { Player } from "./objects/player.ts";
 import type { Structure } from "./objects/structure.ts";
-import { inferGroundLayer, MapNavGraph, navGroundLayer, stairAtPos } from "./specOpsNav.ts";
 import { SpecOpsContractRunner } from "./specOpsContracts.ts";
+import { inferGroundLayer, MapNavGraph, navGroundLayer, stairAtPos } from "./specOpsNav.ts";
 
 export type SpecOpsKind = "enemy" | "ally" | "sentry";
 
@@ -6172,6 +6172,32 @@ export class SpecOpsManager {
             this.spawnWaveBatch(999);
         }
         this.waveSpawnComplete = true;
+    }
+
+    /**
+     * Debug cheat: jump directly to wave `targetWave` (1–30).
+     * Kills all living enemies, resets wave state, and launches the new wave.
+     * Safe to call at any phase (prep, intermission, or mid-combat).
+     */
+    jumpToWave(targetWave: number): void {
+        const clamped = Math.max(1, Math.min(30, Math.floor(targetWave)));
+
+        // Kill all living AI enemies so the new wave can start clean.
+        for (const [player] of this.brains) {
+            if (!player.dead && player.specOpsAi && player.specOpsKind === "enemy") {
+                this.toRemove.push(player);
+            }
+        }
+
+        // Set wave to clamped - 1 so startWave() increments to the right value.
+        this.wave = clamped - 1;
+        this.phase = "intermission"; // startWave() needs any non-combat phase
+
+        // Cancel any pending glory wipe state.
+        this.gloryWipeActive = false;
+
+        this.startWave();
+        this.game.logger.info(`[cheat] Jumped to wave ${this.wave}`);
     }
 
     private enqueueWaveSpawn(

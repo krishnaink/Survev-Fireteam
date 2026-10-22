@@ -1,8 +1,8 @@
+import type { ServerWebSocket } from "bun";
 import { Cron } from "croner";
 import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { ServerWebSocket } from "bun";
 import pkgJson from "../../package.json" with { type: "json" };
 import { GameConfig } from "../../shared/gameConfig.ts";
 import { Config, loadedConfigPath, teamSizeForMode } from "./config.ts";
@@ -82,12 +82,12 @@ class GameServer {
         };
     }
 
-/**
- * Prove we share secrets.SURVEV_API_KEY with the API host, then register this
- * node for the Server dropdown. Listing is heartbeat-based (update_region);
- * the master does not probe this host until a player actually find_game's here.
- */
-async handshakeWithApi(): Promise<boolean> {
+    /**
+     * Prove we share secrets.SURVEV_API_KEY with the API host, then register this
+     * node for the Server dropdown. Listing is heartbeat-based (update_region);
+     * the master does not probe this host until a player actually find_game's here.
+     */
+    async handshakeWithApi(): Promise<boolean> {
         if (!isApiKeyConfigured(Config.secrets.SURVEV_API_KEY)) {
             this.linkedToApi = false;
             if (!this.handshakeFailLogged) {
@@ -251,9 +251,11 @@ async handshakeWithApi(): Promise<boolean> {
 
         this.logger.info(`${games.length} lost games found, trying to save...`);
 
-        let res: Awaited<
-            ReturnType<typeof apiPrivateRouter.save_game.$post>
-        > | undefined = undefined;
+        let res:
+            | Awaited<
+                ReturnType<typeof apiPrivateRouter.save_game.$post>
+            >
+            | undefined = undefined;
         try {
             res = await apiPrivateRouter.save_game.$post({
                 json: {

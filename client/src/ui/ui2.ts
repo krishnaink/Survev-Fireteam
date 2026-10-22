@@ -12,11 +12,7 @@ import type { MeleeDef } from "../../../shared/defs/gameObjects/meleeDefs.ts";
 import type { RoleDef } from "../../../shared/defs/gameObjects/roleDefs.ts";
 
 import type { ObstacleDef } from "../../../shared/defs/mapObjectsTyping.ts";
-import {
-    SpecOpsMaxArmor,
-    SpecOpsMaxHealth,
-    SpecOpsMaxPerks,
-} from "../../../shared/defs/maps/specOpsShop.ts";
+import { SpecOpsMaxArmor, SpecOpsMaxHealth, SpecOpsMaxPerks } from "../../../shared/defs/maps/specOpsShop.ts";
 import { GameObjectDefs, MapObjectDefs } from "../../../shared/defs/register.ts";
 import { Action, DamageType, GameConfig, Input, type InventoryItem } from "../../../shared/gameConfig.ts";
 import { PickupMsgType } from "../../../shared/net/net.ts";
@@ -440,7 +436,7 @@ export class UiManager2 {
                 perk.id = `ui-perk-${i}`;
                 perk.className = "ui-perk-slot tooltip-perk ui-outline-hover";
                 perk.innerHTML =
-                    '<div class="tooltip-text"><div class="tooltip-title"></div><div class="tooltip-desc"></div></div><img class="ui-perk-image ui-loot-image" src="">';
+                    "<div class=\"tooltip-text\"><div class=\"tooltip-title\"></div><div class=\"tooltip-desc\"></div></div><img class=\"ui-perk-image ui-loot-image\" src=\"\">";
                 perkContainer.appendChild(perk);
             }
             const perkData = {

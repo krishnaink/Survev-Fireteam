@@ -1,13 +1,13 @@
 import type { GunDef } from "../../../shared/defs/gameObjects/gunDefs.ts";
 import type { MeleeDef } from "../../../shared/defs/gameObjects/meleeDefs.ts";
 import { PerkProperties } from "../../../shared/defs/gameObjects/perkDefs.ts";
+import { type ThrowableDef, ThrowableDefs } from "../../../shared/defs/gameObjects/throwableDefs.ts";
 import {
-    specOpsWeaponAmmoStats,
-    specOpsWeaponReloadTime,
     SpecOpsSentryClip,
     SpecOpsSentryReloadTime,
+    specOpsWeaponAmmoStats,
+    specOpsWeaponReloadTime,
 } from "../../../shared/defs/maps/specOpsShop.ts";
-import { type ThrowableDef, ThrowableDefs } from "../../../shared/defs/gameObjects/throwableDefs.ts";
 import { GameObjectDefs } from "../../../shared/defs/register.ts";
 import { GameConfig, type InventoryItem, WeaponSlot } from "../../../shared/gameConfig.ts";
 import * as net from "../../../shared/net/net.ts";

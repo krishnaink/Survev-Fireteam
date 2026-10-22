@@ -32,6 +32,17 @@ export class EditMsg implements AbstractMsg {
     /** Debug: Spec Ops enemies ignore human operators as targets. */
     npcIgnoreOperators = false;
 
+    // ── Cheat panel ──────────────────────────────────────────────────────────
+    /** Item type string to give directly to the player's inventory / weapon slots. */
+    giveItem = "";
+    /** How many to give (clamped 1–999 server-side). */
+    giveItemCount = 1;
+    /** Jump to this Spec Ops wave (0 = no change, 1–30 valid). */
+    setWave = 0;
+    /** Set player health to this value (0 = no change, >0 valid). */
+    setHealth = 0;
+    // ─────────────────────────────────────────────────────────────────────────
+
     serialize(s: BitStream) {
         s.writeBoolean(this.zoomEnabled);
         if (this.zoomEnabled) {
@@ -76,6 +87,12 @@ export class EditMsg implements AbstractMsg {
         }
 
         s.writeBoolean(this.npcIgnoreOperators);
+
+        // Cheat fields (appended after all legacy fields — always written)
+        s.writeGameType(this.giveItem);
+        s.writeUint16(Math.max(0, Math.min(999, this.giveItemCount)));
+        s.writeUint8(Math.max(0, Math.min(30, this.setWave)));
+        s.writeUint16(Math.max(0, Math.min(65535, this.setHealth)));
     }
 
     deserialize(s: BitStream) {
@@ -126,5 +143,11 @@ export class EditMsg implements AbstractMsg {
         }
 
         this.npcIgnoreOperators = s.readBoolean();
+
+        // Cheat fields
+        this.giveItem = s.readGameType();
+        this.giveItemCount = s.readUint16();
+        this.setWave = s.readUint8();
+        this.setHealth = s.readUint16();
     }
 }
