@@ -961,7 +961,8 @@ export class Application {
             region,
             zones,
             playerCount: 1,
-            autoFill: false,
+            //does not turn off autofill (allow new player to join from browse)
+            autoFill: true,
             gameModeIdx: this.quickPlayPendingModeIdx,
             gameId: game.gameId,
         };
