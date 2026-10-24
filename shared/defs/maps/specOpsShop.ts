@@ -234,8 +234,9 @@ export const SpecOpsBuybackArmor = 50;
 export const SpecOpsBuybackBaseCost = 1500;
 export const SpecOpsBuybackWaveCost = 250;
 export const SpecOpsBuybackPrefix = "specops_buyback_";
-/** Empty squad seats stay fillable through prep and waves 1–9. Wave 10 locks the lobby. */
-export const SpecOpsJoinLockWave = 10;
+
+
+
 /** Packed into the Spec Ops HUD wave id so clients can show lobby lock state. */
 export const SpecOpsJoinLockFlag = 0x8000;
 

@@ -33,7 +33,6 @@ import {
     SpecOpsHelperGroupSize,
     SpecOpsHelpersPerWave,
     SpecOpsJoinLockFlag,
-    SpecOpsJoinLockWave,
     specOpsKillBountyAmount,
     SpecOpsMaxPerks,
     SpecOpsMaxSupportUnits,
@@ -3108,7 +3107,7 @@ test("Spec Ops duo keeps joining open until both operators are in", () => {
     expect(game.specOps!.humanCount).toBe(1);
     expect(game.canJoin).toBe(true);
 
-    game.specOps!.wave = SpecOpsJoinLockWave - 1;
+    game.specOps!.wave = 15;
     expect(game.specOps!.allowJoin).toBe(true);
     expect(game.canJoin).toBe(true);
 
@@ -3121,25 +3120,24 @@ test("Spec Ops duo keeps joining open until both operators are in", () => {
     expect(ops[0].teamId).toBe(ops[1].teamId);
 });
 
-test("Spec Ops locks empty squad seats after wave 10", () => {
+test("Spec Ops Fill matches keep empty squad seats open at any wave", () => {
     const game = createGame(TeamMode.Squad, "test_specops");
     game.playerBarn.addTestPlayer({ name: "Op0" });
     game.update(0.1);
     expect(game.specOps!.operatorCount).toBe(1);
     expect(game.canJoin).toBe(true);
 
-    game.specOps!.wave = SpecOpsJoinLockWave - 1;
-    expect(game.specOps!.allowJoin).toBe(true);
-    expect(game.canJoin).toBe(true);
-
-    game.specOps!.wave = SpecOpsJoinLockWave;
-    expect(game.specOps!.allowJoin).toBe(false);
-    expect(game.canJoin).toBe(false);
+    for (const wave of [9, 10, 25]) {
+        game.specOps!.wave = wave;
+        expect(game.specOps!.allowJoin).toBe(true);
+        expect(game.specOps!.browsable).toBe(true);
+        expect(game.canJoin).toBe(true);
+    }
 
     game.addJoinTokens([
         { token: "late", userId: null, ip: "127.0.0.1" },
     ], true);
-    expect(game.pendingJoinTokens()).toBe(0);
+    expect(game.pendingJoinTokens()).toBe(1);
 });
 
 test("Spec Ops players can lock the lobby with L so no one else can join", () => {
@@ -3169,14 +3167,26 @@ test("Spec Ops players can lock the lobby with L so no one else can join", () =>
     expect(game.specOps!.joinLocked).toBe(true);
 });
 
-test("Spec Ops lobby lock does nothing after wave 10 already locked the match", () => {
+test("Spec Ops lobby lock still works at late waves", () => {
     const game = createGame(TeamMode.Squad, "test_specops");
     const player = game.playerBarn.addTestPlayer({ name: "Op0" });
     game.update(0.1);
-    game.specOps!.wave = SpecOpsJoinLockWave;
-    expect(game.specOps!.tryLockJoin(player)).toBe(false);
-    expect(game.specOps!.joinLocked).toBe(false);
+    game.specOps!.wave = 25;
+    expect(game.canJoin).toBe(true);
+    expect(game.specOps!.tryLockJoin(player)).toBe(true);
+    expect(game.specOps!.joinLocked).toBe(true);
+    expect(game.specOps!.browsable).toBe(false);
     expect(game.canJoin).toBe(false);
+});
+
+test("Spec Ops reconnect tokens work at late waves", () => {
+    const game = createGame(TeamMode.Squad, "test_specops");
+    const player = game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+    game.specOps!.wave = 25;
+    player.client.disconnected = true;
+    game.update(0.05);
+    expect(game.specOps!.allowReconnectTokens).toBe(true);
 });
 
 test("Spec Ops dead operators still occupy a squad seat", () => {

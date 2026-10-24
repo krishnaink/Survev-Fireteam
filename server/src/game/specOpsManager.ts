@@ -34,7 +34,6 @@ import {
     SpecOpsIroncladPerPlayer,
     SpecOpsIroncladWave,
     SpecOpsJoinLockFlag,
-    SpecOpsJoinLockWave,
     SpecOpsKillBounty,
     SpecOpsMaxArmor,
     SpecOpsMaxPerks,
@@ -5747,17 +5746,16 @@ export class SpecOpsManager {
 
     get allowJoin(): boolean {
         if (this.game.over) return false;
+        // Fill matches stay open at every wave; only L / No Fill closes them.
         if (this.joinLocked) return false;
-        // After wave 5 the match is locked — empty seats are no longer fillable.
-        if (this.wave >= SpecOpsJoinLockWave) return false;
         if (this.game.started && this.operatorCount <= 0) return false;
-        if (
-            this.game.started
+        if (this.game.started
             && !this.game.map.specOpsBotArena
-            && this.allConnectedHumansIdle()
-        ) {
+            && this.allConnectedHumansIdle()) {
+            
             return false;
         }
+
         return this.operatorCount + this.game.pendingJoinTokens() < this.game.maxTeamSize;
     }
 
@@ -5765,7 +5763,6 @@ export class SpecOpsManager {
     get browsable(): boolean {
         if (this.game.over) return false;
         if (this.joinLocked) return false;
-        if (this.wave >= SpecOpsJoinLockWave) return false;
         if (this.game.started && this.operatorCount <= 0) return false;
         return this.operatorCount + this.game.pendingJoinTokens() < this.game.maxTeamSize;
     }
@@ -5777,9 +5774,9 @@ export class SpecOpsManager {
      */
     get allowReconnectTokens(): boolean {
         if (!this.game.started || this.game.over) return false;
-        if (this.wave >= SpecOpsJoinLockWave) return false;
         return this.reclaimableHumanCount() > 0;
     }
+    
 
     disconnectedHumanCount(): number {
         const players = this.game.playerBarn.players;
@@ -5870,7 +5867,6 @@ export class SpecOpsManager {
     /** Lock empty seats so randoms cannot join. Used by No Fill lobbies and the L key. */
     lockJoin(): boolean {
         if (this.joinLocked) return false;
-        if (this.wave >= SpecOpsJoinLockWave) return false;
         this.joinLocked = true;
         this.hudDirty = true;
         this.game.updateData();
@@ -6278,9 +6274,7 @@ export class SpecOpsManager {
         this.game.gas.clearSpecOpsCountdown();
         this.game.logger.info(`Spec Ops wave ${this.wave}`);
         this.buffLivingSupport();
-        if (this.wave === SpecOpsJoinLockWave) {
-            this.game.updateData();
-        }
+
 
         const humans = this.livingHumans();
         let roster = composeWave(this.wave, humans.length, this.difficulty);
