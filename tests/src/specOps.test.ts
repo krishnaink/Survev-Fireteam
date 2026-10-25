@@ -23,15 +23,20 @@ import {
     SpecOpsArmorSatchelCosts,
     SpecOpsArmorSatchelGear,
     SpecOpsArmorSatchelSkus,
+    SpecOpsBreakFlag,
+    SpecOpsBreakTime,
+    specOpsBreakVotesNeeded,
     SpecOpsBuyablePerks,
     specOpsBuybackCost,
     specOpsBuybackSku,
     specOpsCanBuySelfRevive,
+    specOpsDifficultyMods,
     specOpsEarlyStartBonus,
     specOpsEnemyGear,
     specOpsEnemyHealth,
     SpecOpsHelperGroupSize,
     SpecOpsHelpersPerWave,
+    specOpsIsBreakWave,
     SpecOpsJoinLockFlag,
     specOpsKillBountyAmount,
     SpecOpsMaxPerks,
@@ -54,6 +59,8 @@ import {
     specOpsStationFromType,
     SpecOpsTargetingBountyMult,
     specOpsUnequipSku,
+    specOpsUnpackBreakVotes
+
 } from "../../shared/defs/maps/specOpsShop.ts";
 import { GameObjectDefs } from "../../shared/defs/register.ts";
 import { GameConfig, GasMode, TeamMode } from "../../shared/gameConfig.ts";
@@ -5114,4 +5121,147 @@ test("Spec Ops kill counter serializes past 255 kills", () => {
     const decoded = new KillMsg();
     decoded.deserialize(stream);
     expect(decoded.killerKills).toBe(300);
+});
+
+
+
+function clearSpecOpsWave(
+    game: import("../../server/src/game/game.ts").Game,
+    killer: import("../../server/src/game/objects/player.ts").Player,
+) {
+    game.specOps!.drainWaveSpawnQueuePublic();
+    const enemies = game.playerBarn.livingPlayers.filter((p) => p.specOpsAi);
+    for (const enemy of enemies) {
+        enemy.damage({
+            amount: 9999,
+            damageType: GameConfig.DamageType.Player,
+            dir: v2.create(1, 0),
+            source: killer,
+        });
+    }
+    game.update(0.05);
+}
+
+test("Spec Ops break votes need more than half of the living operators", () => {
+    expect(specOpsBreakVotesNeeded(1)).toBe(1);
+    expect(specOpsBreakVotesNeeded(2)).toBe(2);
+    expect(specOpsBreakVotesNeeded(3)).toBe(2);
+    expect(specOpsBreakVotesNeeded(4)).toBe(3);
+});
+
+test("Spec Ops long breaks start at wave 15", () => {
+    expect([5, 10, 14, 16].map(specOpsIsBreakWave)).toEqual([false, false, false, false]);
+    expect([15, 20, 25, 30].map(specOpsIsBreakWave)).toEqual([true, true, true, true]);
+});
+
+test("Spec Ops long break follows every 5th wave", () => {
+    const game = createGame(TeamMode.Solo, "test_specops", { endless: false });
+    const player = game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+
+    game.specOps!.wave = 3;
+    game.specOps!.phase = "intermission";
+    beginSpecOpsWave(game, true);
+    expect(game.specOps!.wave).toBe(4);
+    clearSpecOpsWave(game, player);
+    expect(game.specOps!.phase).toBe("intermission");
+    expect(game.specOps!.onBreak).toBe(false);
+    expect(game.specOps!.phaseDuration).toBeLessThan(SpecOpsBreakTime);
+
+    beginSpecOpsWave(game, true);
+    expect(game.specOps!.wave).toBe(5);
+    clearSpecOpsWave(game, player);
+    expect(game.specOps!.phase).toBe("intermission");
+    expect(game.specOps!.onBreak).toBe(true);
+    expect(game.specOps!.phaseDuration).toBe(SpecOpsBreakTime);
+    expect(game.specOps!.hudWaveId & SpecOpsBreakFlag).toBe(SpecOpsBreakFlag);
+    expect(game.specOps!.allConnectedHumansIdle()).toBe(false);
+
+    // The timer running out still starts the next wave and ends the break.
+    game.update(SpecOpsBreakTime + 1);
+    expect(game.specOps!.phase).toBe("combat");
+    expect(game.specOps!.wave).toBe(6);
+    expect(game.specOps!.onBreak).toBe(false);
+});
+
+test("Spec Ops break length scales with difficulty", () => {
+    const game = createGame(TeamMode.Solo, "test_specops", {
+        endless: false,
+        difficulty: "veteran",
+    });
+    const player = game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+    game.specOps!.wave = 4;
+    game.specOps!.phase = "intermission";
+    beginSpecOpsWave(game, true);
+    clearSpecOpsWave(game, player);
+    expect(game.specOps!.onBreak).toBe(true);
+    expect(game.specOps!.phaseDuration).toBeCloseTo(
+        SpecOpsBreakTime * specOpsDifficultyMods("veteran").intermission,
+    );
+});
+
+test("Spec Ops solo break skip pays no more than a normal shop's bonus", () => {
+    const game = createGame(TeamMode.Solo, "test_specops", { endless: false });
+    const player = game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+    game.specOps!.wave = 4;
+    game.specOps!.phase = "intermission";
+    beginSpecOpsWave(game, true);
+    clearSpecOpsWave(game, player);
+    expect(game.specOps!.onBreak).toBe(true);
+    game.specOps!.shopSkipLock = 0;
+
+    const cash = player.specOpsCash;
+    const cap = specOpsEarlyStartBonus(game.specOps!.breakBonusSeconds);
+    expect(game.specOps!.tryStartWaveEarly(player)).toBe(true);
+    expect(game.specOps!.phase).toBe("combat");
+    expect(game.specOps!.wave).toBe(6);
+    expect(player.specOpsCash - cash).toBe(cap);
+    expect(cap).toBeLessThan(specOpsEarlyStartBonus(SpecOpsBreakTime));
+});
+
+test("Spec Ops squad break ends early only on a majority vote", () => {
+    const game = createGame(TeamMode.Squad, "test_specops", { endless: false });
+    const alpha = game.playerBarn.addTestPlayer({ name: "Alpha" });
+    game.update(0.1);
+    const bravo = game.playerBarn.addTestPlayer({ name: "Bravo", group: alpha.group });
+    game.update(0.1);
+    const charlie = game.playerBarn.addTestPlayer({ name: "Charlie", group: alpha.group });
+    game.update(0.1);
+    expect(game.specOps!.livingHumans().length).toBe(3);
+
+    game.specOps!.wave = 4;
+    game.specOps!.phase = "intermission";
+    beginSpecOpsWave(game, true);
+    clearSpecOpsWave(game, alpha);
+    expect(game.specOps!.onBreak).toBe(true);
+    game.specOps!.shopSkipLock = 0;
+
+    expect(game.specOps!.tryStartWaveEarly(alpha)).toBe(true);
+    expect(game.specOps!.phase).toBe("intermission");
+    expect(specOpsUnpackBreakVotes(game.specOps!.hudCounter)).toEqual({ ready: 1, needed: 2 });
+
+    // Voting twice does not count twice.
+    expect(game.specOps!.tryStartWaveEarly(alpha)).toBe(false);
+    expect(game.specOps!.phase).toBe("intermission");
+
+    expect(game.specOps!.tryStartWaveEarly(bravo)).toBe(true);
+    expect(game.specOps!.phase).toBe("combat");
+    expect(game.specOps!.wave).toBe(6);
+    expect(game.specOps!.onBreak).toBe(false);
+    expect(charlie.dead).toBe(false);
+});
+
+test("Spec Ops Endless mode has no long break", () => {
+    const game = createGame(TeamMode.Solo, "test_specops", { endless: true });
+    const player = game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+    game.specOps!.wave = 4;
+    game.specOps!.phase = "intermission";
+    beginSpecOpsWave(game, true);
+    clearSpecOpsWave(game, player);
+    expect(game.specOps!.onBreak).toBe(false);
+    expect(game.specOps!.phase).toBe("combat");
+    expect(game.specOps!.wave).toBe(6);
 });

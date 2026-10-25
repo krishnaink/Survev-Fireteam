@@ -9,6 +9,9 @@ import {
     SpecOpsAllyRoles,
     SpecOpsArmorSatchelCosts,
     SpecOpsArmorSatchelGear,
+    SpecOpsBreakFlag,
+    SpecOpsBreakTime,
+    specOpsBreakVotesNeeded,
     SpecOpsBuybackArmor,
     specOpsBuybackCost,
     specOpsBuybackSlot,
@@ -30,6 +33,7 @@ import {
     SpecOpsHelpersPerWave,
     SpecOpsHelperStartWave,
     SpecOpsIroncladCrawlSeconds,
+    specOpsIsBreakWave,
     SpecOpsIroncladMirvCount,
     SpecOpsIroncladPerPlayer,
     SpecOpsIroncladWave,
@@ -38,6 +42,7 @@ import {
     SpecOpsMaxArmor,
     SpecOpsMaxPerks,
     SpecOpsMaxSupportUnits,
+    specOpsPackBreakVotes,
     SpecOpsReviveHealth,
     specOpsScalePrice,
     specOpsSelfReviveAllowed,
@@ -60,6 +65,7 @@ import {
     specOpsStationUnlocked,
     specOpsUnequipPerk,
     specOpsWaveBonus,
+    
 } from "../../../shared/defs/maps/specOpsShop.ts";
 import { GameObjectDefs, MapObjectDefs } from "../../../shared/defs/register.ts";
 import type { ObstacleDef } from "../../../shared/defs/types/obstacle.ts";
@@ -5362,6 +5368,13 @@ export class SpecOpsManager {
     phaseDuration = PrepTime;
     hudDirty = true;
     joinLocked = false;
+    /** True while the long break after every 5th wave is running. */
+    onBreak = false;
+    /** Player ids that voted to end the current break early. */
+    readonly breakVotes = new Set<number>();
+    /** Early-start cash is paid on at most this many seconds during a break. */
+    breakBonusSeconds = 0;
+    private lastBreakVoteCode = -1;
     abandonedTicker = 0;
     difficulty: SpecOpsDifficulty = "regular";
     endless = false;
@@ -5818,6 +5831,9 @@ export class SpecOpsManager {
 
     allConnectedHumansIdle(): boolean {
         if (this.operatorCount <= 0) return false;
+        // Stepping away is the point of a break; don't close the match for it.
+        if (this.onBreak) return false;
+
         const now = this.game.now;
         if (!now) return false;
         const idleMs = SpecOpsIdleTimeout * 1000;
@@ -5854,8 +5870,57 @@ export class SpecOpsManager {
         this.game.updateData();
     }
 
-    get hudWaveId(): number {
-        return this.wave | (this.joinLocked ? SpecOpsJoinLockFlag : 0);
+        get hudWaveId(): number {
+        return this.wave
+            | (this.joinLocked ? SpecOpsJoinLockFlag : 0)
+            | (this.onBreak ? SpecOpsBreakFlag : 0);
+    }
+
+    /** HUD counter: hostiles left, or the packed skip vote count during a break. */
+    get hudCounter(): number {
+        if (!this.onBreak) return this.enemiesAlive;
+        return specOpsPackBreakVotes(this.breakVotesReady(), this.breakVotesNeeded());
+    }
+
+    /** Votes from operators who are still alive and connected. */
+    breakVotesReady(): number {
+        const humans = this.livingHumans();
+        let n = 0;
+        for (let i = 0; i < humans.length; i++) {
+            if (this.breakVotes.has(humans[i].__id)) n++;
+        }
+        return n;
+    }
+
+    breakVotesNeeded(): number {
+        return specOpsBreakVotesNeeded(this.livingHumans().length);
+    }
+
+    /**
+     * Ends the break once a majority has voted. Also runs every tick, so the
+     * break ends if a non-voter leaves or dies and the voters become a majority.
+     */
+    private checkBreakVotes(): boolean {
+        if (!this.onBreak) return false;
+        const ready = this.breakVotesReady();
+        const needed = this.breakVotesNeeded();
+        const code = specOpsPackBreakVotes(ready, needed);
+        if (code !== this.lastBreakVoteCode) {
+            this.lastBreakVoteCode = code;
+            this.hudDirty = true;
+        }
+        if (ready <= 0 || ready < needed) return false;
+
+        const seconds = math.min(this.phaseTimer, this.breakBonusSeconds);
+        const bonus = specOpsEarlyStartBonus(seconds);
+        if (bonus > 0) {
+            const humans = this.livingHumans();
+            for (let i = 0; i < humans.length; i++) {
+                this.grantCash(humans[i], bonus);
+            }
+        }
+        this.startWave();
+        return true;
     }
 
     /** Press L to stop matchmaking from filling empty squad seats. */
@@ -6070,9 +6135,13 @@ export class SpecOpsManager {
                         math.max(this.phaseDuration, 0.001),
                     );
                 }
-                if (this.phaseTimer <= 0) {
+
+                 if (this.phaseTimer <= 0) {
                     this.startWave();
+                } else {
+                    this.checkBreakVotes();
                 }
+
             } else if (this.phase === "combat") {
                 if (this.contractsEnabled) {
                     this.contracts.update(dt);
@@ -6143,6 +6212,16 @@ export class SpecOpsManager {
         }
         if (this.phase !== "prep" && this.phase !== "intermission") return false;
         if (this.shopSkipLock > 0) return false;
+
+        
+        // Long break: E is a skip vote; the wave starts once a majority is ready.
+        if (this.onBreak) {
+            if (this.breakVotes.has(player.__id)) return false;
+            this.breakVotes.add(player.__id);
+            this.hudDirty = true;
+            this.checkBreakVotes();
+            return true;
+        }
 
         const bonus = specOpsEarlyStartBonus(this.phaseTimer);
         const humans = this.livingHumans();
@@ -6258,6 +6337,9 @@ export class SpecOpsManager {
     private startWave(): void {
         // Missions no longer auto-win at wave 30 — continuous waves chain forever,
         // wait-for-next uses shop intermission forever.
+        this.onBreak = false;
+        this.breakVotes.clear();
+        this.lastBreakVoteCode = -1;
         this.wave++;
         this.phase = "combat";
         this.phaseTimer = 0;
@@ -6522,11 +6604,21 @@ export class SpecOpsManager {
 
         this.phase = "intermission";
         const shopScale = specOpsDifficultyMods(this.difficulty).intermission;
-        this.phaseDuration = math.min(
+
+        const shopTime = math.min(
             IntermissionCap,
             (IntermissionTime + Math.floor(this.wave / 5)) * shopScale,
         );
+
+        // Every 5th wave: a long break (2:00 on Regular). Early-start cash is
+        // capped at a normal shop's worth so skipping the break isn't a payday.
+        this.onBreak = specOpsIsBreakWave(this.wave);
+        this.breakVotes.clear();
+        this.lastBreakVoteCode = -1;
+        this.breakBonusSeconds = shopTime;
+        this.phaseDuration = this.onBreak ? SpecOpsBreakTime * shopScale : shopTime;
         this.phaseTimer = this.phaseDuration;
+
         this.shopSkipLock = ShopSkipLockTime;
         this.lastHudSecond = -1;
         this.hudDirty = true;

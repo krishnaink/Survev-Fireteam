@@ -924,7 +924,7 @@ export class Client {
             if (this.game.specOps.hudDirty || this._firstUpdate) {
                 updateMsg.killLeaderDirty = true;
                 updateMsg.killLeaderId = this.game.specOps.hudWaveId;
-                updateMsg.killLeaderKills = this.game.specOps.enemiesAlive;
+                updateMsg.killLeaderKills = this.game.specOps.hudCounter;
             }
         } else if (playerBarn.killLeaderDirty || this._firstUpdate) {
             updateMsg.killLeaderDirty = true;

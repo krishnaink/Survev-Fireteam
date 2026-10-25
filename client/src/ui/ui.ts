@@ -9,6 +9,7 @@ import {
     parseSpecOpsDifficulty,
     shopApproachBlocked,
     SpecOpsAllyRoles,
+    SpecOpsBreakFlag,
     specOpsBuybackCost,
     specOpsBuybackSku,
     specOpsCanBuySelfRevive,
@@ -29,6 +30,7 @@ import {
     specOpsStationFromType,
     specOpsStationUnlocked,
     SpecOpsStationUnlockWave,
+    specOpsUnpackBreakVotes,
     specOpsUnequipSku,
 } from "../../../shared/defs/maps/specOpsShop.ts";
 import { GameObjectDefs } from "../../../shared/defs/register.ts";
@@ -214,6 +216,10 @@ export class UiManager {
     lastSpecOpsSupportHtml = "";
     lastSpecOpsWaiting = false;
     lastSpecOpsJoinLocked = false;
+    /** Long break every 5th wave: skip votes in / votes needed. */
+    specOpsOnBreak = false;
+    specOpsBreakReady = 0;
+    specOpsBreakNeeded = 0;
     private lastSpecOpsShopTapMs = 0;
     onSpecOpsShopWheel = (e: WheelEvent) => {
         if (!this.specOpsShopOpen) return;
@@ -902,6 +908,9 @@ export class UiManager {
         this.lastSpecOpsSupportHtml = "";
         this.lastSpecOpsWaiting = false;
         this.lastSpecOpsJoinLocked = false;
+        this.specOpsOnBreak = false;
+        this.specOpsBreakReady = 0;
+        this.specOpsBreakNeeded = 0;
         $("body").removeClass("ui-specops-mode");
 
         // Reset team selector colors
@@ -2172,9 +2181,12 @@ export class UiManager {
         if (shopping) {
             const minutes = Math.floor(timeLeft / 60);
             const seconds = `0${timeLeft % 60}`.slice(-2);
-            const phase = this.lastSpecOpsWave <= 0
+            let phase = this.lastSpecOpsWave <= 0
                 ? this.localization.translate("game-specops-prepare")
                 : this.localization.translate("game-specops-next-wave");
+            if (this.specOpsOnBreak) {
+                phase = this.localization.translate("game-specops-break");
+            }
             const lockHint = this.lastSpecOpsJoinLocked
                 ? this.localization.translate("game-specops-lobby-locked")
                 : this.localization.translate(
@@ -2182,8 +2194,12 @@ export class UiManager {
                         ? "game-specops-lock-lobby-touch"
                         : "game-specops-lock-lobby",
                 );
+            const voteHint = this.specOpsOnBreak
+                ? ` · ${this.localization.translate("game-specops-break-vote")} `
+                    + `${this.specOpsBreakReady}/${this.specOpsBreakNeeded}`
+                : "";
             this.specOpsPhaseElem
-                .text(`${phase} ${minutes}:${seconds} · ${lockHint}`)
+                .text(`${phase} ${minutes}:${seconds}${voteHint} · ${lockHint}`)
                 .toggleClass("ui-specops-phase-touch", device.touch && !this.lastSpecOpsJoinLocked)
                 .css("display", "block");
             return;
@@ -2685,9 +2701,28 @@ export class UiManager {
     ) {
         if (gameMode.specOpsMode) {
             const joinLocked = (playerId & SpecOpsJoinLockFlag) !== 0;
-            const wave = playerId & ~SpecOpsJoinLockFlag;
+            const onBreak = (playerId & SpecOpsBreakFlag) !== 0;
+            const wave = playerId & ~(SpecOpsJoinLockFlag | SpecOpsBreakFlag);
             this.specOpsWaveElem.text(wave <= 0 ? "—" : String(wave));
-            this.specOpsHostilesElem.text(String(kills));
+            if (onBreak) {
+                // During a break the counter carries skip votes, not hostiles.
+                const votes = specOpsUnpackBreakVotes(kills);
+                this.specOpsBreakReady = votes.ready;
+                this.specOpsBreakNeeded = votes.needed;
+                this.specOpsHostilesElem.text("0");
+                if (!this.specOpsOnBreak) {
+                    this.displayAnnouncement(
+                        this.localization.translate("game-specops-break-started"),
+                    );
+                }
+
+            } 
+            
+            else {
+                this.specOpsHostilesElem.text(String(kills));
+            }
+
+            this.specOpsOnBreak = onBreak;
             if (joinLocked && !this.lastSpecOpsJoinLocked) {
                 this.displayAnnouncement(
                     this.localization.translate("game-specops-lobby-locked"),
@@ -2875,7 +2910,9 @@ export class UiManager {
                     }
                     message = this.localization.translate("game-specops-next-wave");
                     message += ` ${Math.max(Math.floor(timeLeft), 0)} ${this.localization.translate("game-seconds")}`;
-                    message += ` — ${this.localization.translate("game-specops-start-early")}`;
+                    message += this.specOpsOnBreak
+                    ? ` — ${this.localization.translate("game-specops-break-vote")}`
+                    : ` — ${this.localization.translate("game-specops-start-early")}`;
                     break;
                 }
                 message = this.localization.translate("game-red-zone-advances");

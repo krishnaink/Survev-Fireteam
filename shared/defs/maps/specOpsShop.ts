@@ -1192,6 +1192,37 @@ export function specOpsEarlyStartBonus(secondsLeft: number): number {
     return Math.floor(Math.max(secondsLeft, 0)) * SpecOpsEarlyStartCashPerSecond;
 }
 
+
+
+/** Long break after every Nth cleared wave, from the start wave (15, 20, 25 …). Not in Endless. */
+export const SpecOpsBreakEveryWaves = 5;
+/** First wave that is followed by a long break. */
+export const SpecOpsBreakStartWave = 15;
+
+/** Base break length in seconds; scaled by the difficulty's intermission mod. */
+export const SpecOpsBreakTime = 120;
+/** Packed into the Spec Ops HUD wave id while a long break is running. */
+export const SpecOpsBreakFlag = 0x4000;
+
+export function specOpsIsBreakWave(clearedWave: number): boolean {
+    return clearedWave >= SpecOpsBreakStartWave && clearedWave % SpecOpsBreakEveryWaves === 0;
+}
+
+/** Skip votes needed to end a break early: more than half of the living operators. */
+export function specOpsBreakVotesNeeded(operators: number): number {
+    return Math.floor(Math.max(operators, 1) / 2) + 1;
+}
+
+/** Break vote HUD code: ready count in the high nibble, votes needed in the low nibble. */
+export function specOpsPackBreakVotes(ready: number, needed: number): number {
+    return ((Math.min(ready, 15) & 0xf) << 4) | (Math.min(needed, 15) & 0xf);
+}
+
+export function specOpsUnpackBreakVotes(code: number): { ready: number; needed: number } {
+    return { ready: (code >> 4) & 0xf, needed: code & 0xf };
+}
+
+
 /** Spec Ops inventory holds — sized for long waves; level 4 (backpack04) caps at 999. */
 export const SpecOpsBagSizes: Record<string, number[]> = {
     "9mm": [300, 500, 700, 900, 999],
