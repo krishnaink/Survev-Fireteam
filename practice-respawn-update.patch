@@ -1,0 +1,527 @@
+diff --git a/client/src/game.ts b/client/src/game.ts
+index 3d1089d..346aa38 100644
+--- a/client/src/game.ts
++++ b/client/src/game.ts
+@@ -1512,11 +1512,12 @@ export class Game {
+                             practiceMsg.settings = settings;
+                             this.m_sendMessage(net.MsgType.PracticeSettings, practiceMsg, 512);
+                         },
+-                        (item, count, clear) => {
++                        (item, count, clear, respawnBots) => {
+                             const giveMsg = new net.PracticeGiveMsg();
+                             giveMsg.item = item;
+                             giveMsg.count = count;
+                             giveMsg.clearInventory = clear;
++                            giveMsg.respawnBots = !!respawnBots;
+                             this.m_sendMessage(net.MsgType.PracticeGive, giveMsg, 64);
+                         },
+                     );
+diff --git a/client/src/ui/practiceMenu.ts b/client/src/ui/practiceMenu.ts
+index ecf2917..f7db7d2 100644
+--- a/client/src/ui/practiceMenu.ts
++++ b/client/src/ui/practiceMenu.ts
+@@ -17,6 +17,10 @@ import {
+     PracticeMinBotHealth,
+     PracticePlayerRespawnDelay,
+     PracticeRandomGun,
++    PracticeMaxRespawnDelay,
++    type PracticeRespawnMode,
++    PracticeRespawnModeLabels,
++    PracticeRespawnModes,
+     type PracticeBotSettings,
+     type PracticeSettings,
+     PracticeSliderMax,
+@@ -195,7 +199,7 @@ export class PracticeMenu {
+ 
+     constructor(
+         private readonly send: (settings: PracticeSettings) => void,
+-        private readonly sendGive: (item: string, count: number, clear: boolean) => void,
++        private readonly sendGive: (item: string, count: number, clear: boolean, respawnBots?: boolean) => void,
+     ) {}
+ 
+     init() {
+@@ -400,7 +404,8 @@ export class PracticeMenu {
+         const ttk = (ms: number) => (ms > 0 ? `${(ms / 1000).toFixed(2)}s` : "—");
+         this.statsElem.innerHTML = "";
+         this.statsElem.append(
+-            `K ${st.kills} / D ${st.deaths} · Acc ${acc}% · Dmg ${st.damageDealt} dealt / ${st.damageTaken} taken`
++            `Bots ${st.botsAlive}/${st.botsTotal} · K ${st.kills} / D ${st.deaths} · Acc ${acc}%`
++                + ` · Dmg ${st.damageDealt} dealt / ${st.damageTaken} taken`
+                 + ` · TTK ${ttk(st.ttkAvgMs)} (best ${ttk(st.ttkBestMs)})`,
+             el("span", { class: "pm-hint" }, "P: practice menu"),
+         );
+@@ -443,6 +448,7 @@ export class PracticeMenu {
+         }
+         countRow.append(count);
+         root.append(countRow);
++        this.renderRespawn(root);
+ 
+         this.settings.bots.forEach((bot, i) => root.append(this.botCard(bot, i)));
+ 
+@@ -530,6 +536,50 @@ export class PracticeMenu {
+         root.append(el("p", { class: "pm-note" }, "Your backpack caps how much you carry, like in survev."));
+     }
+ 
++    private renderRespawn(root: HTMLElement) {
++        const modeRow = el("div", { class: "pm-row" });
++        modeRow.append(el("label", {}, "Bots respawn"));
++        const mode = el("select");
++        for (const m of PracticeRespawnModes) {
++            mode.append(el("option", { value: m }, PracticeRespawnModeLabels[m]));
++        }
++        mode.value = this.settings.respawnMode;
++        modeRow.append(mode);
++        root.append(modeRow);
++
++        const delay = this.slider(
++            "Respawn delay",
++            this.settings.respawnDelay,
++            0,
++            PracticeMaxRespawnDelay,
++            (v) => `${(v / 10).toFixed(1)}s`,
++            (v) => {
++                this.settings.respawnDelay = v;
++            },
++        );
++        root.append(delay);
++
++        const syncDelay = () => {
++            // No delay to set when bots only come back on the button.
++            delay.style.opacity = this.settings.respawnMode === "off" ? "0.4" : "1";
++        };
++        mode.addEventListener("change", () => {
++            this.settings.respawnMode = mode.value as PracticeRespawnMode;
++            syncDelay();
++        });
++        syncDelay();
++
++        const nowRow = el("div", { class: "pm-row" });
++        nowRow.append(el("label", {}, ""));
++        const now = el("button", { type: "button" }, "Respawn bots now");
++        now.style.cssText = "background:#2b343b;color:#e8ecef;border:1px solid #3f4a52;border-radius:6px;"
++            + "padding:6px 12px;font:inherit;cursor:pointer;";
++        now.addEventListener("click", () => this.sendGive("", 1, false, true));
++        nowRow.append(now);
++        root.append(nowRow);
++        root.append(el("p", { class: "pm-note" }, "Respawn mode and delay apply with Apply; bots already alive stay."));
++    }
++
+     private renderGive(root: HTMLElement) {
+         root.append(el("h3", {}, "Give item now"));
+         const row = el("div", { class: "pm-give" });
+diff --git a/server/src/game/client.ts b/server/src/game/client.ts
+index 121f02a..9981ab7 100644
+--- a/server/src/game/client.ts
++++ b/server/src/game/client.ts
+@@ -1014,6 +1014,7 @@ export class Client {
+             case net.MsgType.PracticeGive: {
+                 if (!player || !this.game.specOps?.practice) break;
+                 const give = msg as net.PracticeGiveMsg;
++                if (give.respawnBots) this.game.specOps.practice.respawnBotsNow();
+                 this.game.specOps.givePracticeItem(player, give.item, give.count, give.clearInventory);
+                 break;
+             }
+diff --git a/server/src/game/practiceController.ts b/server/src/game/practiceController.ts
+index 05dd551..be6b3c5 100644
+--- a/server/src/game/practiceController.ts
++++ b/server/src/game/practiceController.ts
+@@ -6,7 +6,6 @@ import { math } from "../../../shared/utils/math.ts";
+ import {
+     defaultPracticeSettings,
+     emptyPracticeStats,
+-    PracticeBotRespawnDelay,
+     type PracticeBotSettings,
+     PracticePlayerRespawnDelay,
+     type PracticeSettings,
+@@ -27,7 +26,10 @@ export interface PracticeHost {
+ 
+ interface BotSlot {
+     bot?: Player;
+-    /** Seconds until this slot spawns a bot; < 0 while a bot is alive. */
++    /**
++     * Seconds until this empty slot spawns a bot. Infinity = waiting (for the
++     * whole group in "wave" mode, or for the button in "off" mode).
++     */
+     respawnIn: number;
+     /** Practice clock (s) when the player first damaged the current bot; 0 = not yet. */
+     firstHitAt: number;
+@@ -59,6 +61,9 @@ export class PracticeController {
+     private clock = 0;
+     /** Clock time of the last applied setup, to ignore spam. */
+     private lastApplyAt = -Infinity;
++    /** "wave" mode: seconds until the whole group respawns; < 0 when not counting. */
++    private waveRespawnIn = -1;
++    private lastBotsAlive = -1;
+ 
+     constructor(readonly host: PracticeHost) {}
+ 
+@@ -79,6 +84,8 @@ export class PracticeController {
+             || JSON.stringify(settings.bots) !== JSON.stringify(this.settings.bots);
+         const kitOf = (st: PracticeSettings) => JSON.stringify([st.primary, st.secondary, st.kit]);
+         const kitChanged = !this.started || kitOf(settings) !== kitOf(this.settings);
++        const respawnChanged = this.settings.respawnMode !== settings.respawnMode
++            || this.settings.respawnDelay !== settings.respawnDelay;
+         this.settings = settings;
+         this.started = true;
+ 
+@@ -90,6 +97,16 @@ export class PracticeController {
+                 respawnIn: 0.5 + i * 0.25,
+                 firstHitAt: 0,
+             }));
++            this.waveRespawnIn = -1;
++        } else if (respawnChanged) {
++            // Same bots, new respawn rule: re-time the slots that are waiting.
++            this.waveRespawnIn = -1;
++            for (const slot of this.slots) {
++                if (slot.bot) continue;
++                slot.respawnIn = settings.respawnMode === "each"
++                    ? Math.min(slot.respawnIn, settings.respawnDelay / 10)
++                    : Infinity;
++            }
+         }
+ 
+         // Re-kit a living player only when the kit changed, so items you gave
+@@ -181,17 +198,55 @@ export class PracticeController {
+         }
+     }
+ 
++    /** "Respawn bots" button: bring every dead bot back now, whatever the mode. */
++    respawnBotsNow(): void {
++        if (!this.started) return;
++        this.waveRespawnIn = -1;
++        let n = 0;
++        for (const slot of this.slots) {
++            if (slot.bot) continue;
++            slot.respawnIn = 0.1 + n * 0.15;
++            n++;
++        }
++    }
++
++    get botsAlive(): number {
++        return this.slots.filter((s) => s.bot && !s.bot.dead).length;
++    }
++
+     private updateBots(dt: number): void {
++        const mode = this.settings.respawnMode;
++        const delay = this.settings.respawnDelay / 10;
++
++        // Deaths: "each" starts that bot's timer; "wave" and "off" wait.
++        for (const slot of this.slots) {
++            if (!slot.bot || !slot.bot.dead) continue;
++            this.onBotDied(slot);
++            slot.bot = undefined;
++            slot.firstHitAt = 0;
++            slot.respawnIn = mode === "each" ? delay : Infinity;
++        }
++
++        // "wave": once every bot is down (and none is already on its way back),
++        // count down and then bring the whole group back together.
++        if (mode === "wave" && this.slots.length > 0) {
++            const allWaiting = this.slots.every((s) => !s.bot && s.respawnIn === Infinity);
++            if (allWaiting && this.waveRespawnIn < 0) this.waveRespawnIn = delay;
++            if (this.waveRespawnIn >= 0) {
++                this.waveRespawnIn -= dt;
++                if (this.waveRespawnIn <= 0) {
++                    this.waveRespawnIn = -1;
++                    this.slots.forEach((slot, i) => {
++                        slot.respawnIn = i * 0.15;
++                    });
++                }
++            }
++        }
++
++        // Spawn every slot whose timer has run out.
+         for (let i = 0; i < this.slots.length; i++) {
+             const slot = this.slots[i];
+-            if (slot.bot) {
+-                if (!slot.bot.dead) continue;
+-                this.onBotDied(slot);
+-                slot.bot = undefined;
+-                slot.respawnIn = PracticeBotRespawnDelay;
+-                slot.firstHitAt = 0;
+-                continue;
+-            }
++            if (slot.bot || slot.respawnIn === Infinity) continue;
+             slot.respawnIn -= dt;
+             if (slot.respawnIn > 0) continue;
+             const bot = this.host.spawnPracticeBot(this.settings.bots[i], i);
+@@ -204,6 +259,13 @@ export class PracticeController {
+                 slot.respawnIn = 1;
+             }
+         }
++
++        // Tell the HUD when the number of living bots changes.
++        const alive = this.botsAlive;
++        if (alive !== this.lastBotsAlive) {
++            this.lastBotsAlive = alive;
++            for (const st of this.stats.values()) st.dirty = true;
++        }
+     }
+ 
+     private onBotDied(slot: BotSlot): void {
+@@ -244,6 +306,8 @@ export class PracticeController {
+                 damageTaken: st.damageTaken,
+                 ttkAvgMs: st.ttkAvgMs,
+                 ttkBestMs: st.ttkBestMs,
++                botsAlive: this.botsAlive,
++                botsTotal: this.started ? this.slots.length : 0,
+             };
+             player.client.sendMsg(net.MsgType.PracticeStats, msg);
+         }
+diff --git a/shared/net/practiceMsg.ts b/shared/net/practiceMsg.ts
+index 70abcdb..108b925 100644
+--- a/shared/net/practiceMsg.ts
++++ b/shared/net/practiceMsg.ts
+@@ -6,6 +6,7 @@ import {
+     PracticeKitItems,
+     PracticeMaxBots,
+     PracticeRandomGun,
++    PracticeRespawnModes,
+     PracticeScopes,
+     type PracticeSettings,
+     type PracticeStats,
+@@ -56,6 +57,8 @@ export class PracticeSettingsMsg implements AbstractMsg {
+             s.writeBits(bot.health, 9);
+             s.writeBits(bot.armor, 2);
+         }
++        s.writeBits(Math.max(0, PracticeRespawnModes.indexOf(settings.respawnMode)), 2);
++        s.writeBits(settings.respawnDelay, 7);
+     }
+ 
+     deserialize(s: BitStream) {
+@@ -88,20 +91,25 @@ export class PracticeSettingsMsg implements AbstractMsg {
+                 armor: s.readBits(2),
+             });
+         }
+-        this.settings = sanitizePracticeSettings({ primary, secondary, kit, bots });
++        const respawnMode = PracticeRespawnModes[s.readBits(2)] ?? PracticeRespawnModes[0];
++        const respawnDelay = s.readBits(7);
++        this.settings = sanitizePracticeSettings({ primary, secondary, kit, bots, respawnMode, respawnDelay });
+     }
+ }
+ 
+-/** Client → server: give yourself an item right now, or empty your inventory. */
++/** Client → server: give yourself an item, empty your inventory, or respawn the bots now. */
+ export class PracticeGiveMsg implements AbstractMsg {
+     /** Any item type with a loot image (gun, melee, armor, pack, scope, heal, ammo…). */
+     item = "";
+     count = 1;
+     /** Remove everything except fists and the 1x scope first (item may be empty). */
+     clearInventory = false;
++    /** Bring every dead bot back right now (any respawn mode). */
++    respawnBots = false;
+ 
+     serialize(s: BitStream) {
+         s.writeBoolean(this.clearInventory);
++        s.writeBoolean(this.respawnBots);
+         const valid = !!this.item && GameObjectDefs.typeExists(this.item);
+         s.writeGameType(valid ? this.item : "");
+         s.writeUint16(Math.max(1, Math.min(999, Math.round(this.count) || 1)));
+@@ -109,6 +117,7 @@ export class PracticeGiveMsg implements AbstractMsg {
+ 
+     deserialize(s: BitStream) {
+         this.clearInventory = s.readBoolean();
++        this.respawnBots = s.readBoolean();
+         this.item = s.readGameType();
+         this.count = Math.max(1, Math.min(999, s.readUint16()));
+     }
+@@ -128,6 +137,8 @@ export class PracticeStatsMsg implements AbstractMsg {
+         s.writeUint32(Math.min(Math.round(st.damageTaken), 0xffffffff));
+         s.writeUint32(Math.min(Math.round(st.ttkAvgMs), 0xffffffff));
+         s.writeUint32(Math.min(Math.round(st.ttkBestMs), 0xffffffff));
++        s.writeBits(Math.min(st.botsAlive, 7), 3);
++        s.writeBits(Math.min(st.botsTotal, 7), 3);
+     }
+ 
+     deserialize(s: BitStream) {
+@@ -140,6 +151,8 @@ export class PracticeStatsMsg implements AbstractMsg {
+             damageTaken: s.readUint32(),
+             ttkAvgMs: s.readUint32(),
+             ttkBestMs: s.readUint32(),
++            botsAlive: s.readBits(3),
++            botsTotal: s.readBits(3),
+         };
+     }
+ }
+diff --git a/shared/practice.ts b/shared/practice.ts
+index e66da8c..a4fdd54 100644
+--- a/shared/practice.ts
++++ b/shared/practice.ts
+@@ -16,8 +16,25 @@ export const PracticeMaxBotHealth = 280;
+ export const PracticeMaxArmor = 3;
+ /** Reaction time is stored in tenths of a second (0–2.0 s). */
+ export const PracticeMaxReaction = 20;
+-/** Seconds before a dead bot comes back. */
++/** Default seconds before dead bots come back. */
+ export const PracticeBotRespawnDelay = 1.5;
++/** Respawn delay is stored in tenths of a second (0–10 s). */
++export const PracticeMaxRespawnDelay = 100;
++
++/**
++ * How bots come back after dying:
++ * - each: every bot respawns on its own after the delay
++ * - wave: once all bots are down, they all respawn together after the delay
++ * - off:  dead bots stay down until you press "Respawn bots"
++ */
++export const PracticeRespawnModes = ["each", "wave", "off"] as const;
++export type PracticeRespawnMode = (typeof PracticeRespawnModes)[number];
++
++export const PracticeRespawnModeLabels: Record<PracticeRespawnMode, string> = {
++    each: "Each bot on its own",
++    wave: "All at once, when all are down",
++    off: "Off (respawn by hand)",
++};
+ /** Seconds before the player respawns after dying. */
+ export const PracticePlayerRespawnDelay = 3;
+ /** At most this many practice matches run at once on one game server. */
+@@ -148,6 +165,10 @@ export interface PracticeSettings {
+     /** Everything else you spawn with. */
+     kit: PracticeKit;
+     bots: PracticeBotSettings[];
++    /** How dead bots come back. */
++    respawnMode: PracticeRespawnMode;
++    /** Delay before bots respawn, in tenths of a second. */
++    respawnDelay: number;
+ }
+ 
+ /** The advanced movement values the main wiggle slider sets. */
+@@ -176,6 +197,8 @@ export function defaultPracticeSettings(): PracticeSettings {
+         secondary: "",
+         kit: defaultPracticeKit(),
+         bots: [defaultPracticeBot()],
++        respawnMode: "each",
++        respawnDelay: Math.round(PracticeBotRespawnDelay * 10),
+     };
+ }
+ 
+@@ -233,7 +256,17 @@ export function sanitizePracticeSettings(raw: Partial<PracticeSettings> | undefi
+         : "";
+     const rawBots = Array.isArray(raw?.bots) ? raw.bots.slice(0, PracticeMaxBots) : [];
+     const bots = rawBots.length ? rawBots.map((b) => sanitizeBot(b)) : def.bots;
+-    return { primary, secondary, kit: sanitizeKit(raw?.kit), bots };
++    const respawnMode = (PracticeRespawnModes as readonly string[]).includes(raw?.respawnMode as string)
++        ? (raw!.respawnMode as PracticeRespawnMode)
++        : def.respawnMode;
++    return {
++        primary,
++        secondary,
++        kit: sanitizeKit(raw?.kit),
++        bots,
++        respawnMode,
++        respawnDelay: clampInt(raw?.respawnDelay, 0, PracticeMaxRespawnDelay, def.respawnDelay),
++    };
+ }
+ 
+ /* ── Bot tuning: slider values → AI numbers (server) ─────────────────────── */
+@@ -290,6 +323,9 @@ export interface PracticeStats {
+     ttkAvgMs: number;
+     /** Best time-to-kill in ms (0 = no kills yet). */
+     ttkBestMs: number;
++    /** Bots alive right now / bots configured. */
++    botsAlive: number;
++    botsTotal: number;
+ }
+ 
+ export function emptyPracticeStats(): PracticeStats {
+@@ -302,5 +338,7 @@ export function emptyPracticeStats(): PracticeStats {
+         damageTaken: 0,
+         ttkAvgMs: 0,
+         ttkBestMs: 0,
++        botsAlive: 0,
++        botsTotal: 0,
+     };
+ }
+diff --git a/tests/src/practice.test.ts b/tests/src/practice.test.ts
+index ad37e77..448b127 100644
+--- a/tests/src/practice.test.ts
++++ b/tests/src/practice.test.ts
+@@ -120,6 +120,8 @@ test("Practice settings message round-trips", () => {
+             { ...defaultPracticeBot(), gun: PracticeRandomGun, accuracy: 87, reaction: 13, shootsBack: false },
+             { ...defaultPracticeBot(), gun: "mosin", health: 120, armor: 3, strafe: 9, turn: 2, dodge: 7 },
+         ],
++        respawnMode: "wave",
++        respawnDelay: 42,
+     });
+     const stream = new BitStream(new ArrayBuffer(256));
+     msg.serialize(stream);
+@@ -140,6 +142,8 @@ test("Practice stats message round-trips", () => {
+         damageTaken: 880,
+         ttkAvgMs: 1840,
+         ttkBestMs: 610,
++        botsAlive: 2,
++        botsTotal: 4,
+     };
+     const stream = new BitStream(new ArrayBuffer(64));
+     msg.serialize(stream);
+@@ -305,6 +309,7 @@ test("Practice give message round-trips", () => {
+     msg.item = "helmet03";
+     msg.count = 7;
+     msg.clearInventory = true;
++    msg.respawnBots = true;
+     const stream = new BitStream(new ArrayBuffer(32));
+     msg.serialize(stream);
+     stream.byteIndex = 0;
+@@ -313,6 +318,7 @@ test("Practice give message round-trips", () => {
+     expect(decoded.item).toBe("helmet03");
+     expect(decoded.count).toBe(7);
+     expect(decoded.clearInventory).toBe(true);
++    expect(decoded.respawnBots).toBe(true);
+ });
+ 
+ /* ── Survev rules and the spawn kit ───────────────────────────────────── */
+@@ -405,3 +411,55 @@ test("Practice changing only bots keeps items you gave yourself", () => {
+     );
+     expect(player.helmet).toBe("helmet03");
+ });
++
++/* ── Bot respawn modes ────────────────────────────────────────────────── */
++
++function runFor(game: Game, seconds: number) {
++    for (let t = 0; t < seconds; t += 0.1) game.update(0.1);
++}
++
++test("Practice respawn delay is configurable", () => {
++    const { game, player } = startPractice({ respawnMode: "each", respawnDelay: 50 });
++    killPlayer(bots(game)[0], player);
++    runFor(game, 3);
++    expect(bots(game).length).toBe(0);
++    runFor(game, 2.5);
++    expect(bots(game).length).toBe(1);
++});
++
++test("Practice respawn off: dead bots stay down until Respawn bots now", () => {
++    const { game, player, practice } = startPractice({ respawnMode: "off", respawnDelay: 5 });
++    killPlayer(bots(game)[0], player);
++    runFor(game, 5);
++    expect(bots(game).length).toBe(0);
++    expect(game.over).toBe(false);
++
++    practice.respawnBotsNow();
++    runFor(game, 1);
++    expect(bots(game).length).toBe(1);
++});
++
++test("Practice respawn wave: bots come back together once all are down", () => {
++    const quiet = { ...defaultPracticeBot(), shootsBack: false };
++    const { game, player } = startPractice({ respawnMode: "wave", respawnDelay: 10, bots: [quiet, quiet] });
++    expect(bots(game).length).toBe(2);
++
++    killPlayer(bots(game)[0], player);
++    runFor(game, 3);
++    expect(bots(game).length).toBe(1);
++
++    killPlayer(bots(game)[0], player);
++    game.update(0.05);
++    expect(bots(game).length).toBe(0);
++    runFor(game, 2);
++    expect(bots(game).length).toBe(2);
++});
++
++test("Practice switching respawn mode keeps living bots", () => {
++    const { game, player, practice } = startPractice({ respawnMode: "each" });
++    const bot = bots(game)[0];
++    runFor(game, 0.5);
++    practice.applySettings(player, sanitizePracticeSettings({ ...practice.settings, respawnMode: "off" }));
++    game.update(0.05);
++    expect(bots(game)[0]).toBe(bot);
++});

@@ -10,6 +10,11 @@
   display: none !important;
 }
 
+#practice-map-select option {
+      background-color: #0d120a; /* Replace with your menu background color */
+      color: #b8d47b;            /* Replace with your menu font color */
+}
+
 .specops-start #background {
   filter: saturate(1.08) brightness(0.72);
 }
@@ -430,7 +435,7 @@
 
 .specops-field-label {
   color: #8faa6e;
-  font-size: 10px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.14em;
 }
@@ -518,6 +523,51 @@
   opacity: 0.55;
 }
 
+#btn-practice {
+    /* Layout & Alignment */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    box-sizing: border-box;
+    cursor: pointer;
+    user-select: none;
+    text-decoration: none;
+
+    /* Theme & Deploy Button Colors */
+    background: #141c10;
+    color: #b8d47b;
+    border: 2px solid #5a7b32;
+    border-radius: 6px;
+
+    /* Typography */
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+
+    /* Transitions & Shadows */
+    box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.6), 0 0 4px rgba(90, 123, 50, 0.2);
+    transition: all 0.15s ease-in-out;
+}
+
+/* Hover state */
+#btn-practice:hover {
+    background: #1e2a18;
+    color: #e4ff9e;
+    border-color: #8bb84d;
+    box-shadow: 0 0 10px rgba(139, 184, 77, 0.45), inset 0 0 6px rgba(0, 0, 0, 0.4);
+}
+
+/* Active / Pressed state */
+#btn-practice:active {
+    background: #0f150c;
+    border-color: #4a6629;
+    transform: translateY(1px);
+    box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8);
+}
+
 .specops-start #btn-customize.specops-loadout-btn {
   background-color: rgba(0, 0, 0, 0.45);
   background-image: url(/img/emotes/surviv.svg);
@@ -545,7 +595,7 @@
   color: #eef6d4;
   cursor: pointer;
   font-size: 14px;
-  height: 42px;
+  height: 45px;
   line-height: 42px;
   margin: 0;
   padding: 0 36px 0 12px;
@@ -2761,4 +2811,8 @@ body.steam-deck .specops-start .specops-lb-sidebar {
     height: 38px;
     line-height: 36px;
   }
+
+
 }
+
+
