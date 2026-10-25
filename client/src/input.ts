@@ -318,6 +318,7 @@ export class InputHandler {
 
 export enum Key {
     Backspace = 8,
+    Tab = 9,
     Enter = 13,
     Shift = 16,
     Control = 17,

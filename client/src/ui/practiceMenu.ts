@@ -178,7 +178,7 @@ function el<K extends keyof HTMLElementTagNameMap>(
 }
 
 /**
- * Practice mode panel (P key). Opens on its own when the match starts and when
+ * Practice mode panel (Tab key). Opens on its own when the match starts and when
  * you die, so you can change your loadout before respawning.
  */
 export class PracticeMenu {
@@ -217,6 +217,8 @@ export class PracticeMenu {
         this.root.addEventListener("wheel", (e) => e.stopPropagation());
         // Typing a number or picking from a list must not move or switch weapons.
         const stopKeys = (e: KeyboardEvent) => {
+            // Tab always reaches the game so it can close the panel.
+            if (e.keyCode === 9) return;
             const target = e.target as HTMLElement;
             if (target.tagName === "SELECT" || (target as HTMLInputElement).type === "number") {
                 e.stopPropagation();
@@ -407,7 +409,7 @@ export class PracticeMenu {
             `Bots ${st.botsAlive}/${st.botsTotal} · K ${st.kills} / D ${st.deaths} · Acc ${acc}%`
                 + ` · Dmg ${st.damageDealt} dealt / ${st.damageTaken} taken`
                 + ` · TTK ${ttk(st.ttkAvgMs)} (best ${ttk(st.ttkBestMs)})`,
-            el("span", { class: "pm-hint" }, "P: practice menu"),
+            el("span", { class: "pm-hint" }, "Tab: practice menu"),
         );
     }
 
