@@ -18,6 +18,8 @@ export const zFindGameBody = z.object({
     endless: z.boolean().optional(),
     /** Prefer reclaiming this seat on mid-match rejoin (page reload). */
     reclaimPlayerId: z.number().int().positive().optional(),
+    /** Practice vs bots on this map (practice_* key). Always a new private match. */
+    practiceMap: z.string().max(32).optional(),
 });
 
 export type FindGameBody = z.infer<typeof zFindGameBody>;

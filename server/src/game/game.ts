@@ -413,6 +413,9 @@ export class Game {
         if (this.over) return;
 
         if (this.map.specOpsMode) {
+            // Practice never ends on death; the player respawns. Idle/abandoned
+            // matches are still closed by the Spec Ops lobby timers.
+            if (this.map.practiceMode) return;
             const humans = this.specOps?.humanCount ?? 0;
             const operators = this.specOps?.operatorCount ?? 0;
             // Connected operators are all dead (buyback needs a living teammate).

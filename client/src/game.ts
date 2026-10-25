@@ -55,6 +55,7 @@ import type { ResourceManager } from "./resources.ts";
 import { SDK } from "./sdk/sdk.ts";
 import { ThrowableRadial } from "./throwableRadial.ts";
 import type { Localization } from "./ui/localization.ts";
+import { PracticeMenu } from "./ui/practiceMenu.ts";
 import { Touch } from "./ui/touch.ts";
 import { UiManager } from "./ui/ui.ts";
 import { UiManager2 } from "./ui/ui2.ts";
@@ -125,6 +126,8 @@ export class Game {
 
     editor!: Editor;
     debugHUD!: DebugHUD;
+    /** Practice mode panel + stats; null outside practice matches. */
+    m_practiceMenu: PracticeMenu | null = null;
 
     seq!: number;
     seqInFlight!: boolean;
@@ -423,6 +426,8 @@ export class Game {
         }
         this.connecting = false;
         this.connected = false;
+        this.m_practiceMenu?.destroy();
+        this.m_practiceMenu = null;
         if (this.initialized) {
             this.initialized = false;
             this.m_updatePass = false;
@@ -492,6 +497,14 @@ export class Game {
                 : 1;
         } else {
             debug = {} as DebugRenderOpts;
+        }
+
+        if (this.m_practiceMenu) {
+            if (this.m_input.keyPressed(Key.P) && !PracticeMenu.focusInField()) {
+                this.m_practiceMenu.toggle();
+            }
+            const local = this.m_playerBarn.getPlayerById(this.m_localId);
+            if (local) this.m_practiceMenu.setDead(local.m_netData.m_dead);
         }
 
         const smokeParticles = this.m_smokeBarn.m_particles;
@@ -677,7 +690,7 @@ export class Game {
                 0,
                 net.Constants.MouseMaxDist,
             );
-            const shopOpen = this.m_uiManager.specOpsShopOpen;
+            const shopOpen = this.m_uiManager.specOpsShopOpen || !!this.m_practiceMenu?.open;
             inputMsg.shootStart = !shopOpen && (
                 this.m_inputBinds.isBindPressed(Input.Fire)
                 || this.m_touch.shotDetected
@@ -1490,6 +1503,25 @@ export class Game {
                 this.m_bulletBarn.onMapLoad(this.m_map);
                 this.m_particleBarn.onMapLoad(this.m_map);
                 this.m_uiManager.onMapLoad(this.m_map, this.m_camera);
+                this.m_practiceMenu?.destroy();
+                this.m_practiceMenu = null;
+                if (this.m_map.getMapDef().gameMode.practiceMode) {
+                    this.m_practiceMenu = new PracticeMenu(
+                        (settings) => {
+                            const practiceMsg = new net.PracticeSettingsMsg();
+                            practiceMsg.settings = settings;
+                            this.m_sendMessage(net.MsgType.PracticeSettings, practiceMsg, 512);
+                        },
+                        (item, count, clear) => {
+                            const giveMsg = new net.PracticeGiveMsg();
+                            giveMsg.item = item;
+                            giveMsg.count = count;
+                            giveMsg.clearInventory = clear;
+                            this.m_sendMessage(net.MsgType.PracticeGive, giveMsg, 64);
+                        },
+                    );
+                    this.m_practiceMenu.init();
+                }
                 if (this.m_map.perkMode) {
                     const player = this.m_activePlayer as Player | undefined;
                     if (!player?.m_netData.m_role) {
@@ -1806,6 +1838,12 @@ export class Game {
                 new net.UpdatePassMsg().deserialize(stream);
                 this.m_updatePass = true;
                 this.m_updatePassDelay = 0;
+                break;
+            }
+            case net.MsgType.PracticeStats: {
+                const msg = new net.PracticeStatsMsg();
+                msg.deserialize(stream);
+                this.m_practiceMenu?.setStats(msg.stats);
                 break;
             }
             case net.MsgType.AliveCounts: {

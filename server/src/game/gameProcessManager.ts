@@ -5,6 +5,7 @@ import { type MapDefKey, MapDefs } from "../../../shared/defs/mapDefs.ts";
 import { pickSpecOpsMapName, specOpsMapMatches } from "../../../shared/defs/maps/specOpsDefs.ts";
 import { parseSpecOpsDifficulty } from "../../../shared/defs/maps/specOpsShop.ts";
 import type { TeamMode } from "../../../shared/gameConfig.ts";
+import { PracticeMaxMatches } from "../../../shared/practice.ts";
 import { util } from "../../../shared/utils/util.ts";
 import { Config, maxPlayersForMap, teamSizeForMode } from "../config.ts";
 import { validateSquadName } from "../utils/badWords.ts";
@@ -426,6 +427,20 @@ export class GameProcessManager {
 
         let proc: GameProcess | undefined;
         const rejoinTarget = !!body.gameId;
+
+        // Practice matches are private one-player games, each in its own process.
+        // Cap how many run at once so practice can't crowd out Spec Ops.
+        const practice = !!MapDefs[body.mapName as MapDefKey]?.gameMode.practiceMode;
+        if (practice && !rejoinTarget) {
+            const runningPractice = this.processes.filter((p) =>
+                !p.gameData.stopped
+                && p.state !== ProcState.Idle
+                && !!MapDefs[p.gameData.mapName as MapDefKey]?.gameMode.practiceMode
+            ).length;
+            if (runningPractice >= PracticeMaxMatches) {
+                return undefined;
+            }
+        }
 
         if (body.gameId) {
             proc = this.getById(body.gameId);

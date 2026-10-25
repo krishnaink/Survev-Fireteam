@@ -301,6 +301,12 @@ export enum MsgType {
     UpdatePass,
     AliveCounts,
     PerkModeRoleSelect,
+    /** Practice: client sends bot + loadout setup. */
+    PracticeSettings,
+    /** Practice: server sends running stats. */
+    PracticeStats,
+    /** Practice: client gives itself an item / clears its inventory. */
+    PracticeGive,
 }
 
 export enum PickupMsgType {
@@ -330,6 +336,7 @@ export { KillMsg } from "./killMsg.ts";
 export { MapMsg } from "./mapMsg.ts";
 export { PerkModeRoleSelectMsg } from "./perkModeRoleSelectMsg.ts";
 export { PickupMsg } from "./pickupMsg.ts";
+export { PracticeGiveMsg, PracticeSettingsMsg, PracticeStatsMsg } from "./practiceMsg.ts";
 export { PlayerStatsMsg } from "./playerStatsMsg.ts";
 export { RoleAnnouncementMsg } from "./roleAnnouncementMsg.ts";
 export { SpectateMsg } from "./spectateMsg.ts";

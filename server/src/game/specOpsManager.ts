@@ -1,3 +1,4 @@
+import { BulletDefs } from "../../../shared/defs/gameObjects/bulletDefs.ts";
 import type { GunDef } from "../../../shared/defs/gameObjects/gunDefs.ts";
 import { SpecOpsEnemyClasses } from "../../../shared/defs/maps/specOpsNpcDebug.ts";
 import {
@@ -77,6 +78,21 @@ import { collisionHelpers } from "../../../shared/utils/collisionHelpers.ts";
 import { mapHelpers } from "../../../shared/utils/mapHelpers.ts";
 import { math } from "../../../shared/utils/math.ts";
 import { util } from "../../../shared/utils/util.ts";
+import {
+    practiceAimErrorDeg,
+    practiceArmorGear,
+    type PracticeBotSettings,
+    practiceDodgePerSecond,
+    practiceFlipInterval,
+    PracticeGuns,
+    PracticeKitItems,
+    practiceKitGear,
+    PracticeRandomGun,
+    practiceReactionSeconds,
+    type PracticeSettings,
+    practiceSpeedMult,
+    practiceStrafeWeight,
+} from "../../../shared/practice.ts";
 import { v2, type Vec2 } from "../../../shared/utils/v2.ts";
 import { Config } from "../config.ts";
 import type { Game } from "./game.ts";
@@ -86,6 +102,7 @@ import type { Obstacle } from "./objects/obstacle.ts";
 import type { Player } from "./objects/player.ts";
 import type { Structure } from "./objects/structure.ts";
 import { SpecOpsContractRunner } from "./specOpsContracts.ts";
+import { PracticeController, type PracticeHost } from "./practiceController.ts";
 import { inferGroundLayer, MapNavGraph, navGroundLayer, stairAtPos } from "./specOpsNav.ts";
 
 export type SpecOpsKind = "enemy" | "ally" | "sentry";
@@ -270,6 +287,18 @@ interface EnemyLoadout {
     castIronWipe?: boolean;
     melee?: string;
 }
+
+/** Practice bot movement/aim numbers, derived from the panel sliders. */
+interface PracticeBotTuning {
+    flipMin: number;
+    flipMax: number;
+    dodgePerSec: number;
+    aimErrorDeg: number;
+    reactionSec: number;
+    holdFire: boolean;
+}
+
+const PracticeBotOutfits = ["outfitCamo", "outfitKhaki", "outfitDarkShirt", "outfitWoodland"];
 
 const Loadouts: Record<EnemyClass, EnemyLoadout> = {
     militia: {
@@ -1895,6 +1924,54 @@ function lateEnemyPerks(wave: number, kind: EnemyClass): string[] {
         if (!out.includes(perk)) out.push(perk);
     }
     return out;
+}
+
+/** Practice bot loadout: range and fire rhythm follow the chosen gun's type. */
+function practiceBotLoadout(gun: string, settings: PracticeBotSettings, index: number): EnemyLoadout {
+    const def = GameObjectDefs.typeToDef(gun, "gun") as GunDef;
+    const bulletRange = BulletDefs[def.bulletType]?.distance ?? 100;
+    let range: number;
+    let burst: number;
+    let burstPause: number;
+    if (def.bulletCount > 1) {
+        // Shotguns: get close, short taps.
+        range = 11;
+        burst = 0.2;
+        burstPause = 0.55;
+    } else if (def.fireMode !== "auto" && def.fireDelay >= 0.5) {
+        // Bolt-action snipers: keep distance, one shot at a time.
+        range = 48;
+        burst = 0.08;
+        burstPause = 0.9;
+    } else if (def.fireMode !== "auto") {
+        // Pistols, DMRs, burst rifles.
+        range = 30;
+        burst = 0.3;
+        burstPause = 0.45;
+    } else {
+        // SMGs, rifles, LMGs: longer bursts.
+        range = 26;
+        burst = 0.6;
+        burstPause = 0.35;
+    }
+    range = math.min(range, bulletRange * 0.6);
+    return {
+        name: `Bot ${index + 1}`,
+        gun,
+        outfit: PracticeBotOutfits[index % PracticeBotOutfits.length],
+        chest: "",
+        helmet: "",
+        backpack: "backpack02",
+        perks: ["endless_ammo"],
+        range,
+        holdRange: range * 0.65,
+        speedMult: practiceSpeedMult(settings.strafe),
+        turnRate: 240,
+        aimError: practiceAimErrorDeg(settings.accuracy),
+        reaction: practiceReactionSeconds(settings.reaction),
+        burst,
+        burstPause,
+    };
 }
 
 function pickGun(kind: EnemyClass, wave: number): string {
@@ -3702,6 +3779,13 @@ class AiBrain {
     clearingHouse = false;
     doorStuckTicker = 0;
     stairTarget?: Stair;
+    /** Practice mode: slider-driven movement and aim; undefined for Spec Ops bots. */
+    practice?: PracticeBotTuning;
+    /** Practice: remaining time of the current juke and its side. */
+    dodgeTicker = 0;
+    dodgeSign = 1;
+    /** Practice: whether the bot could see its target last tick (for reaction time). */
+    practiceSawTarget = false;
 
     constructor(
         player: Player,
@@ -3752,6 +3836,28 @@ class AiBrain {
             }
         }
         this.anchor = best;
+    }
+
+    /**
+     * Practice: when the player aims at this bot, sometimes juke sideways for a
+     * moment and flip strafe direction. `dodgePerSec` sets how often.
+     */
+    private applyPracticeDodge(dt: number, move: Vec2, desired: Vec2, target: Player): Vec2 {
+        const tuning = this.practice;
+        if (!tuning) return move;
+        this.dodgeTicker = math.max(this.dodgeTicker - dt, 0);
+        if (tuning.dodgePerSec > 0 && this.dodgeTicker <= 0) {
+            const toMe = v2.normalizeSafe(v2.sub(this.player.pos, target.pos));
+            // About 10° either side of the player's aim line.
+            const aimedAt = v2.dot(target.dir, toMe) > 0.985;
+            if (aimedAt && Math.random() < tuning.dodgePerSec * dt) {
+                this.dodgeSign = Math.random() < 0.5 ? 1 : -1;
+                this.dodgeTicker = 0.32;
+                this.strafeSign = Math.abs(this.strafeSign) * this.dodgeSign;
+            }
+        }
+        if (this.dodgeTicker <= 0) return move;
+        return v2.add(v2.normalizeSafe(move), v2.mul(v2.perp(desired), this.dodgeSign * 2.2));
     }
 
     alertTo(pos: Vec2): void {
@@ -4115,11 +4221,13 @@ class AiBrain {
             aimTarget = v2.rotate(approach, this.lookScanSign * math.deg2rad(18) + errorRad);
         } else {
             const aimSlack = math.lerp(this.waveScale, 1.7, 0.9);
-            const maxError = math.max(
-                10,
-                this.loadout.aimError * aimSlack * (1.15 - this.waveScale * 0.55),
-            ) + suppressError;
-            const errorScale = math.lerp(this.waveScale, 0.9, 0.4);
+            const maxError = this.practice
+                ? this.practice.aimErrorDeg
+                : math.max(
+                    10,
+                    this.loadout.aimError * aimSlack * (1.15 - this.waveScale * 0.55),
+                ) + suppressError;
+            const errorScale = this.practice ? 1 : math.lerp(this.waveScale, 0.9, 0.4);
             const errorRad = math.deg2rad(util.random(-maxError, maxError) * errorScale);
             const lead = v2.mul(target.moveVel, 0.04 * (0.08 + this.waveScale * 0.7));
             aimTarget = v2.rotate(v2.normalizeSafe(v2.add(desired, lead)), errorRad);
@@ -4257,7 +4365,9 @@ class AiBrain {
             this.strafeFlipTicker -= dt;
             if (this.strafeFlipTicker <= 0) {
                 this.strafeSign *= -1;
-                this.strafeFlipTicker = util.random(0.7, 1.8);
+                this.strafeFlipTicker = this.practice
+                    ? util.random(this.practice.flipMin, this.practice.flipMax)
+                    : util.random(0.7, 1.8);
             }
 
             if (this.detourPos && !this.stairTarget && v2.distance(player.pos, this.detourPos) < 2.2 && !doorBlock) {
@@ -4467,6 +4577,10 @@ class AiBrain {
                 move = v2.mul(v2.perp(desired), this.strafeSign);
             }
 
+            if (this.practice) {
+                move = this.applyPracticeDodge(dt, move, desired, target);
+            }
+
             const sep = crowdingSteer(player.game, player, target);
             if (v2.length(sep) > 0.05) {
                 const sepWeight = assaultDirect ? 1.05 : 1.25 - push * 0.85;
@@ -4555,7 +4669,15 @@ class AiBrain {
                     this.aimDir,
                     v2.normalizeSafe(v2.sub(this.assaultBreakWindow.pos, player.pos)),
                 ) > 0.72;
+        if (this.practice) {
+            // Reaction time: wait this long after the target comes into view.
+            if (canSee && !this.practiceSawTarget) {
+                this.acquireTicker = math.max(this.acquireTicker, this.practice.reactionSec);
+            }
+            this.practiceSawTarget = canSee;
+        }
         const ready = this.alerted
+            && !this.practice?.holdFire
             && hasGun
             && !patrolDowned
             && !target.downed
@@ -5356,7 +5478,7 @@ export const SpecOpsAbandonedTimeout = 90;
 /** Seconds without movement/shoot/interact before a connected operator is treated as idle. */
 export const SpecOpsIdleTimeout = 300;
 
-export class SpecOpsManager {
+export class SpecOpsManager implements PracticeHost {
     static readonly AiTeamId = AiTeamId;
 
     readonly game: Game;
@@ -5435,6 +5557,9 @@ export class SpecOpsManager {
     readonly contracts = new SpecOpsContractRunner(this);
     private lastContractHudCode = -1;
 
+    /** Practice mode controller; undefined in normal Spec Ops. */
+    readonly practice?: PracticeController;
+
     constructor(game: Game) {
         this.game = game;
         this.difficulty = parseSpecOpsDifficulty(game.config.difficulty);
@@ -5442,6 +5567,10 @@ export class SpecOpsManager {
         this.contractsEnabled = game.config.contractsEnabled !== false;
         this.aiTeam = game.playerBarn.addTeam(AiTeamId);
         game.gas.disableForSpecOps();
+        if (game.map.practiceMode) {
+            this.practice = new PracticeController(this);
+            this.contractsEnabled = false;
+        }
     }
 
     ensureNavGraph(): MapNavGraph {
@@ -5775,6 +5904,8 @@ export class SpecOpsManager {
     /** Open seats for the server browser (ignores AFK-idle matchmaking closure). */
     get browsable(): boolean {
         if (this.game.over) return false;
+        // Practice matches are private.
+        if (this.practice) return false;
         if (this.joinLocked) return false;
         if (this.game.started && this.operatorCount <= 0) return false;
         return this.operatorCount + this.game.pendingJoinTokens() < this.game.maxTeamSize;
@@ -5939,6 +6070,8 @@ export class SpecOpsManager {
     }
 
     onMatchStarted(): void {
+        // Practice has no waves, shop or stations.
+        if (this.practice) return;
         this.phase = "prep";
         // Veteran opens on wave 5 — prep sits at wave-1 so startWave() advances to 5.
         this.wave = Math.max(0, specOpsStartingWave(this.difficulty) - 1);
@@ -5953,6 +6086,13 @@ export class SpecOpsManager {
 
     onHumanJoined(player: Player): void {
         if (player.specOpsAi) return;
+
+        if (this.practice) {
+            if (!this.operatorSpawn) this.operatorSpawn = v2.copy(player.pos);
+            this.practice.onHumanJoined(player);
+            this.hudDirty = true;
+            return;
+        }
 
         if (!this.operatorSpawn) {
             this.operatorSpawn = v2.copy(player.pos);
@@ -6123,7 +6263,9 @@ export class SpecOpsManager {
         }
 
         const shopping = this.phase === "prep" || this.phase === "intermission";
-        if (!this.game.map.specOpsBotArena) {
+        if (this.practice) {
+            this.practice.update(dt);
+        } else if (!this.game.map.specOpsBotArena) {
             if (shopping) {
                 this.shopSkipLock = math.max(this.shopSkipLock - dt, 0);
                 this.phaseTimer = math.max(this.phaseTimer - dt, 0);
@@ -6206,7 +6348,7 @@ export class SpecOpsManager {
 
     /** Press E during prep/intermission to start the next wave. */
     tryStartWaveEarly(player: Player): boolean {
-        if (this.game.map.specOpsBotArena) return false;
+        if (this.game.map.specOpsBotArena || this.practice) return false;
         if (player.specOpsAi || player.dead || player.downed || player.disconnected) {
             return false;
         }
@@ -7191,6 +7333,7 @@ export class SpecOpsManager {
     }
 
     private placeStations(): void {
+        if (this.practice) return;
         if (this.stationsPlaced || !this.operatorSpawn) return;
         this.stationsPlaced = true;
 
@@ -8121,6 +8264,169 @@ export class SpecOpsManager {
                 }
             });
         }
+    }
+
+    /* ── Practice mode ───────────────────────────────────────────────────── */
+
+    /** Spawn one practice bot near the player with the panel's settings. */
+    spawnPracticeBot(settings: PracticeBotSettings, index: number): Player | undefined {
+        const human = this.livingHumans()[0];
+        const origin = human?.pos ?? this.operatorSpawn ?? this.game.map.center;
+        const pos = this.pickSpawnNear(origin, 14, 30);
+        const gun = settings.gun === PracticeRandomGun
+            ? PracticeGuns[util.randomInt(0, PracticeGuns.length - 1)]
+            : settings.gun;
+        const loadout = practiceBotLoadout(gun, settings, index);
+
+        let player: Player;
+        try {
+            player = this.game.playerBarn.addTestPlayer({
+                pos,
+                name: loadout.name,
+                team: this.aiTeam,
+                specOpsAi: true,
+            });
+        } catch (err) {
+            this.game.logger.error("Practice bot spawn failed", err);
+            return undefined;
+        }
+
+        this.equipAi(player, loadout, "enemy");
+        // equipAi applies Spec Ops wave gear and health; use the panel's values instead.
+        const gear = practiceArmorGear(settings.armor);
+        player.helmet = gear.helmet;
+        player.chest = gear.chest;
+        player.specOpsArmor = 0;
+        player.health = settings.health;
+        player.specOpsDamageMult = 1;
+        player.specOpsBounty = 0;
+        player.setDirty();
+
+        const brain = new AiBrain(player, loadout, 18, "enemy");
+        brain.waveScale = 1;
+        brain.alerted = true;
+        brain.anchor = human;
+        const [flipMin, flipMax] = practiceFlipInterval(settings.turn);
+        brain.practice = {
+            flipMin,
+            flipMax,
+            dodgePerSec: practiceDodgePerSecond(settings.dodge),
+            aimErrorDeg: practiceAimErrorDeg(settings.accuracy),
+            reactionSec: practiceReactionSeconds(settings.reaction),
+            holdFire: !settings.shootsBack,
+        };
+        // strafeSign doubles as the strafe weight: 0 = no strafing, 2 = mostly sideways.
+        brain.strafeSign = (Math.random() < 0.5 ? -1 : 1) * practiceStrafeWeight(settings.strafe);
+        brain.strafeFlipTicker = util.random(flipMin, flipMax);
+        this.brains.set(player, brain);
+        return player;
+    }
+
+    /** Remove a practice bot without counting a kill (used when the setup changes). */
+    removePracticeBot(bot: Player): void {
+        this.queueRemove(bot);
+    }
+
+    /** Bring a dead practice player back near the start point. */
+    respawnPracticeHuman(player: Player): void {
+        if (!player.dead) return;
+        player.dead = false;
+        player.downed = false;
+        player.downedBy = undefined;
+        player.killedBy = undefined;
+        player.boost = 0;
+        player.cancelAction();
+
+        const origin = this.operatorSpawn ?? this.game.map.center;
+        v2.set(player.pos, this.pickSpawnNear(origin, 0, 12));
+        player.layer = 0;
+        this.game.grid.updateObject(player);
+
+        const barn = this.game.playerBarn;
+        if (!barn.livingPlayers.includes(player)) barn.livingPlayers.push(player);
+        util.removeFrom(barn.killedPlayers, player);
+        if (player.team && !player.team.livingPlayers.includes(player)) {
+            player.team.livingPlayers.push(player);
+        }
+        player.group?.checkPlayers();
+        if (!player.disconnected) {
+            player.client.spectating = undefined;
+            player.client.startedSpectating = true;
+        }
+        barn.aliveCountDirty = true;
+        player.grantSpecOpsReviveImmunity();
+        player.setDirty();
+        player.setGroupStatuses();
+        this.hudDirty = true;
+    }
+
+    /**
+     * Give the practice player exactly their spawn kit, survev style: 100 HP,
+     * no armor pool, the kit's guns, melee, gear, scope, items and ammo.
+     */
+    equipPracticeHuman(player: Player, settings: PracticeSettings): void {
+        const kit = settings.kit;
+        player.clearInventoryForPractice();
+        if (player.hasPerk("endless_ammo")) player.removePerk("endless_ammo");
+
+        // Gear first: the backpack sets how much of everything fits.
+        const gear = practiceKitGear(kit);
+        player.helmet = gear.helmet;
+        player.chest = gear.chest;
+        player.backpack = gear.backpack;
+
+        if (kit.scope !== "1xscope") {
+            player.invManager.set(kit.scope as InventoryItem, 1);
+            player.scope = kit.scope;
+        }
+
+        const giveGun = (slot: number, type: string) => {
+            const def = GameObjectDefs.typeToDef(type, "gun") as GunDef;
+            const ammo = player.weaponManager.getAmmoStats(def, type);
+            player.weaponManager.setWeapon(slot, type, ammo.maxClip);
+            const ammoType = def.ammo as InventoryItem;
+            if (kit.fillAmmo && player.invManager.isValid(ammoType)) {
+                player.invManager.set(ammoType, player.invManager.getMaxCapacity(ammoType));
+            }
+        };
+        giveGun(GameConfig.WeaponSlot.Primary, settings.primary);
+        if (settings.secondary) giveGun(GameConfig.WeaponSlot.Secondary, settings.secondary);
+        player.weaponManager.setWeapon(GameConfig.WeaponSlot.Melee, kit.melee, 0);
+
+        for (const item of PracticeKitItems) {
+            const count = kit.counts[item];
+            if (count > 0) player.invManager.give(item, count);
+        }
+        player.weaponManager.showNextThrowable();
+        player.weaponManager.setCurWeapIndex(GameConfig.WeaponSlot.Primary);
+
+        player.health = player.maxHealth;
+        player.specOpsArmor = 0;
+        player.boost = 0;
+        player.setDirty();
+    }
+
+    /** Practice "Give item" / "Clear inventory" from the panel. */
+    givePracticeItem(player: Player, item: string, count: number, clear: boolean): void {
+        if (player.specOpsAi || player.dead) return;
+        if (clear) player.clearInventoryForPractice();
+        if (item) player.giveItem(item, count);
+    }
+
+    /** Test helper: practice bots currently alive. */
+    practiceBotsPublic(): Player[] {
+        const out: Player[] = [];
+        for (const brain of this.brains.values()) {
+            if (brain.practice && !brain.player.dead && !brain.player.destroyed) {
+                out.push(brain.player);
+            }
+        }
+        return out;
+    }
+
+    /** Test helper: the practice tuning a bot was given. */
+    practiceTuningPublic(player: Player): PracticeBotTuning | undefined {
+        return this.brains.get(player)?.practice;
     }
 
     /** Test helper: teleport a stuck NPC as the in-game relocator would. */

@@ -480,7 +480,7 @@ export class WeaponManager {
             };
         }
 
-        if (this.player.game.map.specOpsMode && !this.player.specOpsAi) {
+        if (this.player.specOpsHumanRules) {
             const modded = specOpsWeaponAmmoStats(
                 gunType,
                 stats,
@@ -570,7 +570,7 @@ export class WeaponManager {
             action = GameConfig.Action.ReloadAlt;
         }
 
-        if (this.player.game.map.specOpsMode && !this.player.specOpsAi) {
+        if (this.player.specOpsHumanRules) {
             duration = specOpsWeaponReloadTime(this.activeWeapon, duration);
         }
         if (this.player.specOpsKind === "sentry") {
@@ -582,7 +582,7 @@ export class WeaponManager {
     }
 
     private canOffhandReload(): boolean {
-        return !!this.player.game.map.specOpsMode && !this.player.specOpsAi;
+        return this.player.specOpsHumanRules;
     }
 
     private clearOffhandReload(slot: number): void {
@@ -607,7 +607,7 @@ export class WeaponManager {
         let duration = alt && weaponDef.reloadTimeAlt
             ? weaponDef.reloadTimeAlt
             : weaponDef.reloadTime;
-        if (this.player.game.map.specOpsMode) {
+        if (this.player.specOpsHumanRules) {
             duration = specOpsWeaponReloadTime(weapon.type, duration);
         }
         return duration * WeaponManager.OffhandReloadMult;
@@ -1105,6 +1105,7 @@ export class WeaponManager {
             };
 
             this.player.game.bulletBarn.fireBullet(params);
+            this.player.game.specOps?.practice?.onShotFired(this.player);
 
             // Shoot a projectile if defined
             let projectile: Projectile | undefined;

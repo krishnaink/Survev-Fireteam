@@ -1,5 +1,6 @@
 import $ from "jquery";
 import * as PIXI from "pixi.js-legacy";
+import { PracticeDefaultMap, PracticeMapPool } from "../../shared/defs/maps/practiceDefs.ts";
 import { parseSpecOpsDifficulty } from "../../shared/defs/maps/specOpsShop.ts";
 import { GameConfig, TeamMode } from "../../shared/gameConfig.ts";
 import * as net from "../../shared/net/net.ts";
@@ -253,6 +254,32 @@ export class Application {
                 SDK.requestMidGameAd(() => {
                     this.tryQuickStartGame(this.selectedGameModeIdx);
                 });
+                return false;
+            });
+
+            // Practice vs bots: map picker + start button (always solo, private).
+            const practiceSelect = $<HTMLSelectElement>("#practice-map-select");
+            for (const practiceMap of PracticeMapPool) {
+                practiceSelect.append($("<option>").val(practiceMap.key).text(practiceMap.label));
+            }
+            let savedPracticeMap: string = PracticeDefaultMap;
+            try {
+                savedPracticeMap = localStorage.getItem("practiceMap") || PracticeDefaultMap;
+            } catch {
+                // Storage unavailable: use the default arena.
+            }
+            if (PracticeMapPool.some((m) => m.key === savedPracticeMap)) {
+                practiceSelect.val(savedPracticeMap);
+            }
+            practiceSelect.on("change", () => {
+                try {
+                    localStorage.setItem("practiceMap", String(practiceSelect.val()));
+                } catch {
+                    // Not remembered; harmless.
+                }
+            });
+            $("#btn-practice").on("click", () => {
+                this.tryQuickStartGame(0, String(practiceSelect.val() || PracticeDefaultMap));
                 return false;
             });
 
@@ -976,7 +1003,7 @@ export class Application {
         });
     }
 
-    tryQuickStartGame(gameModeIdx: number) {
+    tryQuickStartGame(gameModeIdx: number, practiceMap?: string) {
         if (this.quickPlayPendingModeIdx === -1) {
             requestSteamDeckFullscreen();
             // Update UI to display a spinner on the play button
@@ -1018,8 +1045,9 @@ export class Application {
                 region,
                 zones,
                 playerCount: 1,
-                autoFill: true,
+                autoFill: !practiceMap,
                 gameModeIdx,
+                practiceMap,
                 difficulty: parseSpecOpsDifficulty(
                     this.config.get("teamDifficulty")
                         || this.siteInfo.info.specOpsDifficulty

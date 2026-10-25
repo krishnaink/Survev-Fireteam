@@ -2900,6 +2900,8 @@ export class UiManager {
     }
 
     displayGasAnnouncement(type: GasMode, timeLeft: number, specOpsMode = false) {
+        // Practice has no waves, so no "next wave" / "press E" banners.
+        if (this.game.m_map.getMapDef().gameMode.practiceMode) return;
         let message = "";
         switch (type) {
             case GasMode.Waiting: {

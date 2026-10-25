@@ -12,6 +12,19 @@ import { Halloween } from "./maps/halloweenDefs.ts";
 import { MainSpring } from "./maps/mainSpringDefs.ts";
 import { MainSummer } from "./maps/mainSummerDefs.ts";
 import { Potato } from "./maps/potatoDefs.ts";
+import {
+    PracticeArena,
+    PracticeBeach,
+    PracticeCobalt,
+    PracticeDesert,
+    PracticeHalloween,
+    PracticePotato,
+    PracticeSavannah,
+    PracticeSnow,
+    PracticeSpecOps,
+    PracticeTurkey,
+    PracticeWoods,
+} from "./maps/practiceDefs.ts";
 import { PotatoSpring } from "./maps/potatoSpringDefs.ts";
 import { Savannah } from "./maps/savannahDefs.ts";
 import { Snow } from "./maps/snowDefs.ts";
@@ -80,6 +93,17 @@ const _MapDefs = {
     specops_beach: SpecOpsBeach,
     specops_savannah: SpecOpsSavannah,
     specops_turkey: SpecOpsTurkey,
+    practice_arena: PracticeArena,
+    practice_specops: PracticeSpecOps,
+    practice_woods: PracticeWoods,
+    practice_desert: PracticeDesert,
+    practice_snow: PracticeSnow,
+    practice_halloween: PracticeHalloween,
+    practice_cobalt: PracticeCobalt,
+    practice_potato: PracticePotato,
+    practice_beach: PracticeBeach,
+    practice_savannah: PracticeSavannah,
+    practice_turkey: PracticeTurkey,
 
     /* STRIP_FROM_PROD_CLIENT:START */
     test_normal: testNormal,
@@ -154,6 +178,8 @@ export interface MapDef {
         specOpsMode?: boolean;
         /** Pauses wave progression for bot spawn debugging. */
         specOpsBotArena?: boolean;
+        /** Practice: 1 player vs configurable respawning bots; no waves or shop. */
+        practiceMode?: boolean;
     };
     gameConfig: {
         planes: {

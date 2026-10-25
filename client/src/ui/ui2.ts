@@ -721,8 +721,10 @@ export class UiManager2 {
 
         // Player status
         const specOps = !!map.getMapDef().gameMode.specOpsMode;
-        state.maxHealth = specOps ? SpecOpsMaxHealth : GameConfig.player.health;
-        state.showArmor = specOps;
+        // Practice plays by survev rules: 100 HP and no blue armor bar.
+        const specOpsRules = specOps && !map.getMapDef().gameMode.practiceMode;
+        state.maxHealth = specOpsRules ? SpecOpsMaxHealth : GameConfig.player.health;
+        state.showArmor = specOpsRules;
         state.armor = activePlayer.m_localData.m_specOpsArmor ?? 0;
         state.maxArmor = SpecOpsMaxArmor;
         state.health = activePlayer.m_netData.m_dead
@@ -886,6 +888,7 @@ export class UiManager2 {
         if (
             interactionType == InteractionType.None
             && specOps
+            && !map.getMapDef().gameMode.practiceMode
             && !spectating
             && !activePlayer.m_netData.m_downed
             && !activePlayer.m_netData.m_dead

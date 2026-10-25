@@ -731,8 +731,16 @@ export class Player extends BaseGameObject {
 
     private _health: number = GameConfig.player.health;
 
+    /**
+     * Spec Ops operator rules: 200 HP, blue armor pool, out-of-combat regen,
+     * Spec Ops mags/reloads. Off in practice, which plays by survev rules.
+     */
+    get specOpsHumanRules(): boolean {
+        return this.game.map.specOpsMode && !this.specOpsAi && !this.game.map.practiceMode;
+    }
+
     get maxHealth(): number {
-        if (this.game.map.specOpsMode && !this.specOpsAi) {
+        if (this.specOpsHumanRules) {
             return SpecOpsMaxHealth;
         }
         if (this.game.map.specOpsMode && this.specOpsKind === "enemy") {
@@ -1698,7 +1706,7 @@ export class Player extends BaseGameObject {
                 this.health += healAmount!.heal * dt;
 
                 if (this.boost > this.minBoost) {
-                    const specOpsHuman = this.game.map.specOpsMode && !this.specOpsAi;
+                    const specOpsHuman = this.specOpsHumanRules;
                     const decay = specOpsHuman
                         ? SpecOpsBoostDecay
                         : GameConfig.player.boostDecay;
@@ -1718,8 +1726,7 @@ export class Player extends BaseGameObject {
 
         // Spec Ops: slow HP regen after a few seconds out of combat.
         if (
-            this.game.map.specOpsMode
-            && !this.specOpsAi
+            this.specOpsHumanRules
             && !this.dead
             && !this.downed
         ) {
@@ -1884,7 +1891,7 @@ export class Player extends BaseGameObject {
                     }
                     if ("armor" in itemDef && itemDef.armor) {
                         const armorGain = itemDef.armor;
-                        if (this.game.map.specOpsMode && !this.specOpsAi) {
+                        if (this.specOpsHumanRules) {
                             this.specOpsArmor = math.min(
                                 SpecOpsMaxArmor,
                                 this.specOpsArmor + armorGain,
@@ -2737,6 +2744,8 @@ export class Player extends BaseGameObject {
             finalDamage -= finalDamage * multi;
         };
 
+        let absorbedByArmor = 0;
+
         // ignore armor for gas and bleeding damage
         if (
             params.damageType !== GameConfig.DamageType.Gas
@@ -2766,7 +2775,7 @@ export class Player extends BaseGameObject {
             }
 
             // Spec Ops humans use gear DR plus an MW3-style armor pool.
-            const specOpsHuman = this.game.map.specOpsMode && !this.specOpsAi;
+            const specOpsHuman = this.specOpsHumanRules;
             const chest = GameObjectDefs.typeToDefSafe(this.chest) as ChestDef | undefined;
             if (chest && !isHeadShot) {
                 reduceDamage(chest.damageReduction);
@@ -2781,7 +2790,17 @@ export class Player extends BaseGameObject {
                 const absorbed = math.min(this._specOpsArmor, finalDamage);
                 this.specOpsArmor = this._specOpsArmor - absorbed;
                 finalDamage -= absorbed;
+                absorbedByArmor = absorbed;
             }
+        }
+
+        // Practice stats: damage dealt / taken (armor-absorbed damage counts too).
+        if (this.game.specOps?.practice && finalDamage + absorbedByArmor > 0) {
+            this.game.specOps.practice.onDamage(
+                this,
+                params,
+                math.min(finalDamage, this._health) + absorbedByArmor,
+            );
         }
 
         if (this._health - finalDamage < 0) {
@@ -3031,7 +3050,8 @@ export class Player extends BaseGameObject {
 
         util.removeFrom(this.game.playerBarn.livingPlayers, this);
 
-        if (!this.specOpsAi) {
+        // Practice players respawn instead of getting the game-over screen.
+        if (!this.specOpsAi && !this.game.map.practiceMode) {
             this.game.playerBarn.killedPlayers.push(this);
         }
 
@@ -3607,7 +3627,7 @@ export class Player extends BaseGameObject {
 
         const hasAoeHeal = this.hasPerk("aoe_heal");
         const armorRestore = itemDef.armor ?? 0;
-        const specOpsHuman = this.game.map.specOpsMode && !this.specOpsAi;
+        const specOpsHuman = this.specOpsHumanRules;
         if (armorRestore > 0) {
             if (
                 !specOpsHuman
@@ -4941,64 +4961,7 @@ export class Player extends BaseGameObject {
         // ── Cheat panel handlers ────────────────────────────────────────────
         if (msg.giveItem) {
             const count = Math.max(1, Math.min(999, msg.giveItemCount || 1));
-            const def = GameObjectDefs.typeToDefSafe(msg.giveItem);
-            if (def) {
-                switch (def.type) {
-                    case "gun": {
-                        // Equip into the first free primary/secondary slot, or
-                        // replace primary if both are occupied.
-                        const gunDef = def as GunDef;
-                        const primarySlot = this.weapons[GameConfig.WeaponSlot.Primary].type
-                            ? GameConfig.WeaponSlot.Secondary
-                            : GameConfig.WeaponSlot.Primary;
-                        const slot = this.weapons[primarySlot].type
-                            ? GameConfig.WeaponSlot.Primary
-                            : primarySlot;
-                        const ammoStats = this.weaponManager.getAmmoStats(gunDef, msg.giveItem);
-                        this.weaponManager.setWeapon(slot, msg.giveItem, ammoStats.maxClip);
-                        // Fill ammo reserves too.
-                        if (this.invManager.isValid(gunDef.ammo as InventoryItem)) {
-                            this.invManager.give(
-                                gunDef.ammo as InventoryItem,
-                                gunDef.ammoSpawnCount ?? ammoStats.maxClip * 3,
-                            );
-                        }
-                        break;
-                    }
-                    case "melee":
-                        this.weaponManager.setWeapon(GameConfig.WeaponSlot.Melee, msg.giveItem, 0);
-                        break;
-                    case "throwable":
-                    case "ammo":
-                    case "heal":
-                    case "boost":
-                    case "scope":
-                        if (this.invManager.isValid(msg.giveItem)) {
-                            this.invManager.give(msg.giveItem as InventoryItem, count);
-                        }
-                        break;
-                    case "chest":
-                        this.chest = msg.giveItem;
-                        this.setDirty();
-                        break;
-                    case "helmet":
-                        this.helmet = msg.giveItem;
-                        this.setDirty();
-                        break;
-                    case "backpack":
-                        this.backpack = msg.giveItem;
-                        this.setDirty();
-                        break;
-                    default:
-                        // For anything else, drop it as loot on the floor (existing behaviour).
-                        if ("lootImg" in def) {
-                            this.game.lootBarn.addLoot(msg.giveItem, this.pos, this.layer, count, {
-                                pushSpeed: 0,
-                            });
-                        }
-                        break;
-                }
-                this.setDirty();
+            if (this.giveItem(msg.giveItem, count)) {
                 this.game.logger.info(`[cheat] Gave ${count}× ${msg.giveItem} to ${this.name}`);
             }
         }
@@ -5017,6 +4980,91 @@ export class Player extends BaseGameObject {
             this.game.specOps.jumpToWave(msg.setWave);
         }
         // ────────────────────────────────────────────────────────────────────
+    }
+
+    /**
+     * Put an item straight into this player's inventory or weapon slots
+     * (cheat panel and practice "Give item"). Returns false for unknown types.
+     */
+    giveItem(type: string, count: number): boolean {
+        const def = GameObjectDefs.typeToDefSafe(type);
+        if (!def) return false;
+        switch (def.type) {
+            case "gun": {
+                // Equip into the first free primary/secondary slot, or
+                // replace primary if both are occupied.
+                const gunDef = def as GunDef;
+                const primarySlot = this.weapons[GameConfig.WeaponSlot.Primary].type
+                    ? GameConfig.WeaponSlot.Secondary
+                    : GameConfig.WeaponSlot.Primary;
+                const slot = this.weapons[primarySlot].type
+                    ? GameConfig.WeaponSlot.Primary
+                    : primarySlot;
+                const ammoStats = this.weaponManager.getAmmoStats(gunDef, type);
+                this.weaponManager.setWeapon(slot, type, ammoStats.maxClip);
+                // Fill ammo reserves too.
+                if (this.invManager.isValid(gunDef.ammo as InventoryItem)) {
+                    this.invManager.give(
+                        gunDef.ammo as InventoryItem,
+                        gunDef.ammoSpawnCount ?? ammoStats.maxClip * 3,
+                    );
+                }
+                break;
+            }
+            case "melee":
+                this.weaponManager.setWeapon(GameConfig.WeaponSlot.Melee, type, 0);
+                break;
+            case "throwable":
+            case "ammo":
+            case "heal":
+            case "boost":
+            case "scope":
+                if (this.invManager.isValid(type)) {
+                    this.invManager.give(type as InventoryItem, count);
+                }
+                break;
+            case "chest":
+                this.chest = type;
+                this.setDirty();
+                break;
+            case "helmet":
+                this.helmet = type;
+                this.setDirty();
+                break;
+            case "backpack":
+                this.backpack = type;
+                this.setDirty();
+                break;
+            default:
+                // For anything else, drop it as loot on the floor (existing behaviour).
+                if ("lootImg" in def) {
+                    this.game.lootBarn.addLoot(type, this.pos, this.layer, count, {
+                        pushSpeed: 0,
+                    });
+                }
+                break;
+        }
+        this.setDirty();
+        return true;
+    }
+
+    /** Practice: empty every slot and the bag; keeps fists and the 1x scope. */
+    clearInventoryForPractice(): void {
+        this.cancelAction();
+        this.weaponManager.setWeapon(GameConfig.WeaponSlot.Primary, "", 0);
+        this.weaponManager.setWeapon(GameConfig.WeaponSlot.Secondary, "", 0);
+        this.weaponManager.setWeapon(GameConfig.WeaponSlot.Melee, "fists", 0);
+        this.invManager.wipeInventory();
+        this.invManager.set("1xscope", 1);
+        this.scope = "1xscope";
+        this.weaponManager.showNextThrowable();
+        this.weaponManager.setCurWeapIndex(GameConfig.WeaponSlot.Melee);
+        this.helmet = "";
+        this.chest = "";
+        this.backpack = "backpack00";
+        this.inventoryDirty = true;
+        this.weapsDirty = true;
+        this.setDirty();
     }
 
     doAction(

@@ -198,6 +198,8 @@ export class GameMap {
     sniperMode: boolean;
     specOpsMode: boolean;
     specOpsBotArena: boolean;
+    /** Practice vs configurable bots (no waves, player respawns). */
+    practiceMode: boolean;
 
     mapStream = new MsgStream(new ArrayBuffer(1 << 16));
 
@@ -294,6 +296,7 @@ export class GameMap {
         this.sniperMode = !!this.mapDef.gameMode.sniperMode;
         this.specOpsMode = !!this.mapDef.gameMode.specOpsMode;
         this.specOpsBotArena = !!this.mapDef.gameMode.specOpsBotArena;
+        this.practiceMode = !!this.mapDef.gameMode.practiceMode;
 
         this.center = v2.create(this.width / 2, this.height / 2);
         this.grassInset = mapConfig.grassInset;

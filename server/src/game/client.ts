@@ -218,6 +218,8 @@ export class ClientBarn {
             | net.SpectateMsg
             | net.PerkModeRoleSelectMsg
             | net.EditMsg
+            | net.PracticeSettingsMsg
+            | net.PracticeGiveMsg
             | undefined = undefined;
 
         switch (type) {
@@ -267,6 +269,14 @@ export class ClientBarn {
             case net.MsgType.Edit:
                 if (!Config.debug.allowEditMsg) break;
                 msg = new net.EditMsg();
+                msg.deserialize(stream);
+                break;
+            case net.MsgType.PracticeSettings:
+                msg = new net.PracticeSettingsMsg();
+                msg.deserialize(stream);
+                break;
+            case net.MsgType.PracticeGive:
+                msg = new net.PracticeGiveMsg();
                 msg.deserialize(stream);
                 break;
         }
@@ -999,6 +1009,20 @@ export class Client {
             case net.MsgType.Edit: {
                 if (!player) break;
                 player.processEditMsg(msg as net.EditMsg);
+                break;
+            }
+            case net.MsgType.PracticeGive: {
+                if (!player || !this.game.specOps?.practice) break;
+                const give = msg as net.PracticeGiveMsg;
+                this.game.specOps.givePracticeItem(player, give.item, give.count, give.clearInventory);
+                break;
+            }
+            case net.MsgType.PracticeSettings: {
+                if (!player) break;
+                this.game.specOps?.practice?.applySettings(
+                    player,
+                    (msg as net.PracticeSettingsMsg).settings,
+                );
                 break;
             }
         }

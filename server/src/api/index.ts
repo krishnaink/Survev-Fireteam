@@ -6,6 +6,9 @@ import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { randomUUID } from "node:crypto";
 import pkgJson from "../../../package.json" with { type: "json" };
+import type { MapDefKey } from "../../../shared/defs/mapDefs.ts";
+import { isPracticeMapName } from "../../../shared/defs/maps/practiceDefs.ts";
+import { TeamMode } from "../../../shared/gameConfig.ts";
 import {
     type FindGameResponse,
     type PublicGamesResponse,
@@ -157,7 +160,15 @@ app.post("/api/find_game_v2", validateParams(zFindGameBody), async (c) => {
 
     const body = c.req.valid("json");
 
-    const mode = server.modes[body.gameModeIdx];
+    // Practice vs bots: a private solo match on the chosen practice map.
+    const practice = body.practiceMap !== undefined;
+    if (practice && !isPracticeMapName(body.practiceMap!)) {
+        return c.json<FindGameResponse>({ type: "error", error: "mode_disabled" });
+    }
+
+    const mode = practice
+        ? { mapName: body.practiceMap as MapDefKey, teamMode: TeamMode.Solo, enabled: true }
+        : server.modes[body.gameModeIdx];
     if (!mode || !mode.enabled) {
         return c.json<FindGameResponse>({ type: "error", error: "mode_disabled" });
     }
@@ -193,12 +204,12 @@ app.post("/api/find_game_v2", validateParams(zFindGameBody), async (c) => {
         version: body.version,
         mapName: mode.mapName,
         teamMode: mode.teamMode,
-        autoFill: body.autoFill,
+        autoFill: practice ? false : body.autoFill,
         difficulty: body.difficulty ?? Config.difficulty,
         endless: typeof body.endless === "boolean" ? body.endless : Config.endless,
         contractsEnabled: Config.contractsEnabled,
         playerData,
-        gameId: body.gameId,
+        gameId: practice ? undefined : body.gameId,
     });
 
     if ("error" in session) {

@@ -2715,7 +2715,8 @@ export class PlayerBarn {
         const activeInfo = this.getPlayerInfo(activeId);
         const activePlayer = this.getPlayerById(activeId)!;
 
-        const maxHealth = map.specOpsMode ? SpecOpsMaxHealth : GameConfig.player.health;
+        const specOpsRules = map.specOpsMode && !map.getMapDef().gameMode.practiceMode;
+        const maxHealth = specOpsRules ? SpecOpsMaxHealth : GameConfig.player.health;
 
         this.setPlayerStatus(activeId, {
             pos: v2.copy(activePlayer.m_netData.m_pos),
@@ -2724,7 +2725,7 @@ export class PlayerBarn {
                 0,
                 100,
             ),
-            armor: map.specOpsMode
+            armor: specOpsRules
                 ? math.clamp(
                     (activePlayer.m_localData.m_specOpsArmor / SpecOpsMaxArmor) * 100,
                     0,
