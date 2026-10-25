@@ -17,6 +17,10 @@ import {
     PracticeMinBotHealth,
     PracticePlayerRespawnDelay,
     PracticeRandomGun,
+    PracticeMaxRespawnDelay,
+    type PracticeRespawnMode,
+    PracticeRespawnModeLabels,
+    PracticeRespawnModes,
     type PracticeBotSettings,
     type PracticeSettings,
     PracticeSliderMax,
@@ -195,7 +199,7 @@ export class PracticeMenu {
 
     constructor(
         private readonly send: (settings: PracticeSettings) => void,
-        private readonly sendGive: (item: string, count: number, clear: boolean) => void,
+        private readonly sendGive: (item: string, count: number, clear: boolean, respawnBots?: boolean) => void,
     ) {}
 
     init() {
@@ -400,7 +404,8 @@ export class PracticeMenu {
         const ttk = (ms: number) => (ms > 0 ? `${(ms / 1000).toFixed(2)}s` : "—");
         this.statsElem.innerHTML = "";
         this.statsElem.append(
-            `K ${st.kills} / D ${st.deaths} · Acc ${acc}% · Dmg ${st.damageDealt} dealt / ${st.damageTaken} taken`
+            `Bots ${st.botsAlive}/${st.botsTotal} · K ${st.kills} / D ${st.deaths} · Acc ${acc}%`
+                + ` · Dmg ${st.damageDealt} dealt / ${st.damageTaken} taken`
                 + ` · TTK ${ttk(st.ttkAvgMs)} (best ${ttk(st.ttkBestMs)})`,
             el("span", { class: "pm-hint" }, "P: practice menu"),
         );
@@ -421,7 +426,7 @@ export class PracticeMenu {
             this.updateRespawnText();
         }
 
-        root.append(el("h3", {}, "Presets"));
+        root.append(el("h3", {}, "PRESETS"));
         root.append(this.gunRow("Primary", this.settings.primary, false, false, (v) => {
             this.settings.primary = v;
         }));
@@ -443,6 +448,7 @@ export class PracticeMenu {
         }
         countRow.append(count);
         root.append(countRow);
+        this.renderRespawn(root);
 
         this.settings.bots.forEach((bot, i) => root.append(this.botCard(bot, i)));
 
@@ -529,8 +535,52 @@ export class PracticeMenu {
         root.append(ammoRow);
     }
 
+    private renderRespawn(root: HTMLElement) {
+        const modeRow = el("div", { class: "pm-row" });
+        modeRow.append(el("label", {}, "Bots respawn"));
+        const mode = el("select");
+        for (const m of PracticeRespawnModes) {
+            mode.append(el("option", { value: m }, PracticeRespawnModeLabels[m]));
+        }
+        mode.value = this.settings.respawnMode;
+        modeRow.append(mode);
+        root.append(modeRow);
+
+        const delay = this.slider(
+            "Respawn delay",
+            this.settings.respawnDelay,
+            0,
+            PracticeMaxRespawnDelay,
+            (v) => `${(v / 10).toFixed(1)}s`,
+            (v) => {
+                this.settings.respawnDelay = v;
+            },
+        );
+        root.append(delay);
+
+        const syncDelay = () => {
+            // No delay to set when bots only come back on the button.
+            delay.style.opacity = this.settings.respawnMode === "off" ? "0.4" : "1";
+        };
+        mode.addEventListener("change", () => {
+            this.settings.respawnMode = mode.value as PracticeRespawnMode;
+            syncDelay();
+        });
+        syncDelay();
+
+        const nowRow = el("div", { class: "pm-row" });
+        nowRow.append(el("label", {}, ""));
+        const now = el("button", { type: "button" }, "Respawn bots now");
+        now.style.cssText = "background:#2b343b;color:#e8ecef;border:1px solid #3f4a52;border-radius:6px;"
+            + "padding:6px 12px;font:inherit;cursor:pointer;";
+        now.addEventListener("click", () => this.sendGive("", 1, false, true));
+        nowRow.append(now);
+        root.append(nowRow);
+        root.append(el("p", { class: "pm-note" }, "Respawn mode and delay apply with Apply; bots already alive stay."));
+    }
+
     private renderGive(root: HTMLElement) {
-        root.append(el("h3", {}, "Spawn Item"));
+        root.append(el("h3", {}, "SPAWN ITEM"));
         const row = el("div", { class: "pm-give" });
         const select = el("select");
         for (const group of giveItemGroups()) {

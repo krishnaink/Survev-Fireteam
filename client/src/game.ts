@@ -1512,11 +1512,12 @@ export class Game {
                             practiceMsg.settings = settings;
                             this.m_sendMessage(net.MsgType.PracticeSettings, practiceMsg, 512);
                         },
-                        (item, count, clear) => {
+                        (item, count, clear, respawnBots) => {
                             const giveMsg = new net.PracticeGiveMsg();
                             giveMsg.item = item;
                             giveMsg.count = count;
                             giveMsg.clearInventory = clear;
+                            giveMsg.respawnBots = !!respawnBots;
                             this.m_sendMessage(net.MsgType.PracticeGive, giveMsg, 64);
                         },
                     );

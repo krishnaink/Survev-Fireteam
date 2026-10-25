@@ -16,10 +16,27 @@ export const PracticeMaxBotHealth = 280;
 export const PracticeMaxArmor = 3;
 /** Reaction time is stored in tenths of a second (0–2.0 s). */
 export const PracticeMaxReaction = 20;
-/** Seconds before a dead bot comes back. */
-export const PracticeBotRespawnDelay = 2;
+/** Default seconds before dead bots come back. */
+export const PracticeBotRespawnDelay = 1.5;
+/** Respawn delay is stored in tenths of a second (0–10 s). */
+export const PracticeMaxRespawnDelay = 100;
+
+/**
+ * How bots come back after dying:
+ * - each: every bot respawns on its own after the delay
+ * - wave: once all bots are down, they all respawn together after the delay
+ * - off:  dead bots stay down until you press "Respawn bots"
+ */
+export const PracticeRespawnModes = ["each", "wave", "off"] as const;
+export type PracticeRespawnMode = (typeof PracticeRespawnModes)[number];
+
+export const PracticeRespawnModeLabels: Record<PracticeRespawnMode, string> = {
+    each: "Each bot on its own",
+    wave: "All at once, when all are down",
+    off: "Off (respawn by hand)",
+};
 /** Seconds before the player respawns after dying. */
-export const PracticePlayerRespawnDelay = 5;
+export const PracticePlayerRespawnDelay = 3;
 /** At most this many practice matches run at once on one game server. */
 export const PracticeMaxMatches = 4;
 /** Bot gun value meaning "pick a random gun each time it spawns". */
@@ -148,6 +165,10 @@ export interface PracticeSettings {
     /** Everything else you spawn with. */
     kit: PracticeKit;
     bots: PracticeBotSettings[];
+    /** How dead bots come back. */
+    respawnMode: PracticeRespawnMode;
+    /** Delay before bots respawn, in tenths of a second. */
+    respawnDelay: number;
 }
 
 /** The advanced movement values the main wiggle slider sets. */
@@ -176,6 +197,8 @@ export function defaultPracticeSettings(): PracticeSettings {
         secondary: "",
         kit: defaultPracticeKit(),
         bots: [defaultPracticeBot()],
+        respawnMode: "each",
+        respawnDelay: Math.round(PracticeBotRespawnDelay * 10),
     };
 }
 
@@ -233,7 +256,17 @@ export function sanitizePracticeSettings(raw: Partial<PracticeSettings> | undefi
         : "";
     const rawBots = Array.isArray(raw?.bots) ? raw.bots.slice(0, PracticeMaxBots) : [];
     const bots = rawBots.length ? rawBots.map((b) => sanitizeBot(b)) : def.bots;
-    return { primary, secondary, kit: sanitizeKit(raw?.kit), bots };
+    const respawnMode = (PracticeRespawnModes as readonly string[]).includes(raw?.respawnMode as string)
+        ? (raw!.respawnMode as PracticeRespawnMode)
+        : def.respawnMode;
+    return {
+        primary,
+        secondary,
+        kit: sanitizeKit(raw?.kit),
+        bots,
+        respawnMode,
+        respawnDelay: clampInt(raw?.respawnDelay, 0, PracticeMaxRespawnDelay, def.respawnDelay),
+    };
 }
 
 /* ── Bot tuning: slider values → AI numbers (server) ─────────────────────── */
@@ -290,6 +323,9 @@ export interface PracticeStats {
     ttkAvgMs: number;
     /** Best time-to-kill in ms (0 = no kills yet). */
     ttkBestMs: number;
+    /** Bots alive right now / bots configured. */
+    botsAlive: number;
+    botsTotal: number;
 }
 
 export function emptyPracticeStats(): PracticeStats {
@@ -302,5 +338,7 @@ export function emptyPracticeStats(): PracticeStats {
         damageTaken: 0,
         ttkAvgMs: 0,
         ttkBestMs: 0,
+        botsAlive: 0,
+        botsTotal: 0,
     };
 }

@@ -120,6 +120,8 @@ test("Practice settings message round-trips", () => {
             { ...defaultPracticeBot(), gun: PracticeRandomGun, accuracy: 87, reaction: 13, shootsBack: false },
             { ...defaultPracticeBot(), gun: "mosin", health: 120, armor: 3, strafe: 9, turn: 2, dodge: 7 },
         ],
+        respawnMode: "wave",
+        respawnDelay: 42,
     });
     const stream = new BitStream(new ArrayBuffer(256));
     msg.serialize(stream);
@@ -140,6 +142,8 @@ test("Practice stats message round-trips", () => {
         damageTaken: 880,
         ttkAvgMs: 1840,
         ttkBestMs: 610,
+        botsAlive: 2,
+        botsTotal: 4,
     };
     const stream = new BitStream(new ArrayBuffer(64));
     msg.serialize(stream);
@@ -305,6 +309,7 @@ test("Practice give message round-trips", () => {
     msg.item = "helmet03";
     msg.count = 7;
     msg.clearInventory = true;
+    msg.respawnBots = true;
     const stream = new BitStream(new ArrayBuffer(32));
     msg.serialize(stream);
     stream.byteIndex = 0;
@@ -313,6 +318,7 @@ test("Practice give message round-trips", () => {
     expect(decoded.item).toBe("helmet03");
     expect(decoded.count).toBe(7);
     expect(decoded.clearInventory).toBe(true);
+    expect(decoded.respawnBots).toBe(true);
 });
 
 /* ── Survev rules and the spawn kit ───────────────────────────────────── */
@@ -404,4 +410,56 @@ test("Practice changing only bots keeps items you gave yourself", () => {
         sanitizePracticeSettings({ ...practice.settings, bots: [defaultPracticeBot(), defaultPracticeBot()] }),
     );
     expect(player.helmet).toBe("helmet03");
+});
+
+/* ── Bot respawn modes ────────────────────────────────────────────────── */
+
+function runFor(game: Game, seconds: number) {
+    for (let t = 0; t < seconds; t += 0.1) game.update(0.1);
+}
+
+test("Practice respawn delay is configurable", () => {
+    const { game, player } = startPractice({ respawnMode: "each", respawnDelay: 50 });
+    killPlayer(bots(game)[0], player);
+    runFor(game, 3);
+    expect(bots(game).length).toBe(0);
+    runFor(game, 2.5);
+    expect(bots(game).length).toBe(1);
+});
+
+test("Practice respawn off: dead bots stay down until Respawn bots now", () => {
+    const { game, player, practice } = startPractice({ respawnMode: "off", respawnDelay: 5 });
+    killPlayer(bots(game)[0], player);
+    runFor(game, 5);
+    expect(bots(game).length).toBe(0);
+    expect(game.over).toBe(false);
+
+    practice.respawnBotsNow();
+    runFor(game, 1);
+    expect(bots(game).length).toBe(1);
+});
+
+test("Practice respawn wave: bots come back together once all are down", () => {
+    const quiet = { ...defaultPracticeBot(), shootsBack: false };
+    const { game, player } = startPractice({ respawnMode: "wave", respawnDelay: 10, bots: [quiet, quiet] });
+    expect(bots(game).length).toBe(2);
+
+    killPlayer(bots(game)[0], player);
+    runFor(game, 3);
+    expect(bots(game).length).toBe(1);
+
+    killPlayer(bots(game)[0], player);
+    game.update(0.05);
+    expect(bots(game).length).toBe(0);
+    runFor(game, 2);
+    expect(bots(game).length).toBe(2);
+});
+
+test("Practice switching respawn mode keeps living bots", () => {
+    const { game, player, practice } = startPractice({ respawnMode: "each" });
+    const bot = bots(game)[0];
+    runFor(game, 0.5);
+    practice.applySettings(player, sanitizePracticeSettings({ ...practice.settings, respawnMode: "off" }));
+    game.update(0.05);
+    expect(bots(game)[0]).toBe(bot);
 });

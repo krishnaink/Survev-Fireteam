@@ -6,6 +6,7 @@ import {
     PracticeKitItems,
     PracticeMaxBots,
     PracticeRandomGun,
+    PracticeRespawnModes,
     PracticeScopes,
     type PracticeSettings,
     type PracticeStats,
@@ -56,6 +57,8 @@ export class PracticeSettingsMsg implements AbstractMsg {
             s.writeBits(bot.health, 9);
             s.writeBits(bot.armor, 2);
         }
+        s.writeBits(Math.max(0, PracticeRespawnModes.indexOf(settings.respawnMode)), 2);
+        s.writeBits(settings.respawnDelay, 7);
     }
 
     deserialize(s: BitStream) {
@@ -88,20 +91,25 @@ export class PracticeSettingsMsg implements AbstractMsg {
                 armor: s.readBits(2),
             });
         }
-        this.settings = sanitizePracticeSettings({ primary, secondary, kit, bots });
+        const respawnMode = PracticeRespawnModes[s.readBits(2)] ?? PracticeRespawnModes[0];
+        const respawnDelay = s.readBits(7);
+        this.settings = sanitizePracticeSettings({ primary, secondary, kit, bots, respawnMode, respawnDelay });
     }
 }
 
-/** Client → server: give yourself an item right now, or empty your inventory. */
+/** Client → server: give yourself an item, empty your inventory, or respawn the bots now. */
 export class PracticeGiveMsg implements AbstractMsg {
     /** Any item type with a loot image (gun, melee, armor, pack, scope, heal, ammo…). */
     item = "";
     count = 1;
     /** Remove everything except fists and the 1x scope first (item may be empty). */
     clearInventory = false;
+    /** Bring every dead bot back right now (any respawn mode). */
+    respawnBots = false;
 
     serialize(s: BitStream) {
         s.writeBoolean(this.clearInventory);
+        s.writeBoolean(this.respawnBots);
         const valid = !!this.item && GameObjectDefs.typeExists(this.item);
         s.writeGameType(valid ? this.item : "");
         s.writeUint16(Math.max(1, Math.min(999, Math.round(this.count) || 1)));
@@ -109,6 +117,7 @@ export class PracticeGiveMsg implements AbstractMsg {
 
     deserialize(s: BitStream) {
         this.clearInventory = s.readBoolean();
+        this.respawnBots = s.readBoolean();
         this.item = s.readGameType();
         this.count = Math.max(1, Math.min(999, s.readUint16()));
     }
@@ -128,6 +137,8 @@ export class PracticeStatsMsg implements AbstractMsg {
         s.writeUint32(Math.min(Math.round(st.damageTaken), 0xffffffff));
         s.writeUint32(Math.min(Math.round(st.ttkAvgMs), 0xffffffff));
         s.writeUint32(Math.min(Math.round(st.ttkBestMs), 0xffffffff));
+        s.writeBits(Math.min(st.botsAlive, 7), 3);
+        s.writeBits(Math.min(st.botsTotal, 7), 3);
     }
 
     deserialize(s: BitStream) {
@@ -140,6 +151,8 @@ export class PracticeStatsMsg implements AbstractMsg {
             damageTaken: s.readUint32(),
             ttkAvgMs: s.readUint32(),
             ttkBestMs: s.readUint32(),
+            botsAlive: s.readBits(3),
+            botsTotal: s.readBits(3),
         };
     }
 }

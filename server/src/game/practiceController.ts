@@ -6,7 +6,6 @@ import { math } from "../../../shared/utils/math.ts";
 import {
     defaultPracticeSettings,
     emptyPracticeStats,
-    PracticeBotRespawnDelay,
     type PracticeBotSettings,
     PracticePlayerRespawnDelay,
     type PracticeSettings,
@@ -27,7 +26,10 @@ export interface PracticeHost {
 
 interface BotSlot {
     bot?: Player;
-    /** Seconds until this slot spawns a bot; < 0 while a bot is alive. */
+    /**
+     * Seconds until this empty slot spawns a bot. Infinity = waiting (for the
+     * whole group in "wave" mode, or for the button in "off" mode).
+     */
     respawnIn: number;
     /** Practice clock (s) when the player first damaged the current bot; 0 = not yet. */
     firstHitAt: number;
@@ -59,6 +61,9 @@ export class PracticeController {
     private clock = 0;
     /** Clock time of the last applied setup, to ignore spam. */
     private lastApplyAt = -Infinity;
+    /** "wave" mode: seconds until the whole group respawns; < 0 when not counting. */
+    private waveRespawnIn = -1;
+    private lastBotsAlive = -1;
 
     constructor(readonly host: PracticeHost) {}
 
@@ -79,6 +84,8 @@ export class PracticeController {
             || JSON.stringify(settings.bots) !== JSON.stringify(this.settings.bots);
         const kitOf = (st: PracticeSettings) => JSON.stringify([st.primary, st.secondary, st.kit]);
         const kitChanged = !this.started || kitOf(settings) !== kitOf(this.settings);
+        const respawnChanged = this.settings.respawnMode !== settings.respawnMode
+            || this.settings.respawnDelay !== settings.respawnDelay;
         this.settings = settings;
         this.started = true;
 
@@ -90,6 +97,16 @@ export class PracticeController {
                 respawnIn: 0.5 + i * 0.25,
                 firstHitAt: 0,
             }));
+            this.waveRespawnIn = -1;
+        } else if (respawnChanged) {
+            // Same bots, new respawn rule: re-time the slots that are waiting.
+            this.waveRespawnIn = -1;
+            for (const slot of this.slots) {
+                if (slot.bot) continue;
+                slot.respawnIn = settings.respawnMode === "each"
+                    ? Math.min(slot.respawnIn, settings.respawnDelay / 10)
+                    : Infinity;
+            }
         }
 
         // Re-kit a living player only when the kit changed, so items you gave
@@ -181,17 +198,55 @@ export class PracticeController {
         }
     }
 
+    /** "Respawn bots" button: bring every dead bot back now, whatever the mode. */
+    respawnBotsNow(): void {
+        if (!this.started) return;
+        this.waveRespawnIn = -1;
+        let n = 0;
+        for (const slot of this.slots) {
+            if (slot.bot) continue;
+            slot.respawnIn = 0.1 + n * 0.15;
+            n++;
+        }
+    }
+
+    get botsAlive(): number {
+        return this.slots.filter((s) => s.bot && !s.bot.dead).length;
+    }
+
     private updateBots(dt: number): void {
+        const mode = this.settings.respawnMode;
+        const delay = this.settings.respawnDelay / 10;
+
+        // Deaths: "each" starts that bot's timer; "wave" and "off" wait.
+        for (const slot of this.slots) {
+            if (!slot.bot || !slot.bot.dead) continue;
+            this.onBotDied(slot);
+            slot.bot = undefined;
+            slot.firstHitAt = 0;
+            slot.respawnIn = mode === "each" ? delay : Infinity;
+        }
+
+        // "wave": once every bot is down (and none is already on its way back),
+        // count down and then bring the whole group back together.
+        if (mode === "wave" && this.slots.length > 0) {
+            const allWaiting = this.slots.every((s) => !s.bot && s.respawnIn === Infinity);
+            if (allWaiting && this.waveRespawnIn < 0) this.waveRespawnIn = delay;
+            if (this.waveRespawnIn >= 0) {
+                this.waveRespawnIn -= dt;
+                if (this.waveRespawnIn <= 0) {
+                    this.waveRespawnIn = -1;
+                    this.slots.forEach((slot, i) => {
+                        slot.respawnIn = i * 0.15;
+                    });
+                }
+            }
+        }
+
+        // Spawn every slot whose timer has run out.
         for (let i = 0; i < this.slots.length; i++) {
             const slot = this.slots[i];
-            if (slot.bot) {
-                if (!slot.bot.dead) continue;
-                this.onBotDied(slot);
-                slot.bot = undefined;
-                slot.respawnIn = PracticeBotRespawnDelay;
-                slot.firstHitAt = 0;
-                continue;
-            }
+            if (slot.bot || slot.respawnIn === Infinity) continue;
             slot.respawnIn -= dt;
             if (slot.respawnIn > 0) continue;
             const bot = this.host.spawnPracticeBot(this.settings.bots[i], i);
@@ -203,6 +258,13 @@ export class PracticeController {
                 // No room right now (spawn failed); try again shortly.
                 slot.respawnIn = 1;
             }
+        }
+
+        // Tell the HUD when the number of living bots changes.
+        const alive = this.botsAlive;
+        if (alive !== this.lastBotsAlive) {
+            this.lastBotsAlive = alive;
+            for (const st of this.stats.values()) st.dirty = true;
         }
     }
 
@@ -244,6 +306,8 @@ export class PracticeController {
                 damageTaken: st.damageTaken,
                 ttkAvgMs: st.ttkAvgMs,
                 ttkBestMs: st.ttkBestMs,
+                botsAlive: this.botsAlive,
+                botsTotal: this.started ? this.slots.length : 0,
             };
             player.client.sendMsg(net.MsgType.PracticeStats, msg);
         }

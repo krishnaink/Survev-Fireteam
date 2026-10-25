@@ -1014,6 +1014,7 @@ export class Client {
             case net.MsgType.PracticeGive: {
                 if (!player || !this.game.specOps?.practice) break;
                 const give = msg as net.PracticeGiveMsg;
+                if (give.respawnBots) this.game.specOps.practice.respawnBotsNow();
                 this.game.specOps.givePracticeItem(player, give.item, give.count, give.clearInventory);
                 break;
             }
