@@ -47,6 +47,12 @@ export class PracticeSettingsMsg implements AbstractMsg {
             const random = bot.gun === PracticeRandomGun;
             s.writeBoolean(random);
             if (!random) writeGun(s, bot.gun);
+            const secondaryRandom = bot.secondary === PracticeRandomGun;
+            s.writeBoolean(secondaryRandom);
+            if (!secondaryRandom) writeGun(s, bot.secondary);
+            s.writeGameType(bot.melee);
+            s.writeBoolean(bot.quickSwitch);
+            s.writeBoolean(bot.autoMelee);
             s.writeBits(bot.wiggle, 4);
             s.writeBits(bot.strafe, 4);
             s.writeBits(bot.turn, 4);
@@ -78,8 +84,16 @@ export class PracticeSettingsMsg implements AbstractMsg {
         for (let i = 0; i < count; i++) {
             const random = s.readBoolean();
             const gun = random ? PracticeRandomGun : readGun(s);
+            const secondary = s.readBoolean() ? PracticeRandomGun : readGun(s);
+            const melee = s.readGameType();
+            const quickSwitch = s.readBoolean();
+            const autoMelee = s.readBoolean();
             bots.push({
                 gun,
+                secondary,
+                melee,
+                quickSwitch,
+                autoMelee,
                 wiggle: s.readBits(4),
                 strafe: s.readBits(4),
                 turn: s.readBits(4),
@@ -97,9 +111,9 @@ export class PracticeSettingsMsg implements AbstractMsg {
     }
 }
 
-/** Client → server: give yourself an item, empty your inventory, or respawn the bots now. */
+/** Client → server: spawn a pickup, empty your inventory, or respawn the bots now. */
 export class PracticeGiveMsg implements AbstractMsg {
-    /** Any item type with a loot image (gun, melee, armor, pack, scope, heal, ammo…). */
+    /** Item/perk pickup to spawn on the ground near the player. */
     item = "";
     count = 1;
     /** Remove everything except fists and the 1x scope first (item may be empty). */
