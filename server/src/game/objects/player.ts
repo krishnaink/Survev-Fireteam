@@ -38,6 +38,7 @@ import {
     type InventoryItem,
 } from "../../../../shared/gameConfig.ts";
 import * as net from "../../../../shared/net/net.ts";
+import type { ScoreboardEntry } from "../../../../shared/net/updateMsg.ts";
 import { ObjectType } from "../../../../shared/net/objectSerializeFns.ts";
 import { type Circle, coldet } from "../../../../shared/utils/coldet.ts";
 import { collider } from "../../../../shared/utils/collider.ts";
@@ -143,6 +144,9 @@ export class PlayerBarn {
 
     playerStatusTicker = 0;
     playerStatusRate = 0;
+    /** Hold-Tab scoreboard refresh (seconds). Cheap: a handful of ints per human. */
+    scoreboardTicker = 0;
+    readonly scoreboardRate = 0.5;
 
     defaultItems = util.mergeDeep(
         {},
@@ -350,6 +354,7 @@ export class PlayerBarn {
             || this.game.map.specOpsMode
         ) {
             this.playerStatusTicker += dt;
+            this.scoreboardTicker += dt;
         }
 
         for (let i = 0; i < this.players.length; i++) {
@@ -466,6 +471,27 @@ export class PlayerBarn {
         this.game.updateData();
     }
 
+    /** True on ticks where the hold-Tab scoreboard should be re-sent. */
+    get scoreboardDue(): boolean {
+        return this.scoreboardTicker > this.scoreboardRate;
+    }
+
+    /** Human operators only (Spec Ops AI/bots are not listed). */
+    getScoreboard(): ScoreboardEntry[] {
+        const rows: ScoreboardEntry[] = [];
+        for (const p of this.players) {
+            if (p.specOpsAi) continue;
+            rows.push({
+                playerId: p.__id,
+                kills: p.kills,
+                downs: p.downedCount,
+                revives: p.revives,
+                cashEarned: p.specOpsCashEarned,
+            });
+        }
+        return rows.sort((a, b) => a.playerId - b.playerId).slice(0, 255);
+    }
+
     flush() {
         this.newPlayers.length = 0;
         this.deletedPlayers.length = 0;
@@ -476,6 +502,9 @@ export class PlayerBarn {
         const flushPlayerStatus = this.playerStatusTicker > this.playerStatusRate;
         if (flushPlayerStatus) {
             this.playerStatusTicker = 0;
+        }
+        if (this.scoreboardTicker > this.scoreboardRate) {
+            this.scoreboardTicker = 0;
         }
 
         for (let i = 0; i < this.players.length; i++) {
@@ -490,6 +519,7 @@ export class PlayerBarn {
             player.specOpsCashDirty = false;
             player.specOpsArmorDirty = false;
             player.specOpsContractDirty = false;
+            player.specOpsScoreboardDirty = false;
             player.groupStatusDirty = false;
             if (flushPlayerStatus) {
                 player.playerStatusDirty = false;
@@ -1448,6 +1478,13 @@ export class Player extends BaseGameObject {
     /** Packed Spec Ops contract HUD (see packSpecOpsContractHud). */
     specOpsContractHud = 0;
     specOpsContractDirty = true;
+    /** Lifetime cash earned this match (kills, bonuses; excludes refunds/starting cash). */
+    specOpsCashEarned = 0;
+    /** Hold-Tab scoreboard payload; rebuilt by the net layer when it is sent. */
+    specOpsScoreboard: ScoreboardEntry[] = [];
+    specOpsScoreboardDirty = true;
+    /** Teammates successfully revived by this player. */
+    revives = 0;
     /** Seconds of post-revive / buyback damage immunity. */
     specOpsImmunityTicker = 0;
     /** MW3-style armor pool (absorbs damage; not gear DR). */
@@ -1919,6 +1956,7 @@ export class Player extends BaseGameObject {
                 ) {
                     this.applyActionFunc((target: Player) => {
                         if (!target.downed) return;
+                        if (target !== this) this.revives++;
                         target.downed = false;
                         target.downedBy = undefined;
                         target.downedDamageTicker = 0;

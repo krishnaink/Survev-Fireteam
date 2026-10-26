@@ -1,0 +1,690 @@
+From 97b476f042cc8f26d317624c273356cd6dcf855a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 26 Oct 2026 05:13:59 +0000
+Subject: [PATCH] feat (server+client): hold-Tab squad scoreboard overlay
+
+Translucent overlay listing each operator's kills, downs, revives and total
+cash earned. Stats are sent in the Spec Ops local-data block (bumps protocol
+to 1028). Disabled in practice mode where Tab opens the practice menu.
+---
+ client/css/game.css               | 83 ++++++++++++++++++++++++++++
+ client/src/game.ts                | 31 +++++++++++
+ client/src/objects/player.ts      |  6 +++
+ client/src/ui/opponentDisplay.ts  |  2 +
+ client/src/ui/scoreboard.ts       | 90 +++++++++++++++++++++++++++++++
+ server/src/game/client.ts         | 12 +++++
+ server/src/game/objects/player.ts | 38 +++++++++++++
+ server/src/game/specOpsManager.ts |  8 +--
+ shared/gameConfig.ts              |  2 +-
+ shared/net/updateMsg.ts           | 35 ++++++++++++
+ tests/src/net.test.ts             | 16 ++++++
+ tests/src/scoreboard.test.ts      | 68 +++++++++++++++++++++++
+ 12 files changed, 387 insertions(+), 4 deletions(-)
+ create mode 100644 client/src/ui/scoreboard.ts
+ create mode 100644 tests/src/scoreboard.test.ts
+
+diff --git a/client/css/game.css b/client/css/game.css
+index 1e284c7..d57a835 100644
+--- a/client/css/game.css
++++ b/client/css/game.css
+@@ -6988,3 +6988,86 @@ body.ui-specops-mode.ui-editor-active #ui-editor-top-right {
+     top: 220px;
+   }
+ }
++
++/* Hold-Tab squad scoreboard (see client/src/ui/scoreboard.ts) */
++.sb-root {
++  position: fixed;
++  top: 14%;
++  left: 50%;
++  transform: translateX(-50%);
++  width: min(640px, 92vw);
++  z-index: 60;
++  pointer-events: none;
++  user-select: none;
++  font-family: "Roboto Condensed", sans-serif;
++  color: #fff;
++  background: rgba(0, 0, 0, 0.32);
++  -webkit-backdrop-filter: blur(2px);
++  backdrop-filter: blur(2px);
++  border: 1px solid rgba(255, 255, 255, 0.12);
++  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
++}
++
++.sb-header,
++.sb-row {
++  display: flex;
++  align-items: center;
++  padding: 7px 12px;
++}
++
++.sb-header {
++  background: rgba(0, 0, 0, 0.35);
++  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
++  font-size: 15px;
++  color: rgba(255, 255, 255, 0.75);
++}
++
++.sb-title {
++  flex: 1;
++  font-size: 18px;
++  font-weight: 700;
++  color: #fff;
++}
++
++.sb-name {
++  flex: 1;
++  font-size: 17px;
++  font-weight: 700;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++.sb-col {
++  width: 78px;
++  text-align: center;
++  font-size: 17px;
++}
++
++.sb-header .sb-col {
++  font-size: 15px;
++}
++
++.sb-header .sb-col:last-child,
++.sb-row .sb-col:last-child {
++  width: 110px;
++}
++
++.sb-row {
++  border: 1px solid transparent;
++  background: rgba(255, 255, 255, 0.04);
++  margin-top: 2px;
++}
++
++.sb-row-local {
++  border-color: rgba(255, 140, 30, 0.9);
++  background: rgba(255, 140, 30, 0.1);
++}
++
++.sb-row-local .sb-name {
++  color: #ffd45a;
++}
++
++.sb-cash {
++  color: #9dff9d;
++}
+diff --git a/client/src/game.ts b/client/src/game.ts
+index c34e1d1..eeea777 100644
+--- a/client/src/game.ts
++++ b/client/src/game.ts
+@@ -55,6 +55,7 @@ import type { ResourceManager } from "./resources.ts";
+ import { SDK } from "./sdk/sdk.ts";
+ import { ThrowableRadial } from "./throwableRadial.ts";
+ import type { Localization } from "./ui/localization.ts";
++import { Scoreboard } from "./ui/scoreboard.ts";
+ import { PracticeMenu } from "./ui/practiceMenu.ts";
+ import { Touch } from "./ui/touch.ts";
+ import { UiManager } from "./ui/ui.ts";
+@@ -128,6 +129,7 @@ export class Game {
+     debugHUD!: DebugHUD;
+     /** Practice mode panel + stats; null outside practice matches. */
+     m_practiceMenu: PracticeMenu | null = null;
++    m_scoreboard: Scoreboard | null = null;
+ 
+     seq!: number;
+     seqInFlight!: boolean;
+@@ -428,6 +430,8 @@ export class Game {
+         this.connected = false;
+         this.m_practiceMenu?.destroy();
+         this.m_practiceMenu = null;
++        this.m_scoreboard?.destroy();
++        this.m_scoreboard = null;
+         if (this.initialized) {
+             this.initialized = false;
+             this.m_updatePass = false;
+@@ -509,6 +513,24 @@ export class Game {
+             if (local) this.m_practiceMenu.setDead(local.m_netData.m_dead);
+         }
+ 
++        if (this.m_scoreboard) {
++            const show = this.m_input.keyDown(Key.Tab)
++                && this.m_playing
++                && !this.m_gameOver
++                && !!this.m_activePlayer;
++            this.m_scoreboard.setVisible(show);
++            if (show && this.m_activePlayer) {
++                this.m_scoreboard.update(
++                    this.m_activePlayer.m_localData.m_specOpsScoreboard,
++                    this.m_localId,
++                    {
++                        nameOf: (id) => this.m_playerBarn.getPlayerInfo(id).name,
++                    },
++                    this.m_uiManager.lastSpecOpsWave,
++                );
++            }
++        }
++
+         const smokeParticles = this.m_smokeBarn.m_particles;
+ 
+         if (this.m_playing) {
+@@ -1507,6 +1529,15 @@ export class Game {
+                 this.m_uiManager.onMapLoad(this.m_map, this.m_camera);
+                 this.m_practiceMenu?.destroy();
+                 this.m_practiceMenu = null;
++                this.m_scoreboard?.destroy();
++                this.m_scoreboard = null;
++                // Tab opens the practice menu in practice mode, so the scoreboard is wave-survival only.
++                if (
++                    this.m_map.specOpsMode
++                    && !this.m_map.getMapDef().gameMode.practiceMode
++                ) {
++                    this.m_scoreboard = new Scoreboard();
++                }
+                 if (this.m_map.getMapDef().gameMode.practiceMode) {
+                     this.m_practiceMenu = new PracticeMenu(
+                         (settings) => {
+diff --git a/client/src/objects/player.ts b/client/src/objects/player.ts
+index 88a83fd..d021eb7 100644
+--- a/client/src/objects/player.ts
++++ b/client/src/objects/player.ts
+@@ -17,6 +17,7 @@ import {
+     type LocalDataWithDirty,
+     type PlayerInfo,
+     type PlayerStatus,
++    type ScoreboardEntry,
+ } from "../../../shared/net/updateMsg.ts";
+ import { coldet } from "../../../shared/utils/coldet.ts";
+ import { collider } from "../../../shared/utils/collider.ts";
+@@ -365,6 +366,7 @@ export class Player implements AbstractObject {
+         m_specOpsCash: number;
+         m_specOpsArmor: number;
+         m_specOpsContractHud: number;
++        m_specOpsScoreboard: ScoreboardEntry[];
+     };
+ 
+     throwableStatePrev!: string;
+@@ -516,6 +518,7 @@ export class Player implements AbstractObject {
+             m_specOpsCash: 0,
+             m_specOpsArmor: 0,
+             m_specOpsContractHud: 0,
++            m_specOpsScoreboard: [],
+         };
+ 
+         this.playAnim(Anim.None, -1);
+@@ -666,6 +669,9 @@ export class Player implements AbstractObject {
+         if (data.specOpsContractDirty) {
+             this.m_localData.m_specOpsContractHud = data.specOpsContractHud;
+         }
++        if (data.specOpsScoreboardDirty) {
++            this.m_localData.m_specOpsScoreboard = data.specOpsScoreboard;
++        }
+ 
+         // Zoom more quickly when changing scopes
+         if (this.m_localData.m_scope != scopeOld) {
+diff --git a/client/src/ui/opponentDisplay.ts b/client/src/ui/opponentDisplay.ts
+index 33f6176..03de5bc 100644
+--- a/client/src/ui/opponentDisplay.ts
++++ b/client/src/ui/opponentDisplay.ts
+@@ -164,6 +164,8 @@ export class LoadoutDisplay {
+             specOpsArmor: 0,
+             specOpsContractDirty: false,
+             specOpsContractHud: 0,
++            specOpsScoreboardDirty: false,
++            specOpsScoreboard: [],
+             zoomDirty: false,
+             zoom: 0,
+             scope: "1xscope",
+diff --git a/client/src/ui/scoreboard.ts b/client/src/ui/scoreboard.ts
+new file mode 100644
+index 0000000..981899e
+--- /dev/null
++++ b/client/src/ui/scoreboard.ts
+@@ -0,0 +1,90 @@
++import type { ScoreboardEntry } from "../../../shared/net/updateMsg.ts";
++
++export interface ScoreboardNames {
++    /** Display name for a player id. */
++    nameOf(playerId: number): string;
++}
++
++function el<K extends keyof HTMLElementTagNameMap>(
++    tag: K,
++    cls?: string,
++    text?: string,
++): HTMLElementTagNameMap[K] {
++    const e = document.createElement(tag);
++    if (cls) e.className = cls;
++    if (text !== undefined) e.textContent = text;
++    return e;
++}
++
++const money = (n: number) => `$${Math.max(0, Math.floor(n)).toLocaleString("en-US")}`;
++
++/**
++ * Hold-Tab squad scoreboard (Spec Ops). Translucent, click-through overlay that
++ * lists each operator's kills, downs, revives and total cash earned.
++ */
++export class Scoreboard {
++    private readonly root = el("div", "sb-root");
++    private readonly title = el("div", "sb-title");
++    private readonly body = el("div", "sb-body");
++    private visible = false;
++    private lastRows: ScoreboardEntry[] | null = null;
++    private lastKey = "";
++
++    constructor() {
++        const header = el("div", "sb-header");
++        header.append(this.title);
++        for (const label of ["Kills", "Downs", "Revives", "Cash"]) {
++            header.append(el("div", "sb-col", label));
++        }
++        this.root.append(header, this.body);
++        this.root.style.display = "none";
++        document.body.appendChild(this.root);
++    }
++
++    get isVisible() {
++        return this.visible;
++    }
++
++    setVisible(v: boolean) {
++        if (v === this.visible) return;
++        this.visible = v;
++        this.root.style.display = v ? "block" : "none";
++    }
++
++    /** Re-renders only when the data or header actually changed. */
++    update(
++        rows: ScoreboardEntry[],
++        localId: number,
++        names: ScoreboardNames,
++        wave: number,
++    ) {
++        const title = wave >= 0 ? `Survival - Wave ${wave}` : "Survival";
++        const key = `${title}|${localId}|${rows.map((r) =>
++            `${r.playerId}:${names.nameOf(r.playerId)}:${r.kills}:${r.downs}:${r.revives}:${r.cashEarned}`
++        ).join(",")}`;
++        if (rows === this.lastRows && key === this.lastKey) return;
++        if (key === this.lastKey) {
++            this.lastRows = rows;
++            return;
++        }
++        this.lastRows = rows;
++        this.lastKey = key;
++        this.title.textContent = title;
++
++        const sorted = [...rows].sort((a, b) => b.kills - a.kills || a.playerId - b.playerId);
++        this.body.replaceChildren();
++        for (const r of sorted) {
++            const row = el("div", r.playerId === localId ? "sb-row sb-row-local" : "sb-row");
++            row.append(el("div", "sb-name", names.nameOf(r.playerId) || `Player ${r.playerId}`));
++            row.append(el("div", "sb-col", String(r.kills)));
++            row.append(el("div", "sb-col", String(r.downs)));
++            row.append(el("div", "sb-col", String(r.revives)));
++            row.append(el("div", "sb-col sb-cash", money(r.cashEarned)));
++            this.body.append(row);
++        }
++    }
++
++    destroy() {
++        this.root.remove();
++    }
++}
+diff --git a/server/src/game/client.ts b/server/src/game/client.ts
+index 9981ab7..a6aef72 100644
+--- a/server/src/game/client.ts
++++ b/server/src/game/client.ts
+@@ -770,10 +770,22 @@ export class Client {
+                 specOpsArmor: player.specOpsArmor,
+                 specOpsContractDirty: true,
+                 specOpsContractHud: player.specOpsContractHud,
++                specOpsScoreboardDirty: game.map.specOpsMode,
++                specOpsScoreboard: game.map.specOpsMode
++                    ? playerBarn.getScoreboard()
++                    : [],
+             };
+             this.startedSpectating = false;
+         } else {
+             updateMsg.activePlayerIdDirty = player.__id !== this.lastPlayerId;
++            if (
++                game.map.specOpsMode
++                && !minimalSync
++                && (playerBarn.scoreboardDue || player.specOpsScoreboardDirty)
++            ) {
++                player.specOpsScoreboard = playerBarn.getScoreboard();
++                player.specOpsScoreboardDirty = true;
++            }
+             updateMsg.activePlayerData = player;
+         }
+         this.lastPlayerId = player.__id;
+diff --git a/server/src/game/objects/player.ts b/server/src/game/objects/player.ts
+index 82e7213..bf64857 100644
+--- a/server/src/game/objects/player.ts
++++ b/server/src/game/objects/player.ts
+@@ -38,6 +38,7 @@ import {
+     type InventoryItem,
+ } from "../../../../shared/gameConfig.ts";
+ import * as net from "../../../../shared/net/net.ts";
++import type { ScoreboardEntry } from "../../../../shared/net/updateMsg.ts";
+ import { ObjectType } from "../../../../shared/net/objectSerializeFns.ts";
+ import { type Circle, coldet } from "../../../../shared/utils/coldet.ts";
+ import { collider } from "../../../../shared/utils/collider.ts";
+@@ -143,6 +144,9 @@ export class PlayerBarn {
+ 
+     playerStatusTicker = 0;
+     playerStatusRate = 0;
++    /** Hold-Tab scoreboard refresh (seconds). Cheap: a handful of ints per human. */
++    scoreboardTicker = 0;
++    readonly scoreboardRate = 0.5;
+ 
+     defaultItems = util.mergeDeep(
+         {},
+@@ -350,6 +354,7 @@ export class PlayerBarn {
+             || this.game.map.specOpsMode
+         ) {
+             this.playerStatusTicker += dt;
++            this.scoreboardTicker += dt;
+         }
+ 
+         for (let i = 0; i < this.players.length; i++) {
+@@ -466,6 +471,27 @@ export class PlayerBarn {
+         this.game.updateData();
+     }
+ 
++    /** True on ticks where the hold-Tab scoreboard should be re-sent. */
++    get scoreboardDue(): boolean {
++        return this.scoreboardTicker > this.scoreboardRate;
++    }
++
++    /** Human operators only (Spec Ops AI/bots are not listed). */
++    getScoreboard(): ScoreboardEntry[] {
++        const rows: ScoreboardEntry[] = [];
++        for (const p of this.players) {
++            if (p.specOpsAi) continue;
++            rows.push({
++                playerId: p.__id,
++                kills: p.kills,
++                downs: p.downedCount,
++                revives: p.revives,
++                cashEarned: p.specOpsCashEarned,
++            });
++        }
++        return rows.sort((a, b) => a.playerId - b.playerId).slice(0, 255);
++    }
++
+     flush() {
+         this.newPlayers.length = 0;
+         this.deletedPlayers.length = 0;
+@@ -477,6 +503,9 @@ export class PlayerBarn {
+         if (flushPlayerStatus) {
+             this.playerStatusTicker = 0;
+         }
++        if (this.scoreboardTicker > this.scoreboardRate) {
++            this.scoreboardTicker = 0;
++        }
+ 
+         for (let i = 0; i < this.players.length; i++) {
+             const player = this.players[i];
+@@ -490,6 +519,7 @@ export class PlayerBarn {
+             player.specOpsCashDirty = false;
+             player.specOpsArmorDirty = false;
+             player.specOpsContractDirty = false;
++            player.specOpsScoreboardDirty = false;
+             player.groupStatusDirty = false;
+             if (flushPlayerStatus) {
+                 player.playerStatusDirty = false;
+@@ -1448,6 +1478,13 @@ export class Player extends BaseGameObject {
+     /** Packed Spec Ops contract HUD (see packSpecOpsContractHud). */
+     specOpsContractHud = 0;
+     specOpsContractDirty = true;
++    /** Lifetime cash earned this match (kills, bonuses; excludes refunds/starting cash). */
++    specOpsCashEarned = 0;
++    /** Hold-Tab scoreboard payload; rebuilt by the net layer when it is sent. */
++    specOpsScoreboard: ScoreboardEntry[] = [];
++    specOpsScoreboardDirty = true;
++    /** Teammates successfully revived by this player. */
++    revives = 0;
+     /** Seconds of post-revive / buyback damage immunity. */
+     specOpsImmunityTicker = 0;
+     /** MW3-style armor pool (absorbs damage; not gear DR). */
+@@ -1919,6 +1956,7 @@ export class Player extends BaseGameObject {
+                 ) {
+                     this.applyActionFunc((target: Player) => {
+                         if (!target.downed) return;
++                        if (target !== this) this.revives++;
+                         target.downed = false;
+                         target.downedBy = undefined;
+                         target.downedDamageTicker = 0;
+diff --git a/server/src/game/specOpsManager.ts b/server/src/game/specOpsManager.ts
+index c815071..d1815e4 100644
+--- a/server/src/game/specOpsManager.ts
++++ b/server/src/game/specOpsManager.ts
+@@ -6103,7 +6103,7 @@ export class SpecOpsManager implements PracticeHost {
+             player.setDirty();
+         }
+ 
+-        this.grantCash(player, specOpsStartingCash(this.difficulty));
++        this.grantCash(player, specOpsStartingCash(this.difficulty), true, false);
+ 
+         // MW3-style vitals: high HP + armor pool (gear DR is disabled in Spec Ops).
+         player.health = SpecOpsStartingHealth;
+@@ -7044,8 +7044,10 @@ export class SpecOpsManager implements PracticeHost {
+         return player;
+     }
+ 
+-    grantCash(player: Player, amount: number, dirty = true): void {
++    grantCash(player: Player, amount: number, dirty = true, earned = true): void {
+         if (amount === 0 || player.specOpsAi) return;
++        // Lifetime "cash earned" for the hold-Tab scoreboard (refunds/starting cash opt out).
++        if (earned && amount > 0) player.specOpsCashEarned += amount;
+         const next = math.clamp(player.specOpsCash + amount, 0, SpecOpsCashCap);
+         if (next === player.specOpsCash) return;
+         player.specOpsCash = next;
+@@ -7204,7 +7206,7 @@ export class SpecOpsManager implements PracticeHost {
+         );
+         player.removePerk(perk);
+         player.setDirty();
+-        this.grantCash(player, refund);
++        this.grantCash(player, refund, true, false);
+         this.buyCooldown.set(player.__id, 0.45);
+         this.game.playerBarn.addEmote("emote_loot", player.__id, perk);
+         return true;
+diff --git a/shared/gameConfig.ts b/shared/gameConfig.ts
+index bc916f1..af14d96 100644
+--- a/shared/gameConfig.ts
++++ b/shared/gameConfig.ts
+@@ -149,7 +149,7 @@ export const GameConfig = {
+     // the protocol we originated from was 78
+     // remember to bump this every time a serialization function is changed
+     // or a definition item added, removed or moved
+-    protocolVersion: 1027,
++    protocolVersion: 1028,
+     Action,
+     Anim,
+     DamageType,
+diff --git a/shared/net/updateMsg.ts b/shared/net/updateMsg.ts
+index d40e53a..9c63e18 100644
+--- a/shared/net/updateMsg.ts
++++ b/shared/net/updateMsg.ts
+@@ -59,6 +59,17 @@ function serializeActivePlayer(s: BitStream, data: LocalDataWithDirty) {
+     s.writeBoolean(data.specOpsContractDirty);
+     if (data.specOpsContractDirty) s.writeUint16(data.specOpsContractHud);
+ 
++    s.writeBoolean(data.specOpsScoreboardDirty);
++    if (data.specOpsScoreboardDirty) {
++        s.writeArray(data.specOpsScoreboard, 8, (entry) => {
++            s.writeUint16(entry.playerId);
++            s.writeUint16(Math.min(entry.kills, 0xffff));
++            s.writeUint16(Math.min(entry.downs, 0xffff));
++            s.writeUint16(Math.min(entry.revives, 0xffff));
++            s.writeUint32(Math.min(entry.cashEarned, 0xffffffff));
++        });
++    }
++
+     s.writeAlignToNextByte();
+ }
+ 
+@@ -126,6 +137,17 @@ function deserializeActivePlayer(s: BitStream, data: LocalDataWithDirty) {
+     if (data.specOpsContractDirty) {
+         data.specOpsContractHud = s.readUint16();
+     }
++    data.specOpsScoreboardDirty = s.readBoolean();
++    data.specOpsScoreboard = [];
++    if (data.specOpsScoreboardDirty) {
++        data.specOpsScoreboard = s.readArray(8, () => ({
++            playerId: s.readUint16(),
++            kills: s.readUint16(),
++            downs: s.readUint16(),
++            revives: s.readUint16(),
++            cashEarned: s.readUint32(),
++        }));
++    }
+     s.readAlignToNextByte();
+ }
+ 
+@@ -856,6 +878,18 @@ export interface LocalData {
+     specOpsCash: number;
+     specOpsArmor: number;
+     specOpsContractHud: number;
++    /** Hold-Tab scoreboard rows (Spec Ops only; empty otherwise). */
++    specOpsScoreboard: ScoreboardEntry[];
++}
++
++/** One squad member's row on the hold-Tab scoreboard. */
++export interface ScoreboardEntry {
++    playerId: number;
++    kills: number;
++    downs: number;
++    revives: number;
++    /** Lifetime cash earned this match (not the current balance). */
++    cashEarned: number;
+ }
+ 
+ export interface LocalDataWithDirty extends LocalData {
+@@ -874,6 +908,7 @@ export interface LocalDataWithDirty extends LocalData {
+     specOpsCashDirty: boolean;
+     specOpsArmorDirty: boolean;
+     specOpsContractDirty: boolean;
++    specOpsScoreboardDirty: boolean;
+ }
+ 
+ // the non-optional properties are used by both server and client
+diff --git a/tests/src/net.test.ts b/tests/src/net.test.ts
+index d287d5b..88be1d8 100644
+--- a/tests/src/net.test.ts
++++ b/tests/src/net.test.ts
+@@ -205,6 +205,18 @@ test("Update Msg", () => {
+         specOpsArmor: util.randomInt(0, 250),
+         specOpsContractDirty: true,
+         specOpsContractHud: util.randomInt(0, 65535),
++        specOpsScoreboardDirty: true,
++        specOpsScoreboard: [
++            {
++                playerId: util.randomInt(1, 1000),
++                kills: util.randomInt(0, 5000),
++                downs: util.randomInt(0, 300),
++                revives: util.randomInt(0, 300),
++                // Above uint16 max: lifetime cash must not truncate.
++                cashEarned: util.randomInt(70000, 4000000),
++            },
++            { playerId: 2, kills: 0, downs: 0, revives: 0, cashEarned: 0 },
++        ],
+     };
+ 
+     inMsg.gasDirty = true;
+@@ -293,6 +305,8 @@ test("Update Msg weapon ammo above uint8 max", () => {
+         specOpsArmor: 0,
+         specOpsContractDirty: false,
+         specOpsContractHud: 0,
++        specOpsScoreboardDirty: false,
++        specOpsScoreboard: [],
+     };
+ 
+     stream.serializeMsg(net.MsgType.Update, inMsg);
+@@ -400,6 +414,8 @@ test("UpdateMsg serializes max map indicators", () => {
+         specOpsArmor: 0,
+         specOpsContractDirty: false,
+         specOpsContractHud: 0,
++        specOpsScoreboardDirty: false,
++        specOpsScoreboard: [],
+     };
+     inMsg.mapIndicators = Array.from({ length: net.Constants.MaxMapIndicators }, (_v, i) => ({
+         id: i,
+diff --git a/tests/src/scoreboard.test.ts b/tests/src/scoreboard.test.ts
+new file mode 100644
+index 0000000..e9941bf
+--- /dev/null
++++ b/tests/src/scoreboard.test.ts
+@@ -0,0 +1,68 @@
++import { expect, test } from "vitest";
++import { GameConfig, TeamMode } from "../../shared/gameConfig.ts";
++import { InputMsg } from "../../shared/net/inputMsg.ts";
++import { v2 } from "../../shared/utils/v2.ts";
++import { createGame } from "./gameTestHelpers.ts";
++import "./testHelpers.ts";
++
++const reviveDur = GameConfig.player.reviveDuration + 0.1;
++
++test("Scoreboard: revive credits the reviver, down credits the downed player", () => {
++    const game = createGame(TeamMode.Squad, "test_normal");
++    const group = game.playerBarn.addGroup(false);
++    const medic = game.playerBarn.addTestPlayer({ group });
++    medic.promoteToRole("medic");
++    const downedPlayer = game.playerBarn.addTestPlayer({ group });
++
++    downedPlayer.damage({
++        amount: 999,
++        damageType: GameConfig.DamageType.Airdrop,
++        dir: v2.randomUnit(),
++    });
++    expect(downedPlayer.downed).toBeTruthy();
++
++    const msg = new InputMsg();
++    msg.addInput(GameConfig.Input.Interact);
++    medic.handleInput(msg);
++    game.step(reviveDur);
++    expect(downedPlayer.downed).toBeFalsy();
++
++    const rows = game.playerBarn.getScoreboard();
++    const medicRow = rows.find((r) => r.playerId === medic.__id)!;
++    const downedRow = rows.find((r) => r.playerId === downedPlayer.__id)!;
++    expect(medicRow.revives).toBe(1);
++    expect(medicRow.downs).toBe(0);
++    expect(downedRow.downs).toBe(1);
++    expect(downedRow.revives).toBe(0);
++});
++
++test("Scoreboard: cash earned tracks gains, ignores spending, refunds and starting cash", () => {
++    const game = createGame(TeamMode.Solo, "test_specops");
++    const player = game.playerBarn.addTestPlayer({ name: "Operator" });
++    game.update(0.1);
++    const specOps = game.specOps!;
++
++    const before = player.specOpsCashEarned;
++    specOps.grantCash(player, 500);
++    specOps.grantCash(player, 250);
++    expect(player.specOpsCashEarned).toBe(before + 750);
++
++    specOps.grantCash(player, -300); // spending
++    specOps.grantCash(player, 100, true, false); // refund-style grant
++    expect(player.specOpsCashEarned).toBe(before + 750);
++
++    const row = game.playerBarn.getScoreboard().find((r) => r.playerId === player.__id)!;
++    expect(row.cashEarned).toBe(before + 750);
++    expect(row.kills).toBe(player.kills);
++});
++
++test("Scoreboard: lists human operators only, sorted by id", () => {
++    const game = createGame(TeamMode.Solo, "test_specops");
++    const a = game.playerBarn.addTestPlayer({ name: "A" });
++    const b = game.playerBarn.addTestPlayer({ name: "B" });
++    game.update(0.1);
++    const ids = game.playerBarn.getScoreboard().map((r) => r.playerId);
++    expect(ids).toContain(a.__id);
++    expect(ids).toContain(b.__id);
++    expect([...ids].sort((x, y) => x - y)).toEqual(ids);
++});
+-- 
+2.43.0
+

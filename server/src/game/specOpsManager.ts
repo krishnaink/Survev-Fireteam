@@ -6103,7 +6103,7 @@ export class SpecOpsManager implements PracticeHost {
             player.setDirty();
         }
 
-        this.grantCash(player, specOpsStartingCash(this.difficulty));
+        this.grantCash(player, specOpsStartingCash(this.difficulty), true, false);
 
         // MW3-style vitals: high HP + armor pool (gear DR is disabled in Spec Ops).
         player.health = SpecOpsStartingHealth;
@@ -7044,8 +7044,10 @@ export class SpecOpsManager implements PracticeHost {
         return player;
     }
 
-    grantCash(player: Player, amount: number, dirty = true): void {
+    grantCash(player: Player, amount: number, dirty = true, earned = true): void {
         if (amount === 0 || player.specOpsAi) return;
+        // Lifetime "cash earned" for the hold-Tab scoreboard (refunds/starting cash opt out).
+        if (earned && amount > 0) player.specOpsCashEarned += amount;
         const next = math.clamp(player.specOpsCash + amount, 0, SpecOpsCashCap);
         if (next === player.specOpsCash) return;
         player.specOpsCash = next;
@@ -7204,7 +7206,7 @@ export class SpecOpsManager implements PracticeHost {
         );
         player.removePerk(perk);
         player.setDirty();
-        this.grantCash(player, refund);
+        this.grantCash(player, refund, true, false);
         this.buyCooldown.set(player.__id, 0.45);
         this.game.playerBarn.addEmote("emote_loot", player.__id, perk);
         return true;

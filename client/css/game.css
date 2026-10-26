@@ -6988,3 +6988,86 @@ body.ui-specops-mode.ui-editor-active #ui-editor-top-right {
     top: 220px;
   }
 }
+
+/* Hold-Tab squad scoreboard (see client/src/ui/scoreboard.ts) */
+.sb-root {
+  position: fixed;
+  top: 14%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(640px, 92vw);
+  z-index: 60;
+  pointer-events: none;
+  user-select: none;
+  font-family: "Roboto Condensed", sans-serif;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.32);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+.sb-header,
+.sb-row {
+  display: flex;
+  align-items: center;
+  padding: 7px 12px;
+}
+
+.sb-header {
+  background: rgba(0, 0, 0, 0.35);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.sb-title {
+  flex: 1;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.sb-name {
+  flex: 1;
+  font-size: 17px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-col {
+  width: 78px;
+  text-align: center;
+  font-size: 17px;
+}
+
+.sb-header .sb-col {
+  font-size: 15px;
+}
+
+.sb-header .sb-col:last-child,
+.sb-row .sb-col:last-child {
+  width: 110px;
+}
+
+.sb-row {
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.04);
+  margin-top: 2px;
+}
+
+.sb-row-local {
+  border-color: rgba(255, 140, 30, 0.9);
+  background: rgba(255, 140, 30, 0.1);
+}
+
+.sb-row-local .sb-name {
+  color: #ffd45a;
+}
+
+.sb-cash {
+  color: #9dff9d;
+}

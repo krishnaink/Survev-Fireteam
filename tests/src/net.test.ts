@@ -205,6 +205,18 @@ test("Update Msg", () => {
         specOpsArmor: util.randomInt(0, 250),
         specOpsContractDirty: true,
         specOpsContractHud: util.randomInt(0, 65535),
+        specOpsScoreboardDirty: true,
+        specOpsScoreboard: [
+            {
+                playerId: util.randomInt(1, 1000),
+                kills: util.randomInt(0, 5000),
+                downs: util.randomInt(0, 300),
+                revives: util.randomInt(0, 300),
+                // Above uint16 max: lifetime cash must not truncate.
+                cashEarned: util.randomInt(70000, 4000000),
+            },
+            { playerId: 2, kills: 0, downs: 0, revives: 0, cashEarned: 0 },
+        ],
     };
 
     inMsg.gasDirty = true;
@@ -293,6 +305,8 @@ test("Update Msg weapon ammo above uint8 max", () => {
         specOpsArmor: 0,
         specOpsContractDirty: false,
         specOpsContractHud: 0,
+        specOpsScoreboardDirty: false,
+        specOpsScoreboard: [],
     };
 
     stream.serializeMsg(net.MsgType.Update, inMsg);
@@ -400,6 +414,8 @@ test("UpdateMsg serializes max map indicators", () => {
         specOpsArmor: 0,
         specOpsContractDirty: false,
         specOpsContractHud: 0,
+        specOpsScoreboardDirty: false,
+        specOpsScoreboard: [],
     };
     inMsg.mapIndicators = Array.from({ length: net.Constants.MaxMapIndicators }, (_v, i) => ({
         id: i,

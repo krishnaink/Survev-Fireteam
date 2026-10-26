@@ -770,10 +770,22 @@ export class Client {
                 specOpsArmor: player.specOpsArmor,
                 specOpsContractDirty: true,
                 specOpsContractHud: player.specOpsContractHud,
+                specOpsScoreboardDirty: game.map.specOpsMode,
+                specOpsScoreboard: game.map.specOpsMode
+                    ? playerBarn.getScoreboard()
+                    : [],
             };
             this.startedSpectating = false;
         } else {
             updateMsg.activePlayerIdDirty = player.__id !== this.lastPlayerId;
+            if (
+                game.map.specOpsMode
+                && !minimalSync
+                && (playerBarn.scoreboardDue || player.specOpsScoreboardDirty)
+            ) {
+                player.specOpsScoreboard = playerBarn.getScoreboard();
+                player.specOpsScoreboardDirty = true;
+            }
             updateMsg.activePlayerData = player;
         }
         this.lastPlayerId = player.__id;

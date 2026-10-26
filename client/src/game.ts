@@ -55,6 +55,7 @@ import type { ResourceManager } from "./resources.ts";
 import { SDK } from "./sdk/sdk.ts";
 import { ThrowableRadial } from "./throwableRadial.ts";
 import type { Localization } from "./ui/localization.ts";
+import { Scoreboard } from "./ui/scoreboard.ts";
 import { PracticeMenu } from "./ui/practiceMenu.ts";
 import { Touch } from "./ui/touch.ts";
 import { UiManager } from "./ui/ui.ts";
@@ -128,6 +129,7 @@ export class Game {
     debugHUD!: DebugHUD;
     /** Practice mode panel + stats; null outside practice matches. */
     m_practiceMenu: PracticeMenu | null = null;
+    m_scoreboard: Scoreboard | null = null;
 
     seq!: number;
     seqInFlight!: boolean;
@@ -428,6 +430,8 @@ export class Game {
         this.connected = false;
         this.m_practiceMenu?.destroy();
         this.m_practiceMenu = null;
+        this.m_scoreboard?.destroy();
+        this.m_scoreboard = null;
         if (this.initialized) {
             this.initialized = false;
             this.m_updatePass = false;
@@ -507,6 +511,24 @@ export class Game {
             }
             const local = this.m_playerBarn.getPlayerById(this.m_localId);
             if (local) this.m_practiceMenu.setDead(local.m_netData.m_dead);
+        }
+
+        if (this.m_scoreboard) {
+            const show = this.m_input.keyDown(Key.Tab)
+                && this.m_playing
+                && !this.m_gameOver
+                && !!this.m_activePlayer;
+            this.m_scoreboard.setVisible(show);
+            if (show && this.m_activePlayer) {
+                this.m_scoreboard.update(
+                    this.m_activePlayer.m_localData.m_specOpsScoreboard,
+                    this.m_localId,
+                    {
+                        nameOf: (id) => this.m_playerBarn.getPlayerInfo(id).name,
+                    },
+                    this.m_uiManager.lastSpecOpsWave,
+                );
+            }
         }
 
         const smokeParticles = this.m_smokeBarn.m_particles;
@@ -1507,6 +1529,15 @@ export class Game {
                 this.m_uiManager.onMapLoad(this.m_map, this.m_camera);
                 this.m_practiceMenu?.destroy();
                 this.m_practiceMenu = null;
+                this.m_scoreboard?.destroy();
+                this.m_scoreboard = null;
+                // Tab opens the practice menu in practice mode, so the scoreboard is wave-survival only.
+                if (
+                    this.m_map.specOpsMode
+                    && !this.m_map.getMapDef().gameMode.practiceMode
+                ) {
+                    this.m_scoreboard = new Scoreboard();
+                }
                 if (this.m_map.getMapDef().gameMode.practiceMode) {
                     this.m_practiceMenu = new PracticeMenu(
                         (settings) => {

@@ -59,6 +59,17 @@ function serializeActivePlayer(s: BitStream, data: LocalDataWithDirty) {
     s.writeBoolean(data.specOpsContractDirty);
     if (data.specOpsContractDirty) s.writeUint16(data.specOpsContractHud);
 
+    s.writeBoolean(data.specOpsScoreboardDirty);
+    if (data.specOpsScoreboardDirty) {
+        s.writeArray(data.specOpsScoreboard, 8, (entry) => {
+            s.writeUint16(entry.playerId);
+            s.writeUint16(Math.min(entry.kills, 0xffff));
+            s.writeUint16(Math.min(entry.downs, 0xffff));
+            s.writeUint16(Math.min(entry.revives, 0xffff));
+            s.writeUint32(Math.min(entry.cashEarned, 0xffffffff));
+        });
+    }
+
     s.writeAlignToNextByte();
 }
 
@@ -125,6 +136,17 @@ function deserializeActivePlayer(s: BitStream, data: LocalDataWithDirty) {
     data.specOpsContractHud = 0;
     if (data.specOpsContractDirty) {
         data.specOpsContractHud = s.readUint16();
+    }
+    data.specOpsScoreboardDirty = s.readBoolean();
+    data.specOpsScoreboard = [];
+    if (data.specOpsScoreboardDirty) {
+        data.specOpsScoreboard = s.readArray(8, () => ({
+            playerId: s.readUint16(),
+            kills: s.readUint16(),
+            downs: s.readUint16(),
+            revives: s.readUint16(),
+            cashEarned: s.readUint32(),
+        }));
     }
     s.readAlignToNextByte();
 }
@@ -856,6 +878,18 @@ export interface LocalData {
     specOpsCash: number;
     specOpsArmor: number;
     specOpsContractHud: number;
+    /** Hold-Tab scoreboard rows (Spec Ops only; empty otherwise). */
+    specOpsScoreboard: ScoreboardEntry[];
+}
+
+/** One squad member's row on the hold-Tab scoreboard. */
+export interface ScoreboardEntry {
+    playerId: number;
+    kills: number;
+    downs: number;
+    revives: number;
+    /** Lifetime cash earned this match (not the current balance). */
+    cashEarned: number;
 }
 
 export interface LocalDataWithDirty extends LocalData {
@@ -874,6 +908,7 @@ export interface LocalDataWithDirty extends LocalData {
     specOpsCashDirty: boolean;
     specOpsArmorDirty: boolean;
     specOpsContractDirty: boolean;
+    specOpsScoreboardDirty: boolean;
 }
 
 // the non-optional properties are used by both server and client

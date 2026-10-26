@@ -17,6 +17,7 @@ import {
     type LocalDataWithDirty,
     type PlayerInfo,
     type PlayerStatus,
+    type ScoreboardEntry,
 } from "../../../shared/net/updateMsg.ts";
 import { coldet } from "../../../shared/utils/coldet.ts";
 import { collider } from "../../../shared/utils/collider.ts";
@@ -365,6 +366,7 @@ export class Player implements AbstractObject {
         m_specOpsCash: number;
         m_specOpsArmor: number;
         m_specOpsContractHud: number;
+        m_specOpsScoreboard: ScoreboardEntry[];
     };
 
     throwableStatePrev!: string;
@@ -516,6 +518,7 @@ export class Player implements AbstractObject {
             m_specOpsCash: 0,
             m_specOpsArmor: 0,
             m_specOpsContractHud: 0,
+            m_specOpsScoreboard: [],
         };
 
         this.playAnim(Anim.None, -1);
@@ -665,6 +668,9 @@ export class Player implements AbstractObject {
         }
         if (data.specOpsContractDirty) {
             this.m_localData.m_specOpsContractHud = data.specOpsContractHud;
+        }
+        if (data.specOpsScoreboardDirty) {
+            this.m_localData.m_specOpsScoreboard = data.specOpsScoreboard;
         }
 
         // Zoom more quickly when changing scopes

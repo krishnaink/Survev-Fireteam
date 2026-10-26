@@ -164,6 +164,8 @@ export class LoadoutDisplay {
             specOpsArmor: 0,
             specOpsContractDirty: false,
             specOpsContractHud: 0,
+            specOpsScoreboardDirty: false,
+            specOpsScoreboard: [],
             zoomDirty: false,
             zoom: 0,
             scope: "1xscope",
