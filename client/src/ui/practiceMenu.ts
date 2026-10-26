@@ -2,26 +2,26 @@ import { GameObjectDefs } from "../../../shared/defs/register.ts";
 import {
     defaultPracticeBot,
     emptyPracticeStats,
-    PracticeGuns,
+    type PracticeBotSettings,
     practiceGunName,
+    PracticeGuns,
     PracticeKitItems,
     PracticeKitMaxCount,
-    PracticeMaxGearLevel,
-    PracticeMaxPackLevel,
-    PracticeMelees,
-    PracticeScopes,
     PracticeMaxArmor,
     PracticeMaxBotHealth,
     PracticeMaxBots,
+    PracticeMaxGearLevel,
+    PracticeMaxPackLevel,
     PracticeMaxReaction,
+    PracticeMaxRespawnDelay,
+    PracticeMelees,
     PracticeMinBotHealth,
     PracticePlayerRespawnDelay,
     PracticeRandomGun,
-    PracticeMaxRespawnDelay,
     type PracticeRespawnMode,
     PracticeRespawnModeLabels,
     PracticeRespawnModes,
-    type PracticeBotSettings,
+    PracticeScopes,
     type PracticeSettings,
     PracticeSliderMax,
     type PracticeStats,
@@ -60,13 +60,21 @@ const Css = `
 }
 #practice-menu .pm-drag-hint { color: #6f7b82; font-size: 13px; }
 #practice-menu .pm-sub { margin: 0 0 12px; color: #9aa6ad; font-size: 14px; }
+#practice-menu .pm-tabs { display: flex; gap: 6px; border-bottom: 1px solid #3a444c; padding-bottom: 8px; }
+#practice-menu .pm-tab {
+  flex: 1; padding: 8px 12px; border: 1px solid #3f4a52; border-radius: 6px;
+  background: #232a30; color: #c9d1d6; font: inherit; cursor: pointer;
+}
+#practice-menu .pm-tab[aria-selected=true] { background: #3f7d44; color: #fff; border-color: #6fbf73; }
+#practice-menu [role=tabpanel][hidden] { display: none; }
+#practice-menu .pm-tab:focus-visible { outline: 2px solid #a5dcaa; outline-offset: 2px; }
 #practice-menu .pm-respawn { color: #ffcf5a; font-size: 18px; margin: 0 0 10px; }
 #practice-menu h3 { margin: 14px 0 8px; font-size: 15px; text-transform: uppercase; letter-spacing: 1px; color: #9aa6ad; }
 #practice-menu .pm-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
 #practice-menu .pm-row label { flex: 0 0 132px; color: #c9d1d6; }
 #practice-menu .pm-row input[type=range] { flex: 1; accent-color: #6fbf73; }
 #practice-menu .pm-row .pm-val { flex: 0 0 52px; text-align: right; font-variant-numeric: tabular-nums; }
-#practice-menu select { flex: 1; background: #232a30; color: #e8ecef; border: 1px solid #3a444c; border-radius: 6px; padding: 4px 6px; font: inherit; }
+#practice-menu select { flex: 1; min-width: 0; max-width: 100%; background: #232a30; color: #e8ecef; border: 1px solid #3a444c; border-radius: 6px; padding: 4px 6px; font: inherit; }
 #practice-menu .pm-count { display: flex; gap: 6px; }
 #practice-menu .pm-count button, #practice-menu .pm-actions button {
   background: #2b343b; color: #e8ecef; border: 1px solid #3f4a52; border-radius: 6px;
@@ -77,7 +85,10 @@ const Css = `
 #practice-menu .pm-bot-title { font-size: 17px; margin-bottom: 4px; }
 #practice-menu details { margin: 4px 0 2px; }
 #practice-menu summary { cursor: pointer; color: #9aa6ad; }
-#practice-menu .pm-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+#practice-menu .pm-actions {
+  display: flex; gap: 8px; justify-content: flex-end; position: sticky; bottom: -16px; z-index: 2;
+  margin: 14px -16px -16px; padding: 10px 16px; background: #101418; border-top: 1px solid #3a444c;
+}
 #practice-menu .pm-actions .pm-apply { background: #3f7d44; border-color: #6fbf73; }
 #practice-menu .pm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 12px; margin: 6px 0; }
 #practice-menu .pm-grid label { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: #c9d1d6; }
@@ -119,6 +130,7 @@ const GiveCategories: Array<[string, string]> = [
     ["helmet", "Helmets"],
     ["chest", "Vests"],
     ["backpack", "Backpacks"],
+    ["perk", "Perks"],
 ];
 
 function itemLabel(type: string): string {
@@ -178,7 +190,7 @@ function el<K extends keyof HTMLElementTagNameMap>(
 }
 
 /**
- * Practice mode panel (P key). Opens on its own when the match starts and when
+ * Practice mode panel (Tab key). Opens on its own when the match starts and when
  * you die, so you can change your loadout before respawning.
  */
 export class PracticeMenu {
@@ -194,6 +206,7 @@ export class PracticeMenu {
 
     private giveItem = "";
     private giveCount = 1;
+    private activeTab: "player" | "bots" = "player";
     private resizeObserver?: ResizeObserver;
     private layoutSaveTimer = 0;
 
@@ -217,8 +230,10 @@ export class PracticeMenu {
         this.root.addEventListener("wheel", (e) => e.stopPropagation());
         // Typing a number or picking from a list must not move or switch weapons.
         const stopKeys = (e: KeyboardEvent) => {
+            // Tab always reaches the game so it can close the panel.
+            if (e.keyCode === 9) return;
             const target = e.target as HTMLElement;
-            if (target.tagName === "SELECT" || (target as HTMLInputElement).type === "number") {
+            if (target.matches("input, select, textarea, button")) {
                 e.stopPropagation();
             }
         };
@@ -227,7 +242,7 @@ export class PracticeMenu {
         // Buttons shouldn't keep focus, or game keys would go to them.
         this.root.addEventListener("click", (e) => {
             const target = e.target as HTMLElement;
-            if (target.tagName === "BUTTON") target.blur();
+            if (target.tagName === "BUTTON" && e.detail > 0) target.blur();
         });
         document.body.appendChild(this.root);
         this.restoreLayout();
@@ -407,7 +422,7 @@ export class PracticeMenu {
             `Bots ${st.botsAlive}/${st.botsTotal} · K ${st.kills} / D ${st.deaths} · Acc ${acc}%`
                 + ` · Dmg ${st.damageDealt} dealt / ${st.damageTaken} taken`
                 + ` · TTK ${ttk(st.ttkAvgMs)} (best ${ttk(st.ttkBestMs)})`,
-            el("span", { class: "pm-hint" }, "P: practice menu"),
+            el("span", { class: "pm-hint" }, "Tab: practice menu"),
         );
     }
 
@@ -418,25 +433,57 @@ export class PracticeMenu {
         header.append(el("h2", {}, "Practice"), el("span", { class: "pm-drag-hint" }, "drag to move"));
         header.addEventListener("mousedown", (e) => this.startDrag(e));
         root.append(header);
-        root.append(el("p", { class: "pm-sub" }, this.started
-            ? "Change bots or your kit. Bots restart only when their settings change."
-            : "Set up your bots and loadout, then start."));
+        root.append(el(
+            "p",
+            { class: "pm-sub" },
+            this.started
+                ? "Change bots or your kit. Bots restart only when their settings change."
+                : "Set up your bots and loadout, then start.",
+        ));
         if (this.dead) {
             root.append(el("p", { class: "pm-respawn" }));
             this.updateRespawnText();
         }
 
-        root.append(el("h3", {}, "PRESETS"));
-        root.append(this.gunRow("Primary", this.settings.primary, false, false, (v) => {
+        const tabs = el("div", { class: "pm-tabs", role: "tablist", "aria-label": "Practice settings" });
+        for (const [id, label] of [["player", "Your setup"], ["bots", "Bots"]] as const) {
+            const button = el("button", {
+                type: "button",
+                role: "tab",
+                class: "pm-tab",
+                id: `pm-tab-${id}`,
+                "aria-controls": `pm-panel-${id}`,
+            }, label);
+            button.addEventListener("click", () => this.selectTab(id));
+            button.addEventListener("keydown", (e) => {
+                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const next = e.key === "Home" ? "player" : e.key === "End"
+                    ? "bots"
+                    : this.activeTab === "player"
+                    ? "bots"
+                    : "player";
+                this.selectTab(next);
+                this.root.querySelector<HTMLElement>(`#pm-tab-${next}`)?.focus();
+            });
+            tabs.append(button);
+        }
+        root.append(tabs);
+        const playerPanel = el("div", { role: "tabpanel", id: "pm-panel-player", "aria-labelledby": "pm-tab-player" });
+        const botPanel = el("div", { role: "tabpanel", id: "pm-panel-bots", "aria-labelledby": "pm-tab-bots" });
+        root.append(playerPanel, botPanel);
+        playerPanel.append(el("h3", {}, "Your spawn loadout"));
+        playerPanel.append(this.gunRow("Primary", this.settings.primary, false, false, (v) => {
             this.settings.primary = v;
         }));
-        root.append(this.gunRow("Secondary", this.settings.secondary, false, true, (v) => {
+        playerPanel.append(this.gunRow("Secondary", this.settings.secondary, false, true, (v) => {
             this.settings.secondary = v;
         }));
-        this.renderKit(root);
-        this.renderGive(root);
+        this.renderKit(playerPanel);
+        this.renderGive(playerPanel);
 
-        root.append(el("h3", {}, "Bots"));
+        botPanel.append(el("h3", {}, "Bots"));
         const countRow = el("div", { class: "pm-row" });
         countRow.append(el("label", {}, "How many"));
         const count = el("div", { class: "pm-count" });
@@ -447,10 +494,11 @@ export class PracticeMenu {
             count.append(btn);
         }
         countRow.append(count);
-        root.append(countRow);
-        this.renderRespawn(root);
+        botPanel.append(countRow);
+        this.renderRespawn(botPanel);
 
-        this.settings.bots.forEach((bot, i) => root.append(this.botCard(bot, i)));
+        this.settings.bots.forEach((bot, i) => botPanel.append(this.botCard(bot, i)));
+        this.selectTab(this.activeTab);
 
         const actions = el("div", { class: "pm-actions" });
         if (this.started && !this.dead) {
@@ -461,11 +509,23 @@ export class PracticeMenu {
         const apply = el(
             "button",
             { type: "button", class: "pm-apply" },
-            this.started ? (this.dead ? "Save kit" : "Apply") : "Start",
+            this.started ? (this.dead ? "Save setup" : "Apply") : "Start",
         );
         apply.addEventListener("click", () => this.apply());
         actions.append(apply);
         root.append(actions);
+    }
+
+    private selectTab(tab: "player" | "bots") {
+        this.activeTab = tab;
+        for (const id of ["player", "bots"]) {
+            const active = id === tab;
+            const button = this.root.querySelector<HTMLElement>(`#pm-tab-${id}`);
+            button?.setAttribute("aria-selected", String(active));
+            if (button) button.tabIndex = active ? 0 : -1;
+            const panel = this.root.querySelector<HTMLElement>(`#pm-panel-${id}`);
+            if (panel) panel.hidden = !active;
+        }
     }
 
     private renderKit(root: HTMLElement) {
@@ -580,9 +640,16 @@ export class PracticeMenu {
     }
 
     private renderGive(root: HTMLElement) {
-        root.append(el("h3", {}, "SPAWN ITEM"));
+        root.append(el("h3", {}, "Spawn items and perks"));
+        root.append(
+            el(
+                "p",
+                { class: "pm-note" },
+                "Spawns a pickup near you. Walk over and pick it up to equip it. Perks work the same way.",
+            ),
+        );
         const row = el("div", { class: "pm-give" });
-        const select = el("select");
+        const select = el("select", { "aria-label": "Item to spawn" });
         for (const group of giveItemGroups()) {
             const optgroup = el("optgroup", { label: group.label });
             for (const type of group.items) optgroup.append(el("option", { value: type }, itemLabel(type)));
@@ -592,16 +659,24 @@ export class PracticeMenu {
         this.giveItem = select.value;
         select.addEventListener("change", () => {
             this.giveItem = select.value;
+            syncCount();
         });
 
         const count = el("input", { type: "number", min: "1", max: "999", step: "1", title: "How many" });
         count.value = String(this.giveCount);
+        const syncCount = () => {
+            const type = GameObjectDefs.typeToDefSafe(this.giveItem)?.type;
+            count.disabled = !type || !["ammo", "heal", "boost", "throwable"].includes(type);
+            if (count.disabled) this.giveCount = 1;
+            count.value = String(this.giveCount);
+        };
+        syncCount();
         count.addEventListener("change", () => {
             this.giveCount = Math.max(1, Math.min(999, Math.round(Number(count.value) || 1)));
             count.value = String(this.giveCount);
         });
 
-        const give = el("button", { type: "button" }, "Give");
+        const give = el("button", { type: "button" }, "Spawn on ground");
         give.addEventListener("click", () => this.sendGive(this.giveItem, this.giveCount, false));
         const clear = el("button", { type: "button" }, "Clear inventory");
         clear.addEventListener("click", () => this.sendGive("", 1, true));
@@ -629,7 +704,7 @@ export class PracticeMenu {
     ): HTMLDivElement {
         const row = el("div", { class: "pm-row" });
         row.append(el("label", {}, label));
-        const select = el("select");
+        const select = el("select", { "aria-label": label });
         if (allowNone) select.append(el("option", { value: "" }, "None"));
         if (allowRandom) select.append(el("option", { value: PracticeRandomGun }, "Random"));
         for (const gun of PracticeGuns) {
@@ -653,6 +728,7 @@ export class PracticeMenu {
         row.append(el("label", {}, label));
         const input = el("input", {
             type: "range",
+            "aria-label": label,
             min: String(min),
             max: String(max),
             step: "1",
@@ -671,9 +747,40 @@ export class PracticeMenu {
     private botCard(bot: PracticeBotSettings, index: number): HTMLDivElement {
         const card = el("div", { class: "pm-bot" });
         card.append(el("div", { class: "pm-bot-title" }, `Bot ${index + 1}`));
-        card.append(this.gunRow("Gun", bot.gun, true, false, (v) => {
+        card.append(this.gunRow("Primary gun", bot.gun, true, false, (v) => {
             bot.gun = v;
         }));
+        card.append(this.gunRow("Secondary gun", bot.secondary, true, true, (v) => {
+            bot.secondary = v;
+        }));
+        const meleeRow = el("div", { class: "pm-row" });
+        meleeRow.append(el("label", {}, "Melee"));
+        const melee = el("select", { "aria-label": `Bot ${index + 1} melee` });
+        for (const type of PracticeMelees) melee.append(el("option", { value: type }, itemLabel(type)));
+        melee.value = bot.melee;
+        melee.addEventListener("change", () => {
+            bot.melee = melee.value;
+        });
+        meleeRow.append(melee);
+        card.append(meleeRow);
+        for (const [key, label] of [["quickSwitch", "Quick switch"], ["autoMelee", "Auto melee"]] as const) {
+            const row = el("div", { class: "pm-row" });
+            row.append(el("label", {}, label));
+            const toggle = el("input", { type: "checkbox", "aria-label": `Bot ${index + 1} ${label}` });
+            toggle.checked = bot[key];
+            toggle.addEventListener("change", () => {
+                bot[key] = toggle.checked;
+            });
+            row.append(toggle);
+            card.append(row);
+        }
+        card.append(
+            el(
+                "p",
+                { class: "pm-note" },
+                "Quick switch uses normal equip delays. Auto melee engages at close range. Accuracy controls aim error, not gun spread.",
+            ),
+        );
 
         const plain = (v: number) => String(v);
         const advanced = el("details");
@@ -708,9 +815,16 @@ export class PracticeMenu {
             bot.accuracy = v;
         }));
         card.append(
-            this.slider("Reaction time", bot.reaction, 0, PracticeMaxReaction, (v) => `${(v / 10).toFixed(1)}s`, (v) => {
-                bot.reaction = v;
-            }),
+            this.slider(
+                "Reaction time",
+                bot.reaction,
+                0,
+                PracticeMaxReaction,
+                (v) => `${(v / 10).toFixed(1)}s`,
+                (v) => {
+                    bot.reaction = v;
+                },
+            ),
         );
         card.append(
             this.slider("Health", bot.health, PracticeMinBotHealth, PracticeMaxBotHealth, plain, (v) => {
@@ -725,7 +839,7 @@ export class PracticeMenu {
 
         const fireRow = el("div", { class: "pm-row" });
         fireRow.append(el("label", {}, "Shoots back"));
-        const fire = el("input", { type: "checkbox" });
+        const fire = el("input", { type: "checkbox", "aria-label": `Bot ${index + 1} Shoots back` });
         fire.checked = bot.shootsBack;
         fire.addEventListener("change", () => {
             bot.shootsBack = fire.checked;

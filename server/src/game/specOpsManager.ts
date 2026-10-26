@@ -1,5 +1,5 @@
 import { BulletDefs } from "../../../shared/defs/gameObjects/bulletDefs.ts";
-import type { GunDef } from "../../../shared/defs/gameObjects/gunDefs.ts";
+import { type GunDef, GunDefs } from "../../../shared/defs/gameObjects/gunDefs.ts";
 import { SpecOpsEnemyClasses } from "../../../shared/defs/maps/specOpsNpcDebug.ts";
 import {
     isSpecOpsArmorSatchel,
@@ -34,10 +34,10 @@ import {
     SpecOpsHelpersPerWave,
     SpecOpsHelperStartWave,
     SpecOpsIroncladCrawlSeconds,
-    specOpsIsBreakWave,
     SpecOpsIroncladMirvCount,
     SpecOpsIroncladPerPlayer,
     SpecOpsIroncladWave,
+    specOpsIsBreakWave,
     SpecOpsJoinLockFlag,
     SpecOpsKillBounty,
     SpecOpsMaxArmor,
@@ -66,18 +66,11 @@ import {
     specOpsStationUnlocked,
     specOpsUnequipPerk,
     specOpsWaveBonus,
-    
 } from "../../../shared/defs/maps/specOpsShop.ts";
 import { GameObjectDefs, MapObjectDefs } from "../../../shared/defs/register.ts";
 import type { ObstacleDef } from "../../../shared/defs/types/obstacle.ts";
 import { GameConfig, type InventoryItem, TeamMode } from "../../../shared/gameConfig.ts";
 import { ObjectType } from "../../../shared/net/objectSerializeFns.ts";
-import { type AABB, coldet } from "../../../shared/utils/coldet.ts";
-import { collider } from "../../../shared/utils/collider.ts";
-import { collisionHelpers } from "../../../shared/utils/collisionHelpers.ts";
-import { mapHelpers } from "../../../shared/utils/mapHelpers.ts";
-import { math } from "../../../shared/utils/math.ts";
-import { util } from "../../../shared/utils/util.ts";
 import {
     practiceAimErrorDeg,
     practiceArmorGear,
@@ -85,14 +78,20 @@ import {
     practiceDodgePerSecond,
     practiceFlipInterval,
     PracticeGuns,
-    PracticeKitItems,
     practiceKitGear,
+    PracticeKitItems,
     PracticeRandomGun,
     practiceReactionSeconds,
     type PracticeSettings,
     practiceSpeedMult,
     practiceStrafeWeight,
 } from "../../../shared/practice.ts";
+import { type AABB, coldet } from "../../../shared/utils/coldet.ts";
+import { collider } from "../../../shared/utils/collider.ts";
+import { collisionHelpers } from "../../../shared/utils/collisionHelpers.ts";
+import { mapHelpers } from "../../../shared/utils/mapHelpers.ts";
+import { math } from "../../../shared/utils/math.ts";
+import { util } from "../../../shared/utils/util.ts";
 import { v2, type Vec2 } from "../../../shared/utils/v2.ts";
 import { Config } from "../config.ts";
 import type { Game } from "./game.ts";
@@ -101,8 +100,9 @@ import type { Building } from "./objects/building.ts";
 import type { Obstacle } from "./objects/obstacle.ts";
 import type { Player } from "./objects/player.ts";
 import type { Structure } from "./objects/structure.ts";
-import { SpecOpsContractRunner } from "./specOpsContracts.ts";
+import { PracticeCombat } from "./practiceCombat.ts";
 import { PracticeController, type PracticeHost } from "./practiceController.ts";
+import { SpecOpsContractRunner } from "./specOpsContracts.ts";
 import { inferGroundLayer, MapNavGraph, navGroundLayer, stairAtPos } from "./specOpsNav.ts";
 
 export type SpecOpsKind = "enemy" | "ally" | "sentry";
@@ -1927,7 +1927,7 @@ function lateEnemyPerks(wave: number, kind: EnemyClass): string[] {
 }
 
 /** Practice bot loadout: range and fire rhythm follow the chosen gun's type. */
-function practiceBotLoadout(gun: string, settings: PracticeBotSettings, index: number): EnemyLoadout {
+function practiceBotLoadout(gun: string, settings: PracticeBotSettings, index: number, secondary = ""): EnemyLoadout {
     const def = GameObjectDefs.typeToDef(gun, "gun") as GunDef;
     const bulletRange = BulletDefs[def.bulletType]?.distance ?? 100;
     let range: number;
@@ -1958,6 +1958,8 @@ function practiceBotLoadout(gun: string, settings: PracticeBotSettings, index: n
     return {
         name: `Bot ${index + 1}`,
         gun,
+        gunSecondary: secondary || undefined,
+        melee: settings.melee,
         outfit: PracticeBotOutfits[index % PracticeBotOutfits.length],
         chest: "",
         helmet: "",
@@ -3781,6 +3783,10 @@ class AiBrain {
     stairTarget?: Stair;
     /** Practice mode: slider-driven movement and aim; undefined for Spec Ops bots. */
     practice?: PracticeBotTuning;
+    practiceCombat?: PracticeCombat;
+    private practiceTarget?: Player;
+    private practiceAimTicker = 0;
+    private practiceAimError = 0;
     /** Practice: remaining time of the current juke and its side. */
     dodgeTicker = 0;
     dodgeSign = 1;
@@ -4015,7 +4021,10 @@ class AiBrain {
                 ? manager.hostileTargets()
                 : manager.livingEnemies();
         }
-        if (!targetsList.length) return;
+        if (!targetsList.length) {
+            this.practiceSawTarget = false;
+            return;
+        }
 
         let target = this.target;
         if (!target || target.dead || target.disconnected) target = undefined;
@@ -4070,7 +4079,10 @@ class AiBrain {
             target = downedAnchor;
         }
         this.target = target;
-        if (!target) return;
+        if (!target) {
+            this.practiceSawTarget = false;
+            return;
+        }
 
         this.acquireTicker -= dt;
 
@@ -4105,6 +4117,30 @@ class AiBrain {
             }
         } else if (this.kind === "enemy" && canSee && dist < this.loadout.range * 1.5) {
             if (Math.random() < dt * 0.35) manager.alertSquad(target.pos, player, 18);
+        }
+
+        if (this.practice && this.practiceCombat) {
+            if (canSee && (!this.practiceSawTarget || this.practiceTarget !== target)) {
+                this.acquireTicker = math.max(this.acquireTicker, this.practice.reactionSec);
+                this.practiceAimTicker = 0;
+            }
+            this.practiceSawTarget = canSee;
+            this.practiceTarget = target;
+            this.practiceCombat.update(
+                dt,
+                target,
+                canSee && !target.downed && !this.practice.holdFire && this.acquireTicker <= 0,
+            );
+            const activeGun = player.weaponManager.activeWeapon;
+            if (GunDefs[activeGun] && activeGun !== this.loadout.gun) {
+                const activeLoadout = practiceBotLoadout(activeGun, this.practiceCombat.settings, 0);
+                this.loadout = {
+                    ...this.loadout,
+                    gun: activeGun,
+                    range: activeLoadout.range,
+                    holdRange: activeLoadout.holdRange,
+                };
+            }
         }
 
         this.planHouseAssault(dt, target, dist, patrolDowned, isBomber);
@@ -4228,9 +4264,23 @@ class AiBrain {
                     this.loadout.aimError * aimSlack * (1.15 - this.waveScale * 0.55),
                 ) + suppressError;
             const errorScale = this.practice ? 1 : math.lerp(this.waveScale, 0.9, 0.4);
-            const errorRad = math.deg2rad(util.random(-maxError, maxError) * errorScale);
-            const lead = v2.mul(target.moveVel, 0.04 * (0.08 + this.waveScale * 0.7));
-            aimTarget = v2.rotate(v2.normalizeSafe(v2.add(desired, lead)), errorRad);
+            if (this.practice && this.practiceCombat) {
+                // Keep a small aim bias for a short interval instead of sampling
+                // jitter every tick. The server knows the target's actual velocity.
+                this.practiceAimTicker -= dt;
+                if (this.practiceAimTicker <= 0) {
+                    this.practiceAimError = math.deg2rad(util.random(-maxError, maxError));
+                    this.practiceAimTicker = 0.16;
+                }
+                aimTarget = v2.rotate(
+                    v2.normalizeSafe(v2.sub(this.practiceCombat.aimPoint(target), player.pos)),
+                    this.practiceAimError,
+                );
+            } else {
+                const errorRad = math.deg2rad(util.random(-maxError, maxError) * errorScale);
+                const lead = v2.mul(target.moveVel, 0.04 * (0.08 + this.waveScale * 0.7));
+                aimTarget = v2.rotate(v2.normalizeSafe(v2.add(desired, lead)), errorRad);
+            }
         }
 
         const turnRate = math.deg2rad(
@@ -4640,8 +4690,8 @@ class AiBrain {
             }
         }
 
-        const aimDot = v2.dot(this.aimDir, desired);
-        const onTarget = aimDot > (suppressing
+        const aimDot = v2.dot(this.aimDir, this.practice ? aimTarget : desired);
+        const onTarget = aimDot > (this.practice ? Math.cos(math.deg2rad(2)) : suppressing
             ? 0.28
             : math.lerp(this.waveScale, 0.7, 0.92));
         const inCone = this.fovDot < 0 || aimDot >= this.fovDot;
@@ -4669,15 +4719,9 @@ class AiBrain {
                     this.aimDir,
                     v2.normalizeSafe(v2.sub(this.assaultBreakWindow.pos, player.pos)),
                 ) > 0.72;
-        if (this.practice) {
-            // Reaction time: wait this long after the target comes into view.
-            if (canSee && !this.practiceSawTarget) {
-                this.acquireTicker = math.max(this.acquireTicker, this.practice.reactionSec);
-            }
-            this.practiceSawTarget = canSee;
-        }
         const ready = this.alerted
             && !this.practice?.holdFire
+            && (!this.practice || canSee)
             && hasGun
             && !patrolDowned
             && !target.downed
@@ -4691,6 +4735,13 @@ class AiBrain {
                 || (suppressing && onTarget)
                 || windowShot
             );
+
+        if (this.practiceCombat) {
+            // Fire as soon as the engine permits. The old Spec Ops burst pauses
+            // added an extra delay on top of the gun's own firing/switch timers.
+            this.practiceCombat.fire(Boolean(ready));
+            return;
+        }
 
         // Sentry: continuous mag dump with no burst pause while ammo remains.
         if (this.kind === "sentry") {
@@ -5244,6 +5295,7 @@ class AiBrain {
     }
 
     private engagesMelee(dist = Infinity): boolean {
+        if (this.practiceCombat) return this.practiceCombat.meleeEngaged;
         return aiEngagesMelee(this.player, this.enemyClass, dist);
     }
 
@@ -5274,6 +5326,9 @@ class AiBrain {
 
     private pushHoldRange(push: number): number {
         const hold = this.loadout.holdRange + this.holdJitter;
+        if (this.practiceCombat?.meleeEngaged) {
+            return Math.min(hold, this.practiceCombat.meleeReach + (this.target?.rad ?? 1) - 0.4);
+        }
         if (this.clearingHouse) return math.min(hold, 3.4);
         if (aiIsDedicatedMelee(this.enemyClass)) {
             // Knife units must not inherit the gun minHold floor (4.5) or they
@@ -5291,6 +5346,7 @@ class AiBrain {
     }
 
     private standoffRange(player: Player, hold: number): number {
+        if (this.practiceCombat?.meleeEngaged) return Math.max(0.5, hold - 0.2);
         if (this.loadout.suicideVest) return 0.8;
         if (this.clearingHouse) return math.min(hold, 3.4);
         if (aiIsDedicatedMelee(this.enemyClass)) {
@@ -5891,10 +5947,11 @@ export class SpecOpsManager implements PracticeHost {
         // Fill matches stay open at every wave; only L / No Fill closes them.
         if (this.joinLocked) return false;
         if (this.game.started && this.operatorCount <= 0) return false;
-        if (this.game.started
+        if (
+            this.game.started
             && !this.game.map.specOpsBotArena
-            && this.allConnectedHumansIdle()) {
-            
+            && this.allConnectedHumansIdle()
+        ) {
             return false;
         }
 
@@ -5920,7 +5977,6 @@ export class SpecOpsManager implements PracticeHost {
         if (!this.game.started || this.game.over) return false;
         return this.reclaimableHumanCount() > 0;
     }
-    
 
     disconnectedHumanCount(): number {
         const players = this.game.playerBarn.players;
@@ -6001,7 +6057,7 @@ export class SpecOpsManager implements PracticeHost {
         this.game.updateData();
     }
 
-        get hudWaveId(): number {
+    get hudWaveId(): number {
         return this.wave
             | (this.joinLocked ? SpecOpsJoinLockFlag : 0)
             | (this.onBreak ? SpecOpsBreakFlag : 0);
@@ -6278,12 +6334,11 @@ export class SpecOpsManager implements PracticeHost {
                     );
                 }
 
-                 if (this.phaseTimer <= 0) {
+                if (this.phaseTimer <= 0) {
                     this.startWave();
                 } else {
                     this.checkBreakVotes();
                 }
-
             } else if (this.phase === "combat") {
                 if (this.contractsEnabled) {
                     this.contracts.update(dt);
@@ -6355,7 +6410,6 @@ export class SpecOpsManager implements PracticeHost {
         if (this.phase !== "prep" && this.phase !== "intermission") return false;
         if (this.shopSkipLock > 0) return false;
 
-        
         // Long break: E is a skip vote; the wave starts once a majority is ready.
         if (this.onBreak) {
             if (this.breakVotes.has(player.__id)) return false;
@@ -6498,7 +6552,6 @@ export class SpecOpsManager implements PracticeHost {
         this.game.gas.clearSpecOpsCountdown();
         this.game.logger.info(`Spec Ops wave ${this.wave}`);
         this.buffLivingSupport();
-
 
         const humans = this.livingHumans();
         let roster = composeWave(this.wave, humans.length, this.difficulty);
@@ -8276,7 +8329,10 @@ export class SpecOpsManager implements PracticeHost {
         const gun = settings.gun === PracticeRandomGun
             ? PracticeGuns[util.randomInt(0, PracticeGuns.length - 1)]
             : settings.gun;
-        const loadout = practiceBotLoadout(gun, settings, index);
+        const secondary = settings.secondary === PracticeRandomGun
+            ? PracticeGuns[util.randomInt(0, PracticeGuns.length - 1)]
+            : settings.secondary;
+        const loadout = practiceBotLoadout(gun, settings, index, secondary);
 
         let player: Player;
         try {
@@ -8315,6 +8371,7 @@ export class SpecOpsManager implements PracticeHost {
             reactionSec: practiceReactionSeconds(settings.reaction),
             holdFire: !settings.shootsBack,
         };
+        brain.practiceCombat = new PracticeCombat(player, settings);
         // strafeSign doubles as the strafe weight: 0 = no strafing, 2 = mostly sideways.
         brain.strafeSign = (Math.random() < 0.5 ? -1 : 1) * practiceStrafeWeight(settings.strafe);
         brain.strafeFlipTicker = util.random(flipMin, flipMax);
@@ -8406,11 +8463,25 @@ export class SpecOpsManager implements PracticeHost {
         player.setDirty();
     }
 
-    /** Practice "Give item" / "Clear inventory" from the panel. */
+    /** Practice pickups stay on the ground; inventory changes only on pickup. */
     givePracticeItem(player: Player, item: string, count: number, clear: boolean): void {
-        if (player.specOpsAi || player.dead) return;
+        if (!this.practice || player.specOpsAi || player.dead) return;
         if (clear) player.clearInventoryForPractice();
-        if (item) player.giveItem(item, count);
+        const def = GameObjectDefs.typeToDefSafe(item);
+        if (!def || !("lootImg" in def)) return;
+        const stackable = ["ammo", "heal", "boost", "throwable"].includes(def.type);
+        const amount = stackable && Number.isFinite(count) ? math.clamp(Math.round(count), 1, 999) : 1;
+        let pos = v2.copy(player.pos);
+        for (let i = 0; i < 16; i++) {
+            const dir = v2.rotate(player.dir, i * Math.PI / 8);
+            const candidate = v2.add(player.pos, v2.mul(dir, 4));
+            this.game.map.clampToMapBounds(candidate, 2);
+            if (v2.distance(candidate, player.pos) > 2.5 && isPathClear(this.game, player, candidate, 0.1)) {
+                pos = candidate;
+                break;
+            }
+        }
+        this.game.lootBarn.addLoot(item, pos, player.layer, amount, { pushSpeed: 0, preloadGun: true });
     }
 
     /** Test helper: practice bots currently alive. */
@@ -8581,7 +8652,8 @@ export class SpecOpsManager implements PracticeHost {
             player.promoteToRole(loadout.role);
         }
 
-        this.stripDuplicateGuns(player);
+        // Practice allows two copies of a gun; ordinary Spec Ops keeps its loadout rules.
+        if (!this.practice) this.stripDuplicateGuns(player);
 
         if (kind === "enemy") {
             const isEventBoss = (SpecOpsEventBossRotation as readonly string[]).includes(

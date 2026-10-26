@@ -70,6 +70,13 @@ export function practiceGunName(type: string): string {
 export interface PracticeBotSettings {
     /** Gun type, or "random". */
     gun: string;
+    /** Second gun, "random", or "" for none. */
+    secondary: string;
+    melee: string;
+    /** Use normal weapon swaps to shorten slow-gun recovery. */
+    quickSwitch: boolean;
+    /** Switch to melee when a visible target is within striking distance. */
+    autoMelee: boolean;
     /** Main wiggle slider (0–10); sets the three below when moved. */
     wiggle: number;
     /** How hard it strafes side to side (0–10). */
@@ -180,6 +187,10 @@ export function practiceWiggleToAdvanced(wiggle: number): Pick<PracticeBotSettin
 export function defaultPracticeBot(): PracticeBotSettings {
     return {
         gun: "mp5",
+        secondary: "",
+        melee: "fists",
+        quickSwitch: true,
+        autoMelee: true,
         wiggle: 5,
         ...practiceWiggleToAdvanced(5),
         accuracy: 50,
@@ -214,6 +225,13 @@ function sanitizeBot(raw: Partial<PracticeBotSettings> | undefined): PracticeBot
         : def.gun;
     return {
         gun,
+        secondary: typeof raw?.secondary === "string"
+                && (raw.secondary === PracticeRandomGun || isPracticeGun(raw.secondary))
+            ? raw.secondary
+            : "",
+        melee: typeof raw?.melee === "string" && PracticeMelees.includes(raw.melee) ? raw.melee : def.melee,
+        quickSwitch: typeof raw?.quickSwitch === "boolean" ? raw.quickSwitch : def.quickSwitch,
+        autoMelee: typeof raw?.autoMelee === "boolean" ? raw.autoMelee : def.autoMelee,
         wiggle: clampInt(raw?.wiggle, 0, PracticeSliderMax, def.wiggle),
         strafe: clampInt(raw?.strafe, 0, PracticeSliderMax, def.strafe),
         turn: clampInt(raw?.turn, 0, PracticeSliderMax, def.turn),

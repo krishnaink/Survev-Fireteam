@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import type { Game } from "../../server/src/game/game.ts";
 import type { Player } from "../../server/src/game/objects/player.ts";
+import { practiceInterceptPoint } from "../../server/src/game/practiceCombat.ts";
 import { GunDefs } from "../../shared/defs/gameObjects/gunDefs.ts";
 import { MapDefs } from "../../shared/defs/mapDefs.ts";
 import { isPracticeMapName, PracticeMapPool } from "../../shared/defs/maps/practiceDefs.ts";
@@ -11,15 +12,15 @@ import {
     defaultPracticeBot,
     defaultPracticeKit,
     defaultPracticeSettings,
+    practiceAimErrorDeg,
     PracticeBotRespawnDelay,
+    practiceFlipInterval,
     PracticeGuns,
     PracticeMaxBotHealth,
     PracticeMaxBots,
     PracticePlayerRespawnDelay,
     PracticeRandomGun,
     type PracticeSettings,
-    practiceAimErrorDeg,
-    practiceFlipInterval,
     practiceWiggleToAdvanced,
     sanitizePracticeSettings,
 } from "../../shared/practice.ts";
@@ -117,8 +118,27 @@ test("Practice settings message round-trips", () => {
             counts: { ...defaultPracticeKit().counts, bandage: 12, healthkit: 2, frag: 5, mirv: 1 },
         },
         bots: [
-            { ...defaultPracticeBot(), gun: PracticeRandomGun, accuracy: 87, reaction: 13, shootsBack: false },
-            { ...defaultPracticeBot(), gun: "mosin", health: 120, armor: 3, strafe: 9, turn: 2, dodge: 7 },
+            {
+                ...defaultPracticeBot(),
+                gun: PracticeRandomGun,
+                secondary: PracticeRandomGun,
+                melee: "katana",
+                quickSwitch: false,
+                autoMelee: false,
+                accuracy: 87,
+                reaction: 13,
+                shootsBack: false,
+            },
+            {
+                ...defaultPracticeBot(),
+                gun: "mosin",
+                secondary: "m870",
+                health: 120,
+                armor: 3,
+                strafe: 9,
+                turn: 2,
+                dodge: 7,
+            },
         ],
         respawnMode: "wave",
         respawnDelay: 42,
@@ -381,13 +401,24 @@ test("Practice kit counts are capped by the backpack like survev", () => {
     expect(player.invManager.get("bandage")).toBe(GameConfig.bagSizes.bandage[0]);
 });
 
-test("Practice give item and clear inventory", () => {
+test("Practice spawns items on the ground and changes inventory only on pickup", () => {
     const { game, player } = startPractice({ primary: "mp5" });
     const specOps = game.specOps!;
 
     specOps.givePracticeItem(player, "chest03", 1, false);
     specOps.givePracticeItem(player, "awc", 1, false);
     specOps.givePracticeItem(player, "healthkit", 1, false);
+    expect(player.chest).toBe("");
+    expect(player.weapons[GameConfig.WeaponSlot.Secondary].type).toBe("");
+    expect(player.invManager.get("healthkit")).toBe(0);
+    for (const type of ["chest03", "awc", "healthkit"]) {
+        const loot = game.lootBarn.loots.find((l) => l.type === type && !l.destroyed)!;
+        expect(loot).toBeDefined();
+        expect(loot.layer).toBe(player.layer);
+        expect(v2.distance(loot.pos, player.pos)).toBeGreaterThan(2.5);
+        game.update(0.25); // Respect the normal pickup cooldown between items.
+        player.pickupLoot(loot);
+    }
     expect(player.chest).toBe("chest03");
     expect(player.weapons[GameConfig.WeaponSlot.Secondary].type).toBe("awc");
     expect(player.invManager.get("healthkit")).toBe(1);
@@ -404,6 +435,7 @@ test("Practice give item and clear inventory", () => {
 test("Practice changing only bots keeps items you gave yourself", () => {
     const { game, player, practice } = startPractice({ primary: "mp5" });
     game.specOps!.givePracticeItem(player, "helmet03", 1, false);
+    player.pickupLoot(game.lootBarn.loots.find((l) => l.type === "helmet03" && !l.destroyed)!);
     for (let i = 0; i < 5; i++) game.update(0.1);
     practice.applySettings(
         player,
@@ -462,4 +494,209 @@ test("Practice switching respawn mode keeps living bots", () => {
     practice.applySettings(player, sanitizePracticeSettings({ ...practice.settings, respawnMode: "off" }));
     game.update(0.05);
     expect(bots(game)[0]).toBe(bot);
+});
+
+/* ── Practice combat and pickups ─────────────────────────────────────── */
+
+test("Practice reads old saved bot settings and rejects invalid extra weapons", () => {
+    const raw = { ...defaultPracticeBot(), secondary: "invalid", melee: "invalid" };
+    const clean = sanitizePracticeSettings({ bots: [raw] });
+    expect(clean.bots[0].secondary).toBe("");
+    expect(clean.bots[0].melee).toBe("fists");
+    const old = sanitizePracticeSettings({ bots: [{ gun: "mosin" } as ReturnType<typeof defaultPracticeBot>] });
+    expect(old.bots[0].quickSwitch).toBe(true);
+    expect(old.bots[0].autoMelee).toBe(true);
+    expect(old.bots[0].secondary).toBe("");
+});
+
+test("Practice bots retain both guns, including two copies of the same gun", () => {
+    const { game } = startPractice({
+        bots: [
+            { ...defaultPracticeBot(), gun: "mosin", secondary: "spas12", melee: "katana", shootsBack: false },
+            { ...defaultPracticeBot(), gun: "m870", secondary: "m870", shootsBack: false },
+        ],
+    });
+    const [first, second] = bots(game);
+    expect(first.weapons[0].type).toBe("mosin");
+    expect(first.weapons[1].type).toBe("spas12");
+    expect(first.weapons[2].type).toBe("katana");
+    expect(second.weapons[0].type).toBe("m870");
+    expect(second.weapons[1].type).toBe("m870");
+    expect(first.weapons[1].ammo).toBeGreaterThan(0);
+});
+
+test("Practice interception leads moving targets according to projectile speed", () => {
+    const origin = v2.create(0, 0);
+    const target = v2.create(30, 0);
+    const velocity = v2.create(0, 10);
+    const point = practiceInterceptPoint(origin, target, velocity, 60, 2);
+    const time = point.y / velocity.y;
+    expect(point.y).toBeGreaterThan(0);
+    expect(v2.distance(point, origin)).toBeCloseTo(60 * time + 2, 6);
+    const faster = practiceInterceptPoint(origin, target, velocity, 120, 2);
+    expect(faster.y).toBeLessThan(point.y);
+    expect(practiceInterceptPoint(origin, target, v2.create(0, 0), 60)).toEqual(target);
+    expect(practiceInterceptPoint(origin, target, velocity, 0)).toEqual(target);
+    // No future interception: fall back to direct aim rather than NaN or backwards lead.
+    expect(practiceInterceptPoint(origin, target, v2.create(100, 0), 60)).toEqual(target);
+});
+
+function combatScenario(overrides: Partial<ReturnType<typeof defaultPracticeBot>>) {
+    const { game, player } = startPractice({
+        bots: [{
+            ...defaultPracticeBot(),
+            gun: "mosin",
+            accuracy: 100,
+            reaction: 0,
+            strafe: 0,
+            turn: 0,
+            dodge: 0,
+            shootsBack: false,
+            ...overrides,
+        }],
+    });
+    const bot = bots(game)[0];
+    v2.set(bot.pos, v2.create(30, 30));
+    v2.set(player.pos, v2.create(60, 30));
+    v2.set(bot.moveVel, v2.create(0, 0));
+    v2.set(player.moveVel, v2.create(0, 0));
+    game.grid.updateObject(bot);
+    game.grid.updateObject(player);
+    bot.weaponManager.setCurWeapIndex(0);
+    bot.weapons[0].cooldown = 0;
+    bot.freeSwitchTimer = -1;
+    return { game, player, bot, combat: game.specOps!.getBrainPublic(bot)!.practiceCombat! };
+}
+
+test("Practice quick switch follows an actual shot and respects native equip delay", () => {
+    const { bot, player, combat } = combatScenario({ secondary: "spas12" });
+    combat.update(0.01, player, true);
+    expect(bot.curWeapIdx).toBe(0);
+    bot.weaponManager.fireWeapon(false);
+    const remaining = bot.weapons[0].cooldown;
+    combat.update(0.01, player, true);
+    expect(bot.curWeapIdx).toBe(1);
+    expect(bot.weapons[1].cooldown).toBe(GameConfig.player.baseSwitchDelay);
+    expect(bot.weapons[1].cooldown).toBeGreaterThan(0);
+    expect(bot.weapons[1].cooldown).toBeLessThan(remaining);
+});
+
+test("Practice single-sniper holster cycle shortens recovery without erasing switch delay", () => {
+    const { bot, player, combat } = combatScenario({});
+    bot.weaponManager.fireWeapon(false);
+    combat.update(0.01, player, true);
+    expect(bot.curWeapIdx).toBe(GameConfig.WeaponSlot.Melee);
+    combat.fire(true);
+    expect(bot.shootStart).toBe(false);
+    combat.update(0.01, player, true);
+    expect(bot.curWeapIdx).toBe(0);
+    expect(bot.weapons[0].cooldown).toBe(GunDefs.mosin.switchDelay);
+    expect(bot.weapons[0].cooldown).toBeLessThan(GunDefs.mosin.fireDelay);
+});
+
+test("Practice quick switching produces earlier real shots than holding the sniper", () => {
+    const intervals = (quickSwitch: boolean) => {
+        const { bot, player, combat } = combatScenario({ quickSwitch });
+        const shots: number[] = [];
+        for (let tick = 0; tick < 310; tick++) {
+            combat.update(0.01, player, true);
+            combat.fire(true);
+            const before = bot.weapons[0].ammo;
+            bot.weaponManager.update(0.01);
+            if (bot.weapons[0].ammo < before) shots.push(tick * 0.01);
+        }
+        expect(shots.length).toBeGreaterThanOrEqual(2);
+        return shots[1] - shots[0];
+    };
+    const normal = intervals(false);
+    const quick = intervals(true);
+    expect(normal).toBeGreaterThanOrEqual(GunDefs.mosin.fireDelay - 0.02);
+    expect(quick).toBeGreaterThanOrEqual(GunDefs.mosin.switchDelay);
+    expect(quick).toBeLessThan(normal - 0.3);
+});
+
+test("Practice can disable quick switch and preserves same-deploy shotgun delays", () => {
+    const disabled = combatScenario({ secondary: "spas12", quickSwitch: false });
+    disabled.bot.weaponManager.fireWeapon(false);
+    disabled.combat.update(0.01, disabled.player, true);
+    expect(disabled.bot.curWeapIdx).toBe(0);
+    const shotguns = combatScenario({ gun: "m870", secondary: "spas12" });
+    shotguns.bot.weaponManager.fireWeapon(false);
+    shotguns.combat.update(0.01, shotguns.player, true);
+    expect(shotguns.bot.curWeapIdx).toBe(1);
+    expect(shotguns.bot.weapons[1].cooldown).toBe(GunDefs.spas12.switchDelay);
+});
+
+test("Practice auto melee uses the selected weapon and returns to guns out of range", () => {
+    const { game, bot, player, combat } = combatScenario({ melee: "katana" });
+    v2.set(player.pos, v2.add(bot.pos, v2.create(2, 0)));
+    game.grid.updateObject(player);
+    combat.update(0.01, player, true);
+    expect(combat.meleeEngaged).toBe(true);
+    expect(bot.curWeapIdx).toBe(GameConfig.WeaponSlot.Melee);
+    // Equal movement must not introduce an extra lead error during the swing.
+    v2.set(bot.moveVel, v2.create(0, 8));
+    v2.set(player.moveVel, v2.create(0, 8));
+    expect(combat.aimPoint(player)).toEqual(player.pos);
+    combat.fire(true);
+    expect(bot.shootStart).toBe(true);
+    v2.set(player.pos, v2.add(bot.pos, v2.create(30, 0)));
+    game.grid.updateObject(player);
+    combat.update(0.01, player, true);
+    expect(combat.meleeEngaged).toBe(false);
+    expect(bot.curWeapIdx).toBe(0);
+    const disabled = combatScenario({ autoMelee: false });
+    v2.set(disabled.player.pos, v2.add(disabled.bot.pos, v2.create(2, 0)));
+    disabled.combat.update(0.01, disabled.player, true);
+    expect(disabled.bot.curWeapIdx).toBe(0);
+});
+
+test("Practice bots switch to the loaded gun instead of reloading an empty one", () => {
+    const { bot, player, combat } = combatScenario({ secondary: "mp5" });
+    bot.weapons[0].ammo = 0;
+    combat.update(0.01, player, true);
+    expect(bot.curWeapIdx).toBe(1);
+    expect(bot.weapons[1].ammo).toBeGreaterThan(0);
+});
+
+test("Practice preserves a melee swing until its normal delayed damage lands", () => {
+    const { game, bot, player, combat } = combatScenario({ melee: "katana" });
+    v2.set(bot.dir, v2.create(1, 0));
+    v2.set(player.pos, v2.add(bot.pos, v2.create(2, 0)));
+    game.grid.updateObject(player);
+    combat.update(0.01, player, true);
+    bot.weapons[GameConfig.WeaponSlot.Melee].cooldown = -0.01;
+    combat.fire(true);
+    bot.weaponManager.update(0.01);
+    expect(bot.weaponManager.meleeAttacks.length).toBeGreaterThan(0);
+    const health = player.health;
+    combat.update(0.01, player, false);
+    expect(bot.curWeapIdx).toBe(GameConfig.WeaponSlot.Melee);
+    combat.fire(false);
+    bot.weaponManager.update(0.5);
+    expect(player.health).toBeLessThan(health);
+    expect(bot.weaponManager.meleeAttacks).toHaveLength(0);
+});
+
+test("Practice perk pickups grant perks only when picked up", () => {
+    const { game, player } = startPractice();
+    game.specOps!.givePracticeItem(player, "small_arms", 999, false);
+    expect(player.hasPerk("small_arms")).toBe(false);
+    const loot = game.lootBarn.loots.find((l) => l.type === "small_arms" && !l.destroyed)!;
+    expect(loot).toBeDefined();
+    expect(loot.count).toBe(1);
+    player.pickupLoot(loot);
+    expect(player.hasPerk("small_arms")).toBe(true);
+});
+
+test("Practice spawning rejects invalid items and never runs outside practice", () => {
+    const { game, player } = startPractice();
+    const count = game.lootBarn.loots.length;
+    game.specOps!.givePracticeItem(player, "not_an_item", 1, false);
+    expect(game.lootBarn.loots.length).toBe(count);
+    const regular = createGame(TeamMode.Solo, "test_specops");
+    const human = regular.playerBarn.addTestPlayer({});
+    const before = regular.lootBarn.loots.length;
+    regular.specOps!.givePracticeItem(human, "awc", 1, true);
+    expect(regular.lootBarn.loots.length).toBe(before);
 });

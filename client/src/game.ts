@@ -500,7 +500,9 @@ export class Game {
         }
 
         if (this.m_practiceMenu) {
-            if (this.m_input.keyPressed(Key.P) && !PracticeMenu.focusInField()) {
+            // Tab never types into a field, so it toggles even while a dropdown has focus.
+           if (this.m_input.keyPressed(Key.Tab)) {
+            (document.activeElement as HTMLElement | null)?.blur?.();
                 this.m_practiceMenu.toggle();
             }
             const local = this.m_playerBarn.getPlayerById(this.m_localId);
