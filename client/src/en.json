@@ -167,7 +167,6 @@
   "index-attributions": "attributions",
   "index-team-is-full": "Team is full!",
   "index-team-kicked": "You were kicked from the team!",
-
   "index-behind-proxy": "Proxies and VPNs are not allowed, please disable them.",
   "index-failed-creating-team": "Failed creating team.",
   "index-failed-finding-game": "Failed finding game.",
@@ -188,7 +187,6 @@
   "index-rate-limited": "Rate limited.",
   "index-server-crashed": "Server crashed.",
   "index-server-restart": "Server restarting.",
-
   "index-view-more": "View More",
   "index-back-to-main": "Back to Main Menu",
   "index-most-kills": "Most kills",
@@ -1118,5 +1116,23 @@
   "game-emote_pooface": "Poo Face",
   "game-emote_ok": "Ok",
   "game-emote_rainbow": "Rainbow",
-  "game-emote_logotwins": "The Twins"
+  "game-emote_logotwins": "The Twins",
+  "lb-kills": "Kills",
+  "lb-downs": "Downs",
+  "lb-revives": "Revives",
+  "lb-kills-help": "Kills during this ranked run",
+  "lb-downs-help": "Times the operator was downed",
+  "lb-revives-help": "Teammates revived during this ranked run",
+  "lb-operators": "operators",
+  "lb-operator-singular": "operator",
+  "lb-individual": "Individual entry",
+  "lb-team-totals": "Team totals · ranked run",
+  "lb-run-stats": "Ranked run stats",
+  "lb-missing-stats": "— = not recorded",
+  "lb-run-details": "Run details",
+  "lb-operator": "Operator",
+  "lb-mode": "Mode",
+  "lb-window": "Window",
+  "lb-best-runs": "Highest rounds survived",
+  "lb-run-metrics": "Stats shown are from the ranked run. Downs = times downed."
 }

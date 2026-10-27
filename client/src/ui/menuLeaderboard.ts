@@ -1,6 +1,7 @@
 import $ from "jquery";
 import { MapId } from "../../../shared/gameConfig.ts";
 import { LEADERBOARD_DEFAULT_COUNT, type LeaderboardResponse } from "../../../shared/types/stats.ts";
+import { leaderboardName, leaderboardStat } from "../../../shared/utils/leaderboard.ts";
 import { api } from "../api.ts";
 import { helpers } from "../helpers.ts";
 import type { Localization } from "./localization.ts";
@@ -68,25 +69,6 @@ export class MenuLeaderboard {
         void this.refresh();
     }
 
-    private entryName(row: LeaderboardResponse): string {
-        if ("usernames" in row) {
-            if (row.members?.length) return row.members.join(" · ");
-            return row.usernames.join(" · ");
-        }
-        if (row.members?.length) return row.members.join(" · ");
-        return row.username;
-    }
-
-    /** Highest rounds first; fastest elapsed time breaks ties. */
-    private sortEntries(rows: LeaderboardResponse[]): LeaderboardResponse[] {
-        return [...rows].sort((a, b) => {
-            if (b.val !== a.val) return b.val - a.val;
-            const timeA = a.time ?? Number.MAX_SAFE_INTEGER;
-            const timeB = b.time ?? Number.MAX_SAFE_INTEGER;
-            return timeA - timeB;
-        });
-    }
-
     private renderEntries(rows: LeaderboardResponse[]) {
         const list = $("#specops-lb-entries");
         const status = $("#specops-lb-status");
@@ -100,7 +82,8 @@ export class MenuLeaderboard {
         status.text("");
 
         const showTeams = this.team !== "solo";
-        const sorted = this.sortEntries(rows);
+        // Keep the API ranking (rounds, difficulty, then elapsed time).
+        const sorted = rows;
         for (let i = 0; i < Math.min(sorted.length, TOP_COUNT); i++) {
             const row = sorted[i];
             const rank = i + 1;
@@ -112,28 +95,63 @@ export class MenuLeaderboard {
                 class: `specops-lb-entry${isTeam ? " is-team" : ""}`,
             });
             item.append($("<span/>", { class: "specops-lb-rank", text: String(rank) }));
+            const toggle = $("<button/>", {
+                type: "button",
+                class: "specops-lb-run-toggle",
+                "aria-expanded": "false",
+                "aria-controls": `menu-lb-run-${i}`,
+            });
+            // Put rank inside the button so the entire row is one keyboard target.
+            toggle.append(item.children().detach());
             const playerCell = $("<span/>", { class: "specops-lb-player" });
-            if (isTeam) {
-                playerCell.append(
-                    $("<span/>", {
-                        class: "specops-lb-team-name",
-                        text: this.entryName(row),
-                    }),
+            playerCell.append($("<span/>", {
+                class: "specops-lb-team-name",
+                text: leaderboardName(row),
+                title: leaderboardName(row),
+            }));
+            playerCell.append($("<span/>", {
+                class: "specops-lb-team-meta",
+                text: `${
+                    isTeam
+                        ? `${members.length} ${
+                            this.localization.translate(members.length === 1 ? "lb-operator-singular" : "lb-operators")
+                        }`
+                        : this.localization.translate("lb-individual")
+                } · ${helpers.formatDifficulty(row.difficulty)} · ${time}`,
+            }));
+            toggle.append(playerCell);
+            toggle.append($("<span/>", { class: "specops-lb-rounds", text: waves }));
+            const details = $("<div/>", { class: "specops-lb-run-details", id: `menu-lb-run-${i}`, hidden: true });
+            const metrics = $("<div/>", { class: "specops-lb-metrics" });
+            for (const stat of ["kills", "downs", "revives"] as const) {
+                metrics.append(
+                    $("<span/>").append(
+                        $("<strong/>", { text: leaderboardStat(row[stat]) }),
+                        $("<span/>", {
+                            text: this.localization.translate(`lb-${stat}`),
+                            title: this.localization.translate(`lb-${stat}-help`),
+                        }),
+                    ),
                 );
-                playerCell.append(
-                    $("<span/>", {
-                        class: "specops-lb-team-meta",
-                        text: members.length === 1
-                            ? "1 operator"
-                            : `${members.length} operators`,
-                    }),
-                );
-            } else {
-                playerCell.append(document.createTextNode(this.entryName(row)));
             }
-            item.append(playerCell);
-            item.append($("<span/>", { class: "specops-lb-rounds", text: waves }));
-            item.append($("<span/>", { class: "specops-lb-time", text: time }));
+            details.append(
+                $("<p/>", {
+                    class: "specops-lb-detail-label",
+                    text: this.localization.translate(isTeam ? "lb-team-totals" : "lb-run-stats"),
+                }),
+            );
+            details.append(metrics);
+            if (isTeam) details.append($("<p/>", { class: "specops-lb-roster", text: members.join(" · ") }));
+            details.append(
+                $("<p/>", { class: "specops-lb-unknown", text: this.localization.translate("lb-missing-stats") }),
+            );
+            toggle.on("click", () => {
+                const open = toggle.attr("aria-expanded") !== "true";
+                toggle.attr("aria-expanded", String(open));
+                details.prop("hidden", !open);
+                item.toggleClass("is-expanded", open);
+            });
+            item.append(toggle, details);
             list.append(item);
         }
     }

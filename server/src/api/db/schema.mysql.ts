@@ -133,6 +133,8 @@ export const matchDataTable = mysqlTable(
         rank: int("rank").notNull(),
         died: boolean("died").notNull(),
         kills: int("kills").notNull(),
+        downs: int("downs"),
+        revives: int("revives"),
         teamKills: int("team_kills").notNull().default(0),
         damageDealt: int("damage_dealt").notNull(),
         damageTaken: int("damage_taken").notNull(),

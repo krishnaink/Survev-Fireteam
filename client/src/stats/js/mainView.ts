@@ -1,6 +1,7 @@
 import $ from "jquery";
 import { MapId } from "../../../../shared/gameConfig.ts";
-import type { LeaderboardRequest } from "../../../../shared/types/stats.ts";
+import type { LeaderboardRequest, LeaderboardResponse } from "../../../../shared/types/stats.ts";
+import { leaderboardName, leaderboardStat } from "../../../../shared/utils/leaderboard.ts";
 import { api } from "../../api.ts";
 import { device } from "../../device.ts";
 import { helpers } from "../../helpers.ts";
@@ -25,12 +26,7 @@ export class MainView {
     error = false;
     data = {} as Partial<
         LeaderboardRequest & {
-            data: {
-                username: string;
-                usernames: string[];
-                slug: string;
-                slugs: string[];
-            }[];
+            data: LeaderboardResponse[];
         }
     >;
     el = $(
@@ -133,6 +129,8 @@ export class MainView {
             content = templates.leaderboard({
                 ...this.data,
                 statName: statName,
+                leaderboardName,
+                leaderboardStat,
                 formatTime: helpers.formatTime,
                 formatSubmittedAt: helpers.formatSubmittedAt,
                 formatDifficulty: helpers.formatDifficulty,
@@ -154,11 +152,10 @@ export class MainView {
             e.preventDefault();
             const btn = $(this);
             const row = btn.closest("tr");
-            const members = row.find(".lb-team-members");
+            const members = row.next(".lb-run-details");
             const open = btn.attr("aria-expanded") === "true";
             const nextOpen = !open;
             btn.attr("aria-expanded", nextOpen ? "true" : "false");
-            btn.attr("title", nextOpen ? "Hide players" : "Show players");
             row.toggleClass("is-expanded", nextOpen);
             if (nextOpen) {
                 members.removeAttr("hidden");

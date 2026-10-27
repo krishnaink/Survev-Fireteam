@@ -3,10 +3,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { TeamMode } from "../../../../shared/gameConfig.ts";
 import {
+    type LeaderboardMember,
     type LeaderboardRequest,
     type LeaderboardResponse,
     resolveLeaderboardLimit,
 } from "../../../../shared/types/stats.ts";
+import { leaderboardRunDetails } from "../../../../shared/utils/leaderboard.ts";
 import { Config } from "../../config.ts";
 import type { SaveGameBody } from "../../utils/types.ts";
 import { isMongo } from "./dialect.ts";
@@ -57,6 +59,8 @@ function getDb() {
             rank INTEGER NOT NULL,
             died INTEGER NOT NULL,
             kills INTEGER NOT NULL,
+            downs INTEGER,
+            revives INTEGER,
             team_kills INTEGER NOT NULL DEFAULT 0,
             damage_dealt INTEGER NOT NULL,
             damage_taken INTEGER NOT NULL,
@@ -102,6 +106,17 @@ function getDb() {
         } catch {
             // Column already exists on upgraded local DBs.
         }
+        // API and game processes may upgrade the same store at startup.
+        const database = sqlite;
+        const migrateCombatStats = database.transaction(() => {
+            const columns = database.query("PRAGMA table_info(local_match_data)").all() as { name: string }[];
+            for (const column of ["downs", "revives"]) {
+                if (!columns.some((c) => c.name === column)) {
+                    database.exec(`ALTER TABLE local_match_data ADD COLUMN ${column} INTEGER`);
+                }
+            }
+        });
+        withSqliteBusyRetry(() => migrateCombatStats.immediate());
         sqlite.exec(
             `CREATE INDEX IF NOT EXISTS idx_local_match_waves
             ON local_match_data (team_mode, map_id, waves_survived DESC)`,
@@ -132,6 +147,8 @@ function rowToMatchInsert(row: MatchRow) {
         rank: row.rank,
         died: row.died,
         kills: row.kills,
+        downs: row.downs ?? null,
+        revives: row.revives ?? null,
         teamKills: row.teamKills,
         damageDealt: row.damageDealt,
         damageTaken: row.damageTaken,
@@ -152,12 +169,12 @@ export function insertLocalMatchData(rows: MatchRow[]) {
     const insert = database.prepare(
         `INSERT OR IGNORE INTO local_match_data (
             user_id, user_banned, region, map_id, game_id, map_seed, username, player_id,
-            team_mode, team_count, team_total, team_id, time_alive, rank, died, kills,
+            team_mode, team_count, team_total, team_id, time_alive, rank, died, kills, downs, revives,
             team_kills, damage_dealt, damage_taken, killer_id, killed_ids, role,
             waves_survived, squad_name, game_version, difficulty, synced
         ) VALUES (
             $userId, $userBanned, $region, $mapId, $gameId, $mapSeed, $username, $playerId,
-            $teamMode, $teamCount, $teamTotal, $teamId, $timeAlive, $rank, $died, $kills,
+            $teamMode, $teamCount, $teamTotal, $teamId, $timeAlive, $rank, $died, $kills, $downs, $revives,
             $teamKills, $damageDealt, $damageTaken, $killerId, $killedIds, $role,
             $wavesSurvived, $squadName, $gameVersion, $difficulty, 0
         )`,
@@ -182,6 +199,8 @@ export function insertLocalMatchData(rows: MatchRow[]) {
                 $rank: row.rank,
                 $died: row.died ? 1 : 0,
                 $kills: row.kills,
+                $downs: row.downs ?? null,
+                $revives: row.revives ?? null,
                 // Coerce missing / legacy snake_case so INSERT OR IGNORE cannot
                 // silently drop rows on NOT NULL team_kills.
                 $teamKills: row.teamKills
@@ -277,6 +296,8 @@ export function queryLocalLeaderboard(params: LeaderboardRequest): LeaderboardRe
             ${nameExpr} AS username,
             region,
             game_id AS gameId,
+            team_id AS teamId,
+            player_id AS playerId,
             ${isTeam} AS isTeam,
             ${type === "waves_survived" ? "waves_survived" : "time_alive"} AS val,
             time_alive AS timeAlive,
@@ -293,11 +314,12 @@ export function queryLocalLeaderboard(params: LeaderboardRequest): LeaderboardRe
             AND map_id = $mapId
             ${intervalClause}
             ${wavesFilter}
+            AND user_banned = 0
             ${extraWhere}
     `;
 
     const sql = useFireteamNames
-        ? `SELECT username, region, gameId, isTeam, val, timeAlive, games, submittedAt, version, difficulty FROM (
+        ? `SELECT username, region, gameId, teamId, playerId, isTeam, val, timeAlive, games, submittedAt, version, difficulty FROM (
                 SELECT * FROM (${
             bestRowSelect(
                 "username, region",
@@ -320,7 +342,7 @@ export function queryLocalLeaderboard(params: LeaderboardRequest): LeaderboardRe
             )
             ${outerOrder}
             ${limitClause}`
-        : `SELECT username, region, gameId, 0 AS isTeam, val, timeAlive, games, submittedAt, version, difficulty FROM (
+        : `SELECT username, region, gameId, teamId, playerId, 0 AS isTeam, val, timeAlive, games, submittedAt, version, difficulty FROM (
                 ${bestRowSelect("username, region", "username", "", 0)}
             ) ranked
             WHERE rn = 1
@@ -338,6 +360,8 @@ export function queryLocalLeaderboard(params: LeaderboardRequest): LeaderboardRe
                 username: string;
                 region: string;
                 gameId: string;
+                teamId: number;
+                playerId: number;
                 isTeam: number;
                 val: number;
                 timeAlive: number;
@@ -348,32 +372,28 @@ export function queryLocalLeaderboard(params: LeaderboardRequest): LeaderboardRe
             }>
     );
 
-    const memberStmt = useFireteamNames
-        ? database.prepare(
-            `SELECT DISTINCT username AS name
-             FROM local_match_data
-             WHERE game_id = $gameId
-               AND team_mode = $teamMode
-               AND map_id = $mapId
-               AND IFNULL(squad_name, '') = $squadName
-             ORDER BY username COLLATE NOCASE`,
-        )
-        : null;
+    const memberStmt = database.prepare(
+        `SELECT username, kills, downs, revives
+         FROM local_match_data
+         WHERE game_id = $gameId AND region = $region
+           AND team_mode = $teamMode AND map_id = $mapId
+           AND user_banned = 0
+           AND (($isTeam = 1 AND team_id = $teamId) OR ($isTeam = 0 AND player_id = $playerId))
+         ORDER BY username COLLATE NOCASE, player_id`,
+    );
 
     return rows.map((row) => {
-        let members: string[] | undefined;
-        if (memberStmt && row.isTeam && row.gameId) {
-            const names = withSqliteBusyRetry(() =>
-                memberStmt.all({
-                    $gameId: row.gameId,
-                    $teamMode: teamMode,
-                    $mapId: mapId,
-                    $squadName: row.username,
-                }) as Array<{ name: string }>
-            ).map((r) => r.name).filter(Boolean);
-            if (names.length) members = names;
-        }
-
+        const players = withSqliteBusyRetry(() =>
+            memberStmt.all({
+                $gameId: row.gameId,
+                $region: row.region,
+                $teamMode: teamMode,
+                $mapId: mapId,
+                $isTeam: row.isTeam,
+                $teamId: row.teamId,
+                $playerId: row.playerId,
+            })
+        ) as LeaderboardMember[];
         return {
             username: row.username,
             slug: null,
@@ -384,7 +404,7 @@ export function queryLocalLeaderboard(params: LeaderboardRequest): LeaderboardRe
             version: row.version || undefined,
             difficulty: row.difficulty || undefined,
             submittedAt: toIsoSubmittedAt(row.submittedAt),
-            members,
+            ...leaderboardRunDetails(players, row.isTeam ? row.username : undefined),
         };
     });
 }
@@ -509,6 +529,8 @@ export async function drainLocalMatchStore(logger: StoreLogger) {
             rank: Number(row.rank),
             died: Boolean(row.died),
             kills: Number(row.kills),
+            downs: row.downs == null ? null : Number(row.downs),
+            revives: row.revives == null ? null : Number(row.revives),
             team_kills: Number(row.team_kills),
             damageDealt: Number(row.damage_dealt),
             damageTaken: Number(row.damage_taken),

@@ -78,6 +78,13 @@
       "when": 1788702000000,
       "tag": "0010_match_difficulty",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793050000000,
+      "tag": "0011_match_combat_stats",
+      "breakpoints": true
     }
   ]
 }

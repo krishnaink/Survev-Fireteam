@@ -1,109 +1,69 @@
-<div class="lb-table-shell lb-tower">
-  <table id="leaderboard-table" class="lb-table <%= env.type == "waves_survived" ? "leaderboard-waves" : "" %> <%= (env.teamMode == 'duo' || env.teamMode == 'squad' || env.teamMode == 2 || env.teamMode == 4) ? "leaderboard-teams" : "" %>">
+<div class="lb-table-shell lb-clean-board">
+  <table id="leaderboard-table" class="lb-table leaderboard-waves">
     <thead>
       <tr class="leaderboard-headers">
-        <th class="header-rank" scope="col" data-l10n="stats-rank" data-caps="true">Rank</th>
-        <th class="header-player" scope="col" data-l10n="<%= env.teamMode == 'solo' || env.teamMode == 1 ? 'stats-player' : 'index-leaderboard-col-fireteam' %>" data-caps="true">
-          <%= env.teamMode == 'solo' || env.teamMode == 1 ? 'Player' : 'Fireteam' %>
-        </th>
-        <% if (env.type == 'waves_survived') { %>
-            <th class="header-rounds" scope="col" data-l10n="index-leaderboard-col-time" data-caps="true">Rounds</th>
-            <th class="header-difficulty" scope="col" data-l10n="index-leaderboard-col-difficulty" data-caps="true">Difficulty</th>
-            <th class="header-time" scope="col" data-l10n="index-leaderboard-col-elapsed" data-caps="true">Time</th>
-            <th class="header-version" scope="col" data-l10n="stats-version" data-caps="true">Version</th>
-            <th class="header-submitted" scope="col" data-l10n="stats-submitted" data-caps="true">Submitted</th>
-        <% } else { %>
-            <th class="header-stat" scope="col" data-l10n="<%= env.statName %>" data-caps="true">Stat</th>
-        <% } %>
-        <% if (env.type != 'most_kills' && env.type != 'win_streak' && env.type != 'waves_survived') { %>
-            <th class="header-games" scope="col" data-l10n="stats-games" data-caps="true">Games</th>
-        <% } %>
-        <th class="header-region" scope="col" data-l10n="stats-region" data-caps="true">Server</th>
+        <th scope="col" data-l10n="stats-rank">Rank</th>
+        <th scope="col" data-l10n="<%= env.teamMode == 'solo' || env.teamMode == 1 ? 'stats-player' : 'index-leaderboard-col-fireteam' %>">Fireteam / player</th>
+        <th scope="col" data-l10n="index-leaderboard-col-time">Rounds</th>
+        <th scope="col" class="lb-secondary" data-l10n="index-leaderboard-col-difficulty">Difficulty</th>
+        <th scope="col" class="lb-secondary" data-l10n="index-leaderboard-col-elapsed">Time</th>
+        <th scope="col" class="lb-combat-cell" data-l10n="lb-kills" title="Kills during this ranked run">Kills</th>
+        <th scope="col" class="lb-combat-cell" data-l10n="lb-downs" title="Times the operator was downed">Downs</th>
+        <th scope="col" class="lb-combat-cell" data-l10n="lb-revives" title="Teammates revived during this ranked run">Revives</th>
       </tr>
     </thead>
     <tbody class="leaderboard-values">
-      <% for (var i = 0, data = env.data; i < data.length; i++) { %>
-        <% var place = i + 1; %>
-        <% var placeClass = place === 1 ? "is-gold" : place === 2 ? "is-silver" : place === 3 ? "is-bronze" : ""; %>
-        <% var towerT = data.length > 1 ? (i / (data.length - 1)).toFixed(4) : "0"; %>
-        <% var versionLabel = data[i].version ? ('v' + data[i].version) : '—'; %>
-        <% var submittedLabel = env.formatSubmittedAt ? env.formatSubmittedAt(data[i].submittedAt) : (data[i].submittedAt || '—'); %>
-        <% var diffKey = (data[i].difficulty || '').toLowerCase(); %>
-        <% var diffLabel = env.formatDifficulty ? env.formatDifficulty(data[i].difficulty) : (data[i].difficulty || '—'); %>
-        <% var members = Array.isArray(data[i].members) ? data[i].members : null; %>
-        <% var teamBoard = env.teamMode == 'duo' || env.teamMode == 'squad' || env.teamMode == 2 || env.teamMode == 4; %>
-        <% var isTeam = teamBoard && members && members.length > 0; %>
-        <% var teamTitle = data[i].username || (members ? members.join(' · ') : ''); %>
-        <% if (Array.isArray(data[i].slugs) && !isTeam) { %>
-          <tr class="main multiple-players <%= placeClass %>" style="--tower-t: <%= towerT %>;">
-            <td class="data-rank" scope="row"><span class="lb-rank"><%= place %></span></td>
-            <td class="data-player-names">
-              <% for (var j = 0; j < data[i].slugs.length; j++) { %>
-                <span class="player-name">
-                <% if (data[i].slugs[j]) { %>
-                    <a href="/stats/?slug=<%= data[i].slugs[j] %>"><%= data[i].usernames[j] %></a>
-                <% } else { %>
-                    <%= data[i].usernames[j] %>
+      <% for (var i = 0; i < env.data.length; i++) { %>
+        <% var row = env.data[i]; %>
+        <% var members = row.memberStats || (row.members || []).map(function(name) { return { username: name }; }); %>
+        <% var isTeam = !!row.fireteamName || !!(row.members && row.members.length); %>
+        <% var name = env.leaderboardName(row); %>
+        <% var diff = env.formatDifficulty(row.difficulty); %>
+        <% var diffKey = ['recruit', 'regular', 'hardened', 'veteran'].includes((row.difficulty || '').toLowerCase()) ? row.difficulty.toLowerCase() : 'unknown'; %>
+        <% var elapsed = row.time != null ? env.formatTime(row.time) : '—'; %>
+        <tr class="main <%= isTeam ? 'is-team' : 'single-player' %> <%= i === 0 ? 'is-gold' : i === 1 ? 'is-silver' : i === 2 ? 'is-bronze' : '' %>">
+          <td class="data-rank"><span class="lb-rank"><%= i + 1 %></span></td>
+          <td class="data-player-names">
+            <button type="button" class="lb-team-toggle" aria-expanded="false" aria-controls="lb-run-<%= i %>" title="Run details">
+              <span class="lb-team-chevron" aria-hidden="true"></span>
+              <span class="lb-team-name" title="<%= name %>"><%= name %></span>
+            </button>
+            <span class="lb-entry-meta"><% if (isTeam) { %><%= members.length %> <span data-l10n="<%= members.length === 1 ? 'lb-operator-singular' : 'lb-operators' %>">operators</span><% } else { %><span data-l10n="lb-individual">Individual entry</span><% } %></span>
+          </td>
+          <td class="data-rounds"><%= row.val > 0 ? row.val : '—' %></td>
+          <td class="lb-secondary"><span class="lb-diff lb-diff-<%= diffKey %>"><%= diff %></span></td>
+          <td class="lb-secondary"><%= elapsed %></td>
+          <td class="lb-combat-cell"><%= env.leaderboardStat(row.kills) %></td>
+          <td class="lb-combat-cell"><%= env.leaderboardStat(row.downs) %></td>
+          <td class="lb-combat-cell"><%= env.leaderboardStat(row.revives) %></td>
+        </tr>
+        <tr id="lb-run-<%= i %>" class="lb-run-details" hidden>
+          <td colspan="8">
+            <div class="lb-run-content">
+              <p class="lb-run-caption" data-l10n="<%= isTeam ? 'lb-team-totals' : 'lb-run-stats' %>">Ranked run stats</p>
+              <div class="lb-mobile-metrics">
+                <span><span data-l10n="index-leaderboard-col-difficulty">Difficulty</span><strong><%= diff %></strong></span>
+                <span><span data-l10n="index-leaderboard-col-elapsed">Time</span><strong><%= elapsed %></strong></span>
+                <% for (var stat of ['kills', 'downs', 'revives']) { %>
+                  <span><span data-l10n="lb-<%= stat %>"><%= stat %></span><strong><%= env.leaderboardStat(row[stat]) %></strong></span>
                 <% } %>
-                </span>
+              </div>
+              <p class="lb-run-metadata"><%= row.region ? row.region.toUpperCase() : '—' %> · <%= row.version ? 'v' + row.version : '—' %> · <span data-l10n="stats-submitted">Submitted</span> <%= env.formatSubmittedAt(row.submittedAt) %></p>
+              <% if (members.length) { %>
+                <table class="lb-member-table" aria-label="Operator contributions">
+                  <thead><tr><th scope="col" data-l10n="lb-operator">Operator</th><th scope="col" data-l10n="lb-kills">Kills</th><th scope="col" data-l10n="lb-downs">Downs</th><th scope="col" data-l10n="lb-revives">Revives</th></tr></thead>
+                  <tbody><% for (var member of members) { %>
+                    <tr><th scope="row"><%= member.username %></th><td><%= env.leaderboardStat(member.kills) %></td><td><%= env.leaderboardStat(member.downs) %></td><td><%= env.leaderboardStat(member.revives) %></td></tr>
+                  <% } %></tbody>
+                </table>
               <% } %>
-            </td>
-            <% if (env.type == 'waves_survived') { %>
-                <td class="data-rounds"><%= data[i].val > 0 ? data[i].val : '—' %></td>
-                <td class="data-difficulty">
-                  <span class="lb-diff lb-diff-<%= diffKey || 'unknown' %>"><%= diffLabel %></span>
-                </td>
-                <td class="data-time"><%= data[i].time ? env.formatTime(data[i].time) : '—' %></td>
-                <td class="data-version"><%= versionLabel %></td>
-                <td class="data-submitted"><%= submittedLabel %></td>
-            <% } else { %>
-                <td><%= env.type == 'longest_survived' ? env.formatTime(data[i].val) : data[i].val %></td>
-            <% } %>
-            <td class="data-region"><%= data[i].region ? data[i].region.toUpperCase() : '' %></td>
-          </tr>
-        <% } else { %>
-          <tr class="main <%= isTeam ? 'is-team' : 'single-player' %> <%= placeClass %>" style="--tower-t: <%= towerT %>;" <%= isTeam ? 'data-team-row="1"' : '' %>>
-            <td class="data-rank" scope="row"><span class="lb-rank"><%= place %></span></td>
-            <td class="data-player-names">
-              <% if (isTeam) { %>
-                <button type="button" class="lb-team-toggle" aria-expanded="false" title="Show players">
-                  <span class="lb-team-chevron" aria-hidden="true"></span>
-                  <span class="lb-team-name"><%= teamTitle %></span>
-                  <span class="lb-team-count"><%= members.length %></span>
-                </button>
-                <ul class="lb-team-members" hidden>
-                  <% for (var m = 0; m < members.length; m++) { %>
-                    <li class="lb-team-member"><%= members[m] %></li>
-                  <% } %>
-                </ul>
-              <% } else { %>
-                <span class="player-name">
-                <% if (data[i].slug) { %>
-                    <a href="/stats/?slug=<%= data[i].slug%>"><%= data[i].username %></a>
-                <% } else { %>
-                    <%= data[i].username %>
-                <% } %>
-                </span>
-              <% } %>
-            </td>
-            <% if (env.type == 'waves_survived') { %>
-                <td class="data-rounds"><%= data[i].val > 0 ? data[i].val : '—' %></td>
-                <td class="data-difficulty">
-                  <span class="lb-diff lb-diff-<%= diffKey || 'unknown' %>"><%= diffLabel %></span>
-                </td>
-                <td class="data-time"><%= data[i].time ? env.formatTime(data[i].time) : '—' %></td>
-                <td class="data-version"><%= versionLabel %></td>
-                <td class="data-submitted"><%= submittedLabel %></td>
-            <% } else { %>
-                <td><%= env.type == 'longest_survived' ? env.formatTime(data[i].val) : data[i].val %></td>
-            <% } %>
-            <% if (env.type != 'most_kills' && env.type != 'win_streak' && env.type != 'waves_survived') { %>
-                <td><%= data[i].games %></td>
-            <% } %>
-            <td class="data-region"><%= data[i].region ? data[i].region.toUpperCase() : '' %></td>
-          </tr>
-        <% } %>
+              <p class="lb-run-caption" data-l10n="lb-missing-stats">— = not recorded</p>
+            </div>
+          </td>
+        </tr>
       <% } %>
+      <% if (!env.data.length) { %><tr><td colspan="8" class="lb-empty">No runs found for these filters.</td></tr><% } %>
     </tbody>
   </table>
 </div>
+<p class="lb-board-footnote" data-l10n="lb-run-metrics">Stats shown are from the ranked run. Downs = times downed.</p>

@@ -84,6 +84,8 @@ CREATE TABLE IF NOT EXISTS match_data (
   \`rank\` INT NOT NULL,
   died BOOLEAN NOT NULL,
   kills INT NOT NULL,
+  downs INT NULL,
+  revives INT NULL,
   team_kills INT NOT NULL DEFAULT 0,
   damage_dealt INT NOT NULL,
   damage_taken INT NOT NULL,
@@ -131,6 +133,11 @@ export async function ensureMysqlSchema(pool: Pool) {
         .filter(Boolean);
     const conn = await pool.getConnection();
     try {
+        // Nullable columns preserve unknown stats on existing runs.
+        statements.push(
+            "ALTER TABLE match_data ADD COLUMN IF NOT EXISTS downs INT NULL",
+            "ALTER TABLE match_data ADD COLUMN IF NOT EXISTS revives INT NULL",
+        );
         for (const statement of statements) {
             await conn.query(statement);
         }

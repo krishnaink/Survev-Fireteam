@@ -1999,3 +1999,179 @@ tr.is-expanded .lb-team-chevron {
     font-size: 18px !important;
   }
 }
+
+/* Compact ranked runs, with secondary metadata and contributions on demand. */
+.lb-clean-board {
+  background: #101912;
+  box-shadow: none;
+}
+.lb-clean-board #leaderboard-table {
+  table-layout: auto;
+}
+.lb-clean-board #leaderboard-table > tbody > tr.main {
+  background: transparent !important;
+}
+.lb-clean-board #leaderboard-table > tbody > tr.main:hover,
+.lb-clean-board #leaderboard-table > tbody > tr.main.is-expanded {
+  background: rgba(200, 240, 122, 0.04) !important;
+}
+.lb-clean-board #leaderboard-table > thead > tr > th {
+  font-size: 11px !important;
+  letter-spacing: 0.05em;
+  padding: 14px 12px !important;
+}
+.lb-clean-board #leaderboard-table > tbody > tr.main > td {
+  font-size: 13px !important;
+  padding: 16px 12px !important;
+}
+.lb-clean-board #leaderboard-table .data-rank {
+  width: 44px;
+}
+.lb-clean-board #leaderboard-table .data-rounds {
+  font-size: 22px !important;
+}
+.lb-clean-board #leaderboard-table .data-player-names {
+  max-width: 320px;
+  min-width: 140px;
+}
+.lb-clean-board .lb-team-toggle {
+  width: 100%;
+}
+.lb-clean-board .lb-team-toggle:focus-visible {
+  outline: 2px solid var(--lb-accent);
+  outline-offset: 4px;
+}
+.lb-clean-board .lb-team-name {
+  font-family: var(--lb-font);
+  font-size: 14px;
+  letter-spacing: normal;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.lb-entry-meta {
+  color: var(--lb-muted);
+  display: block;
+  font-size: 11px;
+  margin: 5px 0 0 16px;
+}
+.lb-clean-board #leaderboard-table > tbody > .lb-run-details > td {
+  padding: 0 !important;
+  background: rgba(200, 240, 122, 0.025);
+}
+.lb-run-details[hidden] {
+  display: none !important;
+}
+.lb-run-content {
+  padding: 18px 24px;
+}
+.lb-run-caption,
+.lb-run-metadata,
+.lb-board-footnote {
+  color: var(--lb-muted);
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0 0 10px;
+}
+.lb-board-footnote {
+  margin-top: 16px;
+}
+.lb-run-content .lb-run-caption:last-child {
+  margin: 12px 0 0;
+}
+.lb-clean-board #leaderboard-table .lb-member-table {
+  width: 100%;
+  margin-top: 14px;
+  table-layout: fixed;
+}
+.lb-clean-board #leaderboard-table .lb-member-table th,
+.lb-clean-board #leaderboard-table .lb-member-table td {
+  background: transparent !important;
+  border: 0;
+  padding: 9px 8px !important;
+  font-size: 12px !important;
+  letter-spacing: normal;
+  font-family: var(--lb-font) !important;
+  overflow-wrap: anywhere;
+}
+.lb-clean-board #leaderboard-table .lb-member-table th:first-child {
+  width: 46%;
+}
+.lb-clean-board #leaderboard-table .lb-member-table tbody th {
+  color: var(--lb-ink) !important;
+  text-transform: none;
+  font-weight: 400 !important;
+}
+.lb-clean-board #leaderboard-table .lb-member-table tr {
+  border-top: 1px solid rgba(126, 168, 98, 0.12) !important;
+}
+.lb-clean-board #leaderboard-table .lb-member-table thead tr {
+  border-top: 0 !important;
+}
+.lb-mobile-metrics {
+  display: none;
+}
+.lb-empty {
+  color: var(--lb-muted);
+  text-align: center;
+}
+@media (max-width: 720px) {
+  .lb-clean-board #leaderboard-table > thead .lb-secondary,
+  .lb-clean-board #leaderboard-table > thead .lb-combat-cell,
+  .lb-clean-board #leaderboard-table > tbody > .main > .lb-secondary,
+  .lb-clean-board #leaderboard-table > tbody > .main > .lb-combat-cell {
+    display: none;
+  }
+  .lb-clean-board #leaderboard-table {
+    min-width: 0 !important;
+    width: 100%;
+  }
+  .lb-clean-board #leaderboard-table .data-player-names {
+    max-width: none;
+    min-width: 0;
+  }
+  .lb-mobile-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 18px;
+  }
+  .lb-mobile-metrics > span {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--lb-muted);
+  }
+  .lb-mobile-metrics strong {
+    color: var(--lb-ink);
+    font-size: 14px;
+  }
+  .lb-run-content {
+    padding: 14px 12px;
+  }
+}
+body.specops-stats .lb-hero {
+  background: none;
+  min-height: 0;
+  padding: 28px 0 20px;
+}
+body.specops-stats .lb-hero-glow {
+  display: none;
+}
+body.specops-stats .lb-title {
+  font-size: 32px;
+  letter-spacing: 0.06em;
+}
+body.specops-stats .lb-kicker {
+  font-size: 11px;
+}
+.lb-clean-board #leaderboard-table > tbody > tr.main > td.data-rounds {
+  font-size: 22px !important;
+}
+.lb-clean-board #leaderboard-table .lb-member-table thead th {
+  white-space: nowrap;
+  font-size: 11px !important;
+}
+.lb-clean-board #leaderboard-table .lb-member-table th:first-child {
+  width: 40%;
+}

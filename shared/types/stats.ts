@@ -151,7 +151,19 @@ export function resolveLeaderboardLimit(maxCount: number | undefined): number | 
     return Math.min(maxCount, LEADERBOARD_HARD_MAX_COUNT);
 }
 
+export interface LeaderboardCombatStats {
+    kills?: number | null;
+    /** Times this operator was downed, rather than enemies downed. */
+    downs?: number | null;
+    revives?: number | null;
+}
+
+export interface LeaderboardMember extends LeaderboardCombatStats {
+    username: string;
+}
+
 export type LeaderboardResponse =
+    & LeaderboardCombatStats
     & {
         val: number;
         region: string;
@@ -183,6 +195,9 @@ export type LeaderboardResponse =
          * Duo/squad: players on the best-scoring run (full board expand; menu may show count).
          */
         members?: string[];
+        /** Saved squad-creation name, or the existing generated roster name. */
+        fireteamName?: string;
+        memberStats?: LeaderboardMember[];
     }
     & (
         | {

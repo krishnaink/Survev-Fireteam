@@ -227,6 +227,8 @@ class ServerGame extends Game {
                     : "",
                 died: player.dead,
                 kills: player.kills,
+                downs: player.downedCount,
+                revives: player.revives,
                 teamKills: teamKills[player.teamId] ?? 0,
                 damageDealt: Math.round(player.damageDealt),
                 damageTaken: Math.round(player.damageTaken),

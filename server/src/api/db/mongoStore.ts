@@ -3,6 +3,7 @@ import { TeamMode } from "../../../../shared/gameConfig.ts";
 import type { LeaderboardRequest, LeaderboardResponse, UserStatsResponse } from "../../../../shared/types/stats.ts";
 import { resolveLeaderboardLimit } from "../../../../shared/types/stats.ts";
 import { ALL_MAPS } from "../../../../shared/types/stats.ts";
+import { leaderboardRunDetails } from "../../../../shared/utils/leaderboard.ts";
 import type { Loadout } from "../../../../shared/utils/loadout.ts";
 import { loadout as loadoutUtil } from "../../../../shared/utils/loadout.ts";
 import { getMongoDb } from "./index.ts";
@@ -128,7 +129,7 @@ export const mongoStore = {
 
     async leaderboard(params: LeaderboardRequest): Promise<LeaderboardResponse[]> {
         const { type, teamMode, mapId, interval } = params;
-        const limit = resolveLeaderboardLimit(params.maxCount) ?? 100;
+        const limit = resolveLeaderboardLimit(params.maxCount);
         const since = interval === "daily"
             ? new Date(Date.now() - 864e5)
             : interval === "weekly"
@@ -189,7 +190,11 @@ export const mongoStore = {
                 { $sort: { wavesSurvived: -1, difficultyRank: -1, timeAlive: 1, createdAt: -1 } },
                 {
                     $group: {
-                        _id: { name: "$boardName", region: "$region" },
+                        _id: {
+                            name: "$boardName",
+                            region: "$region",
+                            isTeam: { $and: [useFireteam, { $ne: [{ $ifNull: ["$squadName", ""] }, ""] }] },
+                        },
                         val: { $first: "$wavesSurvived" },
                         time: { $first: "$timeAlive" },
                         submittedAt: { $first: "$createdAt" },
@@ -197,7 +202,12 @@ export const mongoStore = {
                         difficulty: { $first: "$difficulty" },
                         difficultyRank: { $first: "$difficultyRank" },
                         gameId: { $first: "$gameId" },
+                        teamId: { $first: "$teamId" },
+                        playerId: { $first: "$playerId" },
                         squadName: { $first: "$squadName" },
+                        kills: { $first: "$kills" },
+                        downs: { $first: "$downs" },
+                        revives: { $first: "$revives" },
                         games: { $addToSet: "$gameId" },
                     },
                 },
@@ -213,29 +223,41 @@ export const mongoStore = {
                         difficulty: 1,
                         difficultyRank: 1,
                         gameId: 1,
+                        teamId: 1,
+                        playerId: 1,
                         squadName: 1,
+                        kills: 1,
+                        downs: 1,
+                        revives: 1,
                         games: { $size: "$games" },
                         slug: { $literal: null },
                     },
                 },
                 { $sort: { val: -1, difficultyRank: -1, time: 1 } },
-                { $limit: limit },
+                ...(limit == null ? [] : [{ $limit: limit }]),
             ];
             const rows = await col("match_data").aggregate(wavesPipeline).toArray();
             const out = [];
             for (const row of rows) {
-                let members: string[] | undefined;
                 const squadName = String(row.squadName || "");
-                if (useFireteam && squadName && row.gameId) {
-                    const roster = await col("match_data").distinct("username", {
+                const isTeam = useFireteam && !!squadName;
+                const roster = isTeam
+                    ? await col("match_data").find({
                         gameId: row.gameId,
+                        region: row.region,
                         teamMode,
                         mapId,
-                        squadName,
-                    });
-                    members = roster.map(String).filter(Boolean).sort((a, b) => a.localeCompare(b));
-                    if (!members.length) members = undefined;
-                }
+                        userBanned: { $ne: true },
+                        ...(isTeam ? { teamId: row.teamId } : { playerId: row.playerId }),
+                    }, { projection: { username: 1, kills: 1, downs: 1, revives: 1 } })
+                        .sort({ username: 1, playerId: 1 }).toArray()
+                    : [row];
+                const players = roster.map((p) => ({
+                    username: String(p.username),
+                    kills: p.kills == null ? null : Number(p.kills),
+                    downs: p.downs == null ? null : Number(p.downs),
+                    revives: p.revives == null ? null : Number(p.revives),
+                }));
                 out.push({
                     username: String(row.username),
                     slug: null,
@@ -248,7 +270,7 @@ export const mongoStore = {
                     submittedAt: row.submittedAt instanceof Date
                         ? row.submittedAt.toISOString()
                         : undefined,
-                    members,
+                    ...leaderboardRunDetails(players, isTeam ? String(row.username) : undefined),
                 });
             }
             return out;
@@ -296,7 +318,7 @@ export const mongoStore = {
                 },
             },
             { $sort: { val: -1 } },
-            { $limit: limit },
+            ...(limit == null ? [] : [{ $limit: limit }]),
         ];
 
         const rows = await col("match_data").aggregate(pipeline).toArray();

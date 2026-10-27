@@ -2,21 +2,24 @@ import { and, count, eq, gte, inArray, ne, type SQL, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { TeamMode } from "../../../../../shared/gameConfig.ts";
 import {
+    type LeaderboardMember,
     type LeaderboardRequest,
     type LeaderboardResponse,
     resolveLeaderboardLimit,
     zLeaderboardsRequest,
 } from "../../../../../shared/types/stats.ts";
+import { leaderboardRunDetails } from "../../../../../shared/utils/leaderboard.ts";
 import { Config } from "../../../config.ts";
 import { server } from "../../apiServer.ts";
 import { rateLimitMiddleware, validateParams } from "../../auth/middleware.ts";
 import { leaderboardCache } from "../../cache/leaderboard.ts";
 import { isMongo, sqlMatchedUsersAgg } from "../../db/dialect.ts";
 import { db } from "../../db/index.ts";
+import { sqlResultRows, wavesLeaderboardQuery } from "../../db/leaderboardQuery.ts";
 import { queryLocalLeaderboard } from "../../db/localMatchStore.ts";
 import { mongoStore } from "../../db/mongoStore.ts";
 import { matchDataTable, usersTable } from "../../db/schema.ts";
-import { sqlCreatedAtSinceDays, sqlNowMinusDays } from "../../db/sqlHelpers.ts";
+import { sqlNowMinusDays } from "../../db/sqlHelpers.ts";
 import type { Context } from "../../index.ts";
 export const leaderboardRouter = new Hono<Context>();
 
@@ -142,163 +145,40 @@ async function soloLeaderboardQuery(params: LeaderboardRequest) {
 async function wavesSurvivedLeaderboardQuery(
     params: LeaderboardRequest,
 ): Promise<LeaderboardResponse[]> {
-    const { interval, mapId, teamMode } = params;
-    const limit = resolveLeaderboardLimit(params.maxCount);
-    const intervalSql = interval === "alltime"
-        ? sql``
-        : interval === "daily"
-        ? sqlCreatedAtSinceDays(1)
-        : sqlCreatedAtSinceDays(7);
-    const limitSql = limit == null ? sql`` : sql`LIMIT ${limit}`;
-    const useFireteamNames = teamMode === TeamMode.Duo || teamMode === TeamMode.Squad;
-
-    const playerPartition = sql`
-        SELECT
-            username,
-            region,
-            game_id,
-            0 AS is_team,
-            waves_survived AS val,
-            time_alive AS time,
-            created_at AS submitted_at,
-            COALESCE(game_version, '') AS version,
-            COALESCE(difficulty, '') AS difficulty,
-            COUNT(DISTINCT game_id) OVER (PARTITION BY username, region) AS games,
-            ROW_NUMBER() OVER (
-                PARTITION BY username, region
-                ORDER BY waves_survived DESC,
-                    CASE LOWER(COALESCE(difficulty, ''))
-                        WHEN 'veteran' THEN 4
-                        WHEN 'hardened' THEN 3
-                        WHEN 'regular' THEN 2
-                        WHEN 'recruit' THEN 1
-                        ELSE 0
-                    END DESC,
-                    time_alive ASC, created_at DESC
-            ) AS rn
-        FROM match_data
-        WHERE team_mode = ${teamMode}
-            AND map_id = ${mapId}
-            AND waves_survived > 0
-            AND COALESCE(user_banned, false) = false
-            ${useFireteamNames ? sql`AND COALESCE(squad_name, '') = ''` : sql``}
-            ${intervalSql}
-    `;
-
-    const squadPartition = sql`
-        SELECT
-            squad_name AS username,
-            region,
-            game_id,
-            1 AS is_team,
-            waves_survived AS val,
-            time_alive AS time,
-            created_at AS submitted_at,
-            COALESCE(game_version, '') AS version,
-            COALESCE(difficulty, '') AS difficulty,
-            COUNT(DISTINCT game_id) OVER (PARTITION BY squad_name, region) AS games,
-            ROW_NUMBER() OVER (
-                PARTITION BY squad_name, region
-                ORDER BY waves_survived DESC,
-                    CASE LOWER(COALESCE(difficulty, ''))
-                        WHEN 'veteran' THEN 4
-                        WHEN 'hardened' THEN 3
-                        WHEN 'regular' THEN 2
-                        WHEN 'recruit' THEN 1
-                        ELSE 0
-                    END DESC,
-                    time_alive ASC, created_at DESC
-            ) AS rn
-        FROM match_data
-        WHERE team_mode = ${teamMode}
-            AND map_id = ${mapId}
-            AND waves_survived > 0
-            AND COALESCE(user_banned, false) = false
-            AND COALESCE(squad_name, '') != ''
-            ${intervalSql}
-    `;
-
-    const result = useFireteamNames
-        ? await db.execute(sql`
-            SELECT username, region, game_id, is_team, val, time, games, submitted_at, version, difficulty FROM (
-                SELECT * FROM (${playerPartition}) p WHERE rn = 1
-                UNION ALL
-                SELECT * FROM (${squadPartition}) s WHERE rn = 1
-            ) ranked
-            ORDER BY val DESC,
-                CASE LOWER(COALESCE(difficulty, ''))
-                    WHEN 'veteran' THEN 4
-                    WHEN 'hardened' THEN 3
-                    WHEN 'regular' THEN 2
-                    WHEN 'recruit' THEN 1
-                    ELSE 0
-                END DESC,
-                time ASC
-            ${limitSql}
-        `)
-        : await db.execute(sql`
-            SELECT username, region, game_id, is_team, val, time, games, submitted_at, version, difficulty FROM (
-                ${playerPartition}
-            ) ranked
-            WHERE rn = 1
-            ORDER BY val DESC,
-                CASE LOWER(COALESCE(difficulty, ''))
-                    WHEN 'veteran' THEN 4
-                    WHEN 'hardened' THEN 3
-                    WHEN 'regular' THEN 2
-                    WHEN 'recruit' THEN 1
-                    ELSE 0
-                END DESC,
-                time ASC
-            ${limitSql}
-        `);
-
-    const rows = (result as unknown as {
-        rows?: Array<{
-            username: string;
-            region: string;
-            game_id: string;
-            is_team: number | boolean;
-            val: number;
-            time: number;
-            games: number;
-            submitted_at: string | Date;
-            version: string;
-            difficulty: string;
-        }>;
-    }).rows ?? (result as unknown as Array<{
+    const { mapId, teamMode } = params;
+    const rows = sqlResultRows<{
         username: string;
         region: string;
         game_id: string;
+        team_id: number;
+        player_id: number;
         is_team: number | boolean;
+        kills: number;
+        downs: number | null;
+        revives: number | null;
         val: number;
         time: number;
         games: number;
         submitted_at: string | Date;
         version: string;
         difficulty: string;
-    }>);
+    }>(await db.execute(wavesLeaderboardQuery(params)));
 
     const out: LeaderboardResponse[] = [];
     for (const row of rows) {
-        let members: string[] | undefined;
         const isTeam = row.is_team === true || row.is_team === 1;
-        if (useFireteamNames && isTeam && row.game_id) {
-            const memberRes = await db.execute(sql`
-                SELECT DISTINCT username
-                FROM match_data
-                WHERE game_id = ${row.game_id}
-                    AND team_mode = ${teamMode}
-                    AND map_id = ${mapId}
-                    AND COALESCE(squad_name, '') = ${row.username}
-                ORDER BY username ASC
-            `);
-            const memberRows = (memberRes as unknown as {
-                rows?: Array<{ username: string }>;
-            }).rows ?? (memberRes as unknown as Array<{ username: string }>);
-            members = memberRows.map((m) => m.username).filter(Boolean);
-            if (!members.length) members = undefined;
-        }
+        const memberRes = isTeam
+            ? await db.execute(sql`
+            SELECT username, kills, downs, revives
+            FROM match_data
+            WHERE game_id = ${row.game_id} AND region = ${row.region}
+                AND team_mode = ${teamMode} AND map_id = ${mapId}
+                AND COALESCE(user_banned, false) = false
+                AND team_id = ${row.team_id}
+            ORDER BY username ASC, player_id ASC
+        `)
+            : [{ username: row.username, kills: row.kills, downs: row.downs, revives: row.revives }];
+        const players = sqlResultRows<LeaderboardMember>(memberRes);
 
         out.push({
             username: row.username,
@@ -310,7 +190,7 @@ async function wavesSurvivedLeaderboardQuery(
             version: row.version || undefined,
             difficulty: row.difficulty || undefined,
             submittedAt: toIsoSubmittedAt(row.submitted_at),
-            members,
+            ...leaderboardRunDetails(players, isTeam ? row.username : undefined),
         });
     }
     return out;

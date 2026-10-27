@@ -2816,3 +2816,111 @@ body.steam-deck .specops-start .specops-lb-sidebar {
 }
 
 
+
+/* Ranked run details stay collapsed until requested. */
+.specops-lb-entry {
+  display: block;
+  height: auto;
+  padding: 0;
+}
+.specops-lb-run-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  column-gap: 8px;
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  grid-template-columns: 20px minmax(0, 1fr) 48px 48px;
+  min-height: 46px;
+  padding: 8px 10px;
+  text-align: left;
+  width: 100%;
+}
+.specops-lb-run-toggle:hover,
+.specops-lb-run-toggle:focus-visible {
+  background: rgba(157, 255, 157, 0.07);
+}
+.specops-lb-run-toggle:focus-visible {
+  outline: 2px solid #b9dc83;
+  outline-offset: -2px;
+}
+.specops-lb-run-toggle .specops-lb-player {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.specops-lb-team-name::before {
+  content: "› ";
+  color: #b9dc83;
+}
+.specops-lb-entry.is-expanded .specops-lb-team-name::before {
+  content: "⌄ ";
+}
+.specops-lb-run-details {
+  background: rgba(157, 255, 157, 0.04);
+  padding: 10px 14px;
+}
+.specops-lb-run-details[hidden] {
+  display: none;
+}
+.specops-lb-metrics {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.specops-lb-metrics > span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.specops-lb-metrics strong {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.specops-lb-metrics > span > span {
+  color: #a5b49b;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+.specops-lb-detail-label,
+.specops-lb-roster,
+.specops-lb-unknown {
+  color: #a5b49b;
+  font-size: 10px;
+  line-height: 1.5;
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+}
+.specops-lb-detail-label {
+  margin: 0 0 8px;
+}
+.specops-lb-unknown {
+  opacity: 0.7;
+}
+/* Keep the team name readable in the narrow home-page sidebar. */
+.specops-start .specops-lb-score-head,
+.specops-start .specops-lb-run-toggle {
+  grid-template-columns: 20px minmax(0, 1fr) 44px;
+}
+.specops-start .specops-lb-score-head {
+  font-size: 9px;
+  letter-spacing: 0.02em;
+}
+.specops-start .specops-lb-run-toggle .specops-lb-team-name {
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.specops-start .specops-lb-run-toggle .specops-lb-team-meta {
+  letter-spacing: normal;
+  line-height: 1.4;
+  text-transform: none;
+  white-space: normal;
+}
+#specops-lb-sidebar .specops-lb-score-head > span {
+  font-size: 9px;
+  letter-spacing: 0.02em;
+}

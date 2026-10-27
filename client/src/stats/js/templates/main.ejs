@@ -3,7 +3,7 @@
   <div class="container lb-hero-inner">
     <p class="lb-kicker">Survev Fireteam</p>
     <h1 class="lb-title" data-l10n="index-leaderboards" data-caps="true">Leaderboards</h1>
-    <p class="lb-lede"><span data-l10n="index-fireteam-version">Fireteam 1.7</span> · Highest rounds survived</p>
+    <p class="lb-lede" data-l10n="lb-best-runs">Highest rounds survived</p>
   </div>
 </section>
 
@@ -11,21 +11,16 @@
   <div class="container">
     <div class="lb-filters">
       <label class="lb-filter">
-        <span class="lb-filter-label" data-l10n="stats-solo">Mode</span>
+        <span class="lb-filter-label" data-l10n="lb-mode">Mode</span>
         <select id="leaderboard-team-mode" class="leaderboard-opt lb-select">
           <option value="solo" data-l10n="stats-solo">Solo</option>
           <option value="duo" data-l10n="stats-duo">Duo</option>
           <option value="squad" data-l10n="stats-squad">Squad</option>
         </select>
       </label>
+      <input type="hidden" id="leaderboard-type" value="waves_survived">
       <label class="lb-filter">
-        <span class="lb-filter-label" data-l10n="stats-waves-survived">Board</span>
-        <select id="leaderboard-type" class="leaderboard-opt lb-select">
-          <option value="waves_survived" data-l10n="stats-waves-survived">Rounds survived</option>
-        </select>
-      </label>
-      <label class="lb-filter">
-        <span class="lb-filter-label" data-l10n="stats-all-time">Window</span>
+        <span class="lb-filter-label" data-l10n="lb-window">Window</span>
         <select id="leaderboard-time" class="leaderboard-opt lb-select">
           <option value="daily" data-l10n="stats-today">Today</option>
           <option value="weekly" data-l10n="stats-this-week">This week</option>
