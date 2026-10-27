@@ -12,7 +12,8 @@ resurviv-config.json
 
 survev-config.json
 
-
+# patch files
+*.patch
 
 # local runtime config (created by setup / hosts)
 

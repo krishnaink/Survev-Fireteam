@@ -31,6 +31,7 @@ import {
     specOpsStationUnlocked,
     SpecOpsStationUnlockWave,
     specOpsUnpackBreakVotes,
+    specOpsUnequipPerk,
     specOpsUnequipSku,
 } from "../../../shared/defs/maps/specOpsShop.ts";
 import { GameObjectDefs } from "../../../shared/defs/register.ts";
@@ -58,6 +59,7 @@ import type { PlaneBarn } from "../objects/plane.ts";
 import type { Player, PlayerBarn } from "../objects/player.ts";
 import { SDK } from "../sdk/sdk.ts";
 import type { Localization } from "./localization.ts";
+import { setPerkTooltip } from "./perkTooltip.ts";
 import { PieTimer } from "./pieTimer.ts";
 import type { Touch } from "./touch.ts";
 import type { UiManager2 } from "./ui2.ts";
@@ -2542,6 +2544,10 @@ export class UiManager {
                             );
                         }
                     }
+                    this.specOpsShopItems.find<HTMLButtonElement>(".ui-specops-shop-row").each((_i, element) => {
+                        const sku = element.dataset.sku ?? "";
+                        setPerkTooltip(element, this.localization, specOpsUnequipPerk(sku) ?? sku);
+                    });
                     this.specOpsShopItems.off("click touchend").on("click touchend", ".ui-specops-shop-row", (ev) => {
                         const row = $(ev.currentTarget);
                         if (row.hasClass("ui-specops-shop-disabled")) return;

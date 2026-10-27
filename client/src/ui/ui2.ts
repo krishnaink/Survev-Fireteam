@@ -30,6 +30,7 @@ import type { Loot, LootBarn } from "../objects/loot.ts";
 import type { Obstacle } from "../objects/obstacle.ts";
 import type { Player, PlayerBarn } from "../objects/player.ts";
 import type { Localization } from "./localization.ts";
+import { setPerkTooltip } from "./perkTooltip.ts";
 
 const maxKillFeedLines = 6;
 const touchHoldDuration = 0.75 * 1000;
@@ -1404,6 +1405,7 @@ export class UiManager2 {
             const he = state.perks[ce];
             if (me.type) {
                 pe.perkType = he.type;
+                setPerkTooltip(pe.div, this.localization, he.type);
                 pe.divTitle.innerHTML = this.localization.translate(`game-${he.type}`);
                 pe.divDesc.innerHTML = this.localization.translate(
                     `game-${he.type}-desc`,

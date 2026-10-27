@@ -3247,6 +3247,16 @@ body:not(.ui-specops-mode) #ui-loot-armor_plate {
   display: grid;
 }
 
+/* Keep the expanded grid open while crossing the gap above its badge. */
+#ui-perk-cluster-grid::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  height: 6px;
+}
+
 .ui-perk-cluster:hover .ui-perk-cluster-badge,
 .ui-perk-cluster.ui-perk-cluster--expanded .ui-perk-cluster-badge {
   opacity: 0.35;
@@ -3364,6 +3374,44 @@ body:not(.ui-specops-mode) #ui-loot-armor_plate {
 
 .tooltip-perk:hover .tooltip-text {
   visibility: visible;
+}
+
+.ui-perk-slot[data-perk-description] > .tooltip-text {
+  display: none;
+}
+
+.ui-perk-slot[data-perk-description] {
+  pointer-events: auto;
+}
+
+.ui-perk-slot[data-perk-description]:focus-visible {
+  outline: 2px solid #d7f0a2;
+}
+
+#ui-perk-description-tooltip {
+  position: fixed;
+  z-index: 10000;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #6b8f3c;
+  border-radius: 6px;
+  background: rgba(8, 12, 8, 0.97);
+  color: #fff;
+  font: 14px/1.4 sans-serif;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+#ui-perk-description-tooltip strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #d7f0a2;
 }
 
 /**
