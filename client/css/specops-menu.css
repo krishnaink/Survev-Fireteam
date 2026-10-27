@@ -2441,12 +2441,15 @@ body.steam-deck .specops-start .specops-lb-sidebar {
 
   .specops-menu-stage:not(.specops-menu-stage--team) > .specops-lb-sidebar {
     align-self: stretch;
+    /* Let the adjacent menu size the grid row; scroll scores inside that height. */
+    contain: size;
     display: flex;
     flex-direction: column;
     grid-column: 2;
     grid-row: 2;
     max-height: none;
     min-height: 0;
+    overflow: hidden;
     width: 100%;
   }
 
