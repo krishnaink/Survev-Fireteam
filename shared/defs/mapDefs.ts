@@ -176,6 +176,8 @@ export interface MapDef {
         turkeyMode?: boolean;
         spookyKillSounds?: boolean;
         specOpsMode?: boolean;
+        /** Player-facing Zombie Survival rules built on the Spec Ops engine. */
+        zombieMode?: boolean;
         /** Pauses wave progression for bot spawn debugging. */
         specOpsBotArena?: boolean;
         /** Practice: 1 player vs configurable respawning bots; no waves or shop. */

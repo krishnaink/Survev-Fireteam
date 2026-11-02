@@ -104,6 +104,14 @@ import { PracticeCombat } from "./practiceCombat.ts";
 import { PracticeController, type PracticeHost } from "./practiceController.ts";
 import { SpecOpsContractRunner } from "./specOpsContracts.ts";
 import { inferGroundLayer, MapNavGraph, navGroundLayer, stairAtPos } from "./specOpsNav.ts";
+import {
+    composeZombieWave,
+    isZombieClass,
+    type ZombieClass,
+    zombieEnemyHealth,
+    ZombieKillBounty,
+    ZombieLoadouts,
+} from "./zombieMode.ts";
 
 export type SpecOpsKind = "enemy" | "ally" | "sentry";
 
@@ -167,6 +175,7 @@ function stationPlanForBuilding(type: string):
 }
 
 type EnemyClass =
+    | ZombieClass
     | "militia"
     | "smg"
     | "rifle"
@@ -301,6 +310,7 @@ interface PracticeBotTuning {
 const PracticeBotOutfits = ["outfitCamo", "outfitKhaki", "outfitDarkShirt", "outfitWoodland"];
 
 const Loadouts: Record<EnemyClass, EnemyLoadout> = {
+    ...ZombieLoadouts,
     militia: {
         name: "Militia",
         gun: "m9",
@@ -1915,6 +1925,7 @@ const LateCombatPerks = [
 ] as const;
 
 function lateEnemyPerks(wave: number, kind: EnemyClass): string[] {
+    if (isZombieClass(kind)) return [];
     if (wave < SpecOpsElitePerkWave) return [];
     const extra = 1 + Math.min(3, Math.floor((wave - SpecOpsElitePerkWave) / 8));
     const out: string[] = [];
@@ -2938,7 +2949,7 @@ function steerAroundWalls(
  * across the map after dumping a magazine (that ends fights early).
  */
 function aiIsDedicatedMelee(enemyClass?: EnemyClass): boolean {
-    return enemyClass === "cqc";
+    return enemyClass === "cqc" || isZombieClass(enemyClass);
 }
 
 function aiPrimaryDry(player: Player): boolean {
@@ -5629,6 +5640,13 @@ export class SpecOpsManager implements PracticeHost {
         }
     }
 
+    /** Zombie Survival reuses the proven round/shop/nav engine with a separate roster. */
+    get zombieMode(): boolean {
+        return !!this.game.map.mapDef.gameMode.zombieMode
+            && !this.practice
+            && !this.game.map.specOpsBotArena;
+    }
+
     ensureNavGraph(): MapNavGraph {
         if (!this.paths) this.paths = MapNavGraph.build(this.game);
         return this.paths;
@@ -6344,9 +6362,11 @@ export class SpecOpsManager implements PracticeHost {
                     this.contracts.update(dt);
                     this.syncContractHud();
                 }
-                this.tickGloryHorde();
-                this.tickGloryHelpers(dt);
-                if (this.gloryWipeActive) {
+                if (!this.zombieMode) {
+                    this.tickGloryHorde();
+                    this.tickGloryHelpers(dt);
+                }
+                if (!this.zombieMode && this.gloryWipeActive) {
                     // Keep the executioner invulnerable during the wipe / truce.
                     if (this.gloryExecutioner && !this.gloryExecutioner.dead) {
                         this.gloryExecutioner.specOpsImmunityTicker = math.max(
@@ -6550,15 +6570,18 @@ export class SpecOpsManager implements PracticeHost {
         this.lastContractHudCode = -1;
         this.syncContractHud();
         this.game.gas.clearSpecOpsCountdown();
-        this.game.logger.info(`Spec Ops wave ${this.wave}`);
+        this.game.logger.info(`${this.zombieMode ? "Zombie" : "Spec Ops"} wave ${this.wave}`);
         this.buffLivingSupport();
 
         const humans = this.livingHumans();
-        let roster = composeWave(this.wave, humans.length, this.difficulty);
+        let roster: EnemyClass[] = this.zombieMode
+            ? composeZombieWave(this.wave, humans.length, this.difficulty)
+            : composeWave(this.wave, humans.length, this.difficulty);
 
         // Wave 30: the glory executioner is already on the field — bring his men,
         // don't spawn a duplicate event boss.
-        const keepExecutioner = this.wave === SpecOpsFinalWave
+        const keepExecutioner = !this.zombieMode
+            && this.wave === SpecOpsFinalWave
             && this.gloryExecutioner
             && !this.gloryExecutioner.dead;
         if (keepExecutioner) {
@@ -6595,7 +6618,7 @@ export class SpecOpsManager implements PracticeHost {
 
         const clustered = this.humansClustered(humans, 36);
         const sharedAngle = util.random(0, Math.PI * 2);
-        const gloryPacks = this.wave === 29 ? 4 : 0;
+        const gloryPacks = !this.zombieMode && this.wave === 29 ? 4 : 0;
 
         for (let h = 0; h < hostCount; h++) {
             const host = humans[h];
@@ -6632,7 +6655,7 @@ export class SpecOpsManager implements PracticeHost {
         this.tickWaveSpawns(999);
         this.huntClock = 0;
         this.gloryHelpersThisWave = 0;
-        this.gloryHelperTicker = this.wave >= SpecOpsHelperStartWave
+        this.gloryHelperTicker = !this.zombieMode && this.wave >= SpecOpsHelperStartWave
             ? SpecOpsHelperInterval
             : 0;
         this.resetPushPressure();
@@ -8581,7 +8604,11 @@ export class SpecOpsManager implements PracticeHost {
         classId?: EnemyClass,
     ): void {
         player.specOpsKind = kind;
-        player.specOpsBounty = classId ? (SpecOpsKillBounty[classId] ?? 100) : 0;
+        player.specOpsBounty = isZombieClass(classId)
+            ? ZombieKillBounty
+            : classId
+            ? (SpecOpsKillBounty[classId] ?? 100)
+            : 0;
         player.specOpsSuicideVest = !!loadout.suicideVest;
         player.specOpsStrobeTank = !!loadout.strobeTank;
         player.specOpsMirvCrawl = !!loadout.mirvCrawl;
@@ -8700,7 +8727,9 @@ export class SpecOpsManager implements PracticeHost {
                 }
             }
             player.specOpsArmor = 0;
-            player.health = specOpsEnemyHealth(this.wave || 1, classId ?? "rifle", this.difficulty);
+            player.health = isZombieClass(classId)
+                ? zombieEnemyHealth(this.wave || 1, this.difficulty)
+                : specOpsEnemyHealth(this.wave || 1, classId ?? "rifle", this.difficulty);
             // Cobalt / event bosses hit harder in the late-game fights.
             if (classId?.startsWith("cobalt_") || isEventBoss) {
                 player.specOpsDamageMult = math.max(player.specOpsDamageMult, 1.15);

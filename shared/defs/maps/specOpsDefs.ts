@@ -42,7 +42,7 @@ const SpecOpsMainLandmarks = {
 const specOpsCore: PartialMapDef = {
     mapId: GameConfig.MapId.SpecOps,
     desc: {
-        name: "Spec Ops",
+        name: "Zombie Survival",
         icon: "img/gui/target.svg",
         buttonCss: "btn-mode-specops",
         backgroundImg: "img/main_splash.png",
@@ -51,6 +51,7 @@ const specOpsCore: PartialMapDef = {
         maxPlayers: 4,
         killLeaderEnabled: true,
         specOpsMode: true,
+        zombieMode: true,
     },
     assets: {
         audio: [
@@ -126,7 +127,7 @@ export const SpecOps = specOpsVariant({});
 
 export const SpecOpsWoods = specOpsVariant({
     desc: {
-        name: "Spec Ops",
+        name: "Zombie Survival",
         backgroundImg: Woods.desc.backgroundImg ?? "img/main_splash.png",
     },
     assets: {
@@ -191,7 +192,7 @@ export const SpecOpsWoods = specOpsVariant({
 
 export const SpecOpsDesert = specOpsVariant({
     desc: {
-        name: "Spec Ops",
+        name: "Zombie Survival",
         backgroundImg: Desert.desc.backgroundImg,
     },
     assets: {
@@ -252,7 +253,7 @@ export const SpecOpsDesert = specOpsVariant({
 
 export const SpecOpsSnow = specOpsVariant({
     desc: {
-        name: "Spec Ops",
+        name: "Zombie Survival",
         backgroundImg: Snow.desc.backgroundImg,
     },
     assets: {
@@ -323,7 +324,7 @@ export const SpecOpsSnow = specOpsVariant({
 
 export const SpecOpsHalloween = specOpsVariant({
     desc: {
-        name: "Spec Ops",
+        name: "Zombie Survival",
         backgroundImg: Halloween.desc.backgroundImg,
     },
     assets: {
@@ -387,7 +388,7 @@ export const SpecOpsHalloween = specOpsVariant({
 
 export const SpecOpsCobalt = specOpsVariant({
     desc: {
-        name: "Spec Ops",
+        name: "Zombie Survival",
         backgroundImg: Cobalt.desc.backgroundImg,
     },
     assets: {
@@ -454,7 +455,7 @@ export const SpecOpsCobalt = specOpsVariant({
 
 export const SpecOpsPotato = specOpsVariant({
     desc: {
-        name: "Spec Ops",
+        name: "Zombie Survival",
         backgroundImg: Potato.desc.backgroundImg ?? "img/main_splash.png",
     },
     assets: {
@@ -514,7 +515,7 @@ export const SpecOpsPotato = specOpsVariant({
 
 export const SpecOpsBeach = specOpsVariant({
     desc: {
-        name: "Spec Ops",
+        name: "Zombie Survival",
         backgroundImg: Beach.desc.backgroundImg ?? "img/main_splash.png",
     },
     assets: {
@@ -571,7 +572,7 @@ export const SpecOpsBeach = specOpsVariant({
 
 export const SpecOpsSavannah = specOpsVariant({
     desc: {
-        name: "Spec Ops",
+        name: "Zombie Survival",
         backgroundImg: Savannah.desc.backgroundImg ?? "img/main_splash.png",
     },
     assets: {
@@ -628,7 +629,7 @@ export const SpecOpsSavannah = specOpsVariant({
 
 export const SpecOpsTurkey = specOpsVariant({
     desc: {
-        name: "Spec Ops",
+        name: "Zombie Survival",
         backgroundImg: Turkey.desc.backgroundImg,
     },
     assets: {
