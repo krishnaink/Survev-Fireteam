@@ -12,6 +12,7 @@ import {
 import { MapDefs } from "../../shared/defs/mapDefs.ts";
 import { GameObjectDefs } from "../../shared/defs/register.ts";
 import { GameConfig, TeamMode } from "../../shared/gameConfig.ts";
+import { collider } from "../../shared/utils/collider.ts";
 import { v2 } from "../../shared/utils/v2.ts";
 import { createGame } from "./gameTestHelpers.ts";
 
@@ -72,6 +73,12 @@ test("Zombie Survival generates an enclosed nine-room arena with working doors",
     expect(doors.filter((door) => door.type.startsWith("house_door_"))).toHaveLength(7);
     expect(game.map.obstacles.filter((obstacle) => obstacle.type.startsWith("specops_station_")))
         .toHaveLength(5);
+    const mysteryBox = game.map.obstacles.find(
+        (obstacle) => obstacle.type === "zombie_mystery_box",
+    )!;
+    const mysteryBoxBounds = collider.toAabb(mysteryBox.collider);
+    expect(mysteryBoxBounds.max.x - mysteryBoxBounds.min.x).toBeCloseTo(8.8, 1);
+    expect(mysteryBoxBounds.max.y - mysteryBoxBounds.min.y).toBeCloseTo(3.7, 1);
     expect(operator.indoors).toBe(true);
     expect(Math.abs(operator.pos.x - game.map.center.x)).toBeLessThan(8);
     expect(Math.abs(operator.pos.y - game.map.center.y)).toBeLessThan(8);
@@ -191,7 +198,7 @@ test("Mystery Box charges once, synchronizes its roll, and replaces the held gun
     const teammate = game.playerBarn.addTestPlayer({ name: "Teammate" });
     game.update(0.1);
     const box = game.map.obstacles.find((obstacle) => obstacle.type === "zombie_mystery_box")!;
-    const interactionPos = v2.add(box.pos, v2.create(0, -5));
+    const interactionPos = v2.add(box.pos, v2.create(0, -4.5));
     v2.set(buyer.pos, interactionPos);
     v2.set(teammate.pos, interactionPos);
     game.grid.updateObject(buyer);
@@ -251,7 +258,7 @@ test("Mystery Box fills an empty gun slot when the player takes it while holding
     const buyer = game.playerBarn.addTestPlayer({ name: "Buyer" });
     game.update(0.1);
     const box = game.map.obstacles.find((obstacle) => obstacle.type === "zombie_mystery_box")!;
-    v2.set(buyer.pos, v2.add(box.pos, v2.create(0, -5)));
+    v2.set(buyer.pos, v2.add(box.pos, v2.create(0, -4.5)));
     game.grid.updateObject(buyer);
     game.specOps!.grantCash(buyer, ZombieMysteryBoxCost);
     box.interact(buyer);
