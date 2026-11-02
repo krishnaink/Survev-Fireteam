@@ -1746,6 +1746,7 @@ type Phase = "prep" | "combat" | "intermission";
 const PrepTime = 45;
 const IntermissionTime = 35;
 const IntermissionCap = 50;
+export const ZombieWaveIntermissionTime = 8;
 /** Ignore leftover E/F from the fight before shop skip is allowed. */
 const ShopSkipLockTime = 2.5;
 const AiTeamId = 200;
@@ -7169,6 +7170,23 @@ export class SpecOpsManager implements PracticeHost {
         const humans = this.livingHumans();
         for (let i = 0; i < humans.length; i++) {
             this.grantCash(humans[i], bonus);
+        }
+
+        // Zombie Survival always gives players a short, predictable breather.
+        // The full lock prevents the Start Wave station from skipping this pause.
+        if (this.zombieMode) {
+            this.phase = "intermission";
+            this.onBreak = false;
+            this.breakVotes.clear();
+            this.lastBreakVoteCode = -1;
+            this.breakBonusSeconds = 0;
+            this.phaseDuration = ZombieWaveIntermissionTime;
+            this.phaseTimer = ZombieWaveIntermissionTime;
+            this.shopSkipLock = ZombieWaveIntermissionTime;
+            this.lastHudSecond = -1;
+            this.hudDirty = true;
+            this.game.gas.setSpecOpsCountdown(this.phaseTimer, this.phaseDuration);
+            return;
         }
 
         // Continuous waves: chain the next wave immediately (no shop countdown).

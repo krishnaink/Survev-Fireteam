@@ -1,4 +1,12 @@
 export const BuildingSprites = {
+    zombie: [
+        "map/map-zombie-floor-wood.svg",
+        "map/map-zombie-floor-parquet.svg",
+        "map/map-zombie-floor-tile.svg",
+        "map/map-zombie-floor-carpet.svg",
+        "map/map-zombie-floor-concrete.svg",
+    ],
+
     bank: [
         "map/map-building-bank-ceiling-01.svg",
         "map/map-building-bank-ceiling-02.svg",

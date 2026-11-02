@@ -2314,44 +2314,44 @@ function createZombieBranchingComplex<T extends BuildingDef>(e: Partial<T>): T {
         }
     }
 
-    // Starting room: clear central movement with useful edge dressing.
+    // Starting room: a readable reception lounge with a clear east-west lane.
     for (
         const [type, x, y, ori] of [
-            ["table_01", -66, 8, 1],
-            ["chair_01", -61, 8, 3],
-            ["locker_01", -72, -9, 0],
-            ["locker_02", -68, -9, 0],
-            ["crate_03", -52, -8, 0],
-            ["barrel_01", -72, 9, 0],
+            ["table_01", -62, 9, 1],
+            ["chair_01", -56, 9, 3],
+            ["locker_01", -72, -11, 0],
+            ["locker_02", -67, -11, 0],
+            ["crate_03", -49, -10, 0],
+            ["barrel_01", -72, 10, 0],
         ] as const
     ) add(type, x, y, ori);
 
-    // Foyer: sparse by design so it remains a dependable fallback lane.
-    add("vending_01", -40, 16, 0);
-    add("planter_01", -40, -10, 0);
+    // Foyer furniture anchors the ends without obstructing either paid wing.
+    add("vending_01", -40, 19, 0);
+    add("planter_01", -40, -18, 0);
 
     // Apartment: recognizable bedroom, kitchen, lounge and bathroom clusters.
     for (
         const [type, x, y, ori] of [
-            ["bed_sm_01", -28, 43, 0],
-            ["drawers_01", -18, 43, 0],
-            ["stove_01", -29, 24, 0],
-            ["sink_01", -20, 24, 0],
-            ["table_02", -18, 33, 1],
-            ["chair_02", -13, 34, 3],
-            ["couch_01", -10, 23, 1],
-            ["toilet_01", -30, 52, 0],
+            ["bed_sm_01", -28, 42, 0],
+            ["drawers_01", -17, 43, 0],
+            ["stove_01", -29, 22, 0],
+            ["sink_01", -20, 22, 0],
+            ["table_02", -19, 32, 1],
+            ["chair_02", -13, 32, 3],
+            ["couch_01", -9, 23, 1],
+            ["toilet_01", -30, 51, 0],
         ] as const
     ) add(type, x, y, ori);
 
     // Power room: machinery forms a diagonal funnel with two circulation sides.
     for (
         const [type, x, y, ori] of [
-            ["power_box_01", 3, 46, 0],
-            ["power_box_01", 16, 46, 0],
-            ["locker_02", 17, 34, 1],
-            ["barrel_01", 3, 34, 0],
-            ["crate_02", 11, 39, 0],
+            ["power_box_01", -2, 43, 0],
+            ["power_box_01", 12, 43, 0],
+            ["locker_02", 12, 30, 1],
+            ["barrel_01", -1, 30, 0],
+            ["crate_02", 6, 37, 0],
         ] as const
     ) add(type, x, y, ori);
 
@@ -2385,52 +2385,132 @@ function createZombieBranchingComplex<T extends BuildingDef>(e: Partial<T>): T {
     // Central holdout: asymmetric cover protects revives without a safe infinite loop.
     for (
         const [type, x, y, ori] of [
-            ["crate_14", 53, 12, 0],
-            ["crate_14a", 69, 7, 0],
-            ["crate_03", 57, -12, 0],
-            ["barrel_01", 73, -8, 0],
-            ["barrel_02", 62, 19, 0],
-            ["table_03", 62, 0, 1],
+            ["crate_14", 52, 18, 0],
+            ["crate_14a", 69, 10, 0],
+            ["crate_03", 53, -18, 0],
+            ["barrel_01", 71, -10, 0],
+            ["barrel_02", 62, 20, 0],
+            ["table_03", 61, 0, 1],
         ] as const
     ) add(type, x, y, ori);
 
     // Laboratory: readable experiment bays and a risky Mystery Box pocket.
     for (
         const [type, x, y, ori] of [
-            ["lab_window_01", 84, 11, 1],
-            ["locker_02", 104, -9, 0],
-            ["power_box_01", 104, 10, 0],
-            ["table_05", 89, 8, 1],
-            ["crate_02", 88, -9, 0],
-            ["barrel_01", 100, 0, 0],
-            ["bookshelf_01", 83, 27, 0],
+            ["lab_window_01", 82, 10, 1],
+            ["locker_02", 102, -10, 0],
+            ["power_box_01", 102, 10, 0],
+            ["table_05", 89, 7, 1],
+            ["crate_02", 87, -9, 0],
+            ["barrel_01", 99, 0, 0],
+            ["bookshelf_01", 87, 28, 0],
         ] as const
     ) add(type, x, y, ori);
-    add("zombie_mystery_box", 101, 27);
+    add("zombie_mystery_box", 97, 27);
 
     // The late escape loop stays readable but has intermittent cover for reversals.
     for (
         const [type, x, y, ori] of [
-            ["crate_01", -8, -50, 0],
-            ["barrel_02", 18, -50, 0],
-            ["crate_03", 47, -50, 0],
-            ["barrel_01", 76, -50, 0],
-            ["locker_01", 90, -35, 1],
+            ["crate_01", -8, -52, 0],
+            ["barrel_02", 18, -48, 0],
+            ["crate_03", 47, -52, 0],
+            ["barrel_01", 76, -48, 0],
+            ["locker_01", 92, -35, 1],
         ] as const
     ) add(type, x, y, ori);
 
-    const zoneFloor: Record<Zone, { type: string; color: number }> = {
-        start: { type: "house", color: 0x3d302d },
-        foyer: { type: "tile", color: 0x252d3a },
-        apartment: { type: "wood", color: 0x49362f },
-        power: { type: "stone", color: 0x252a2f },
-        upperHall: { type: "tile", color: 0x202736 },
-        office: { type: "tile", color: 0x2d3540 },
-        nightclub: { type: "carpet", color: 0x301a3d },
-        lowerHall: { type: "asphalt", color: 0x171c28 },
-        central: { type: "stone", color: 0x211a2f },
-        lab: { type: "tile", color: 0x17303a },
-        loop: { type: "asphalt", color: 0x121824 },
+    // The sealed exterior is still part of the composition: rubble, abandoned
+    // supplies and scrub frame the building without creating playable shortcuts.
+    for (
+        const [type, x, y, ori, scale] of [
+            ["stone_01", -96, 49, 0, 1.2],
+            ["stone_03", -88, -45, 0, 1.15],
+            ["tree_13", -70, 65, 0, 0.8],
+            ["stone_01", -28, 65, 0, 0.9],
+            ["sandbags_02", 17, 63, 1, 0.9],
+            ["crate_03", 42, 63, 0, 0.85],
+            ["tree_13", 77, 62, 0, 0.75],
+            ["stone_03", 110, 44, 0, 1.1],
+            ["barrel_02", 113, 24, 0, 0.9],
+            ["woodpile_01", 111, -34, 1, 0.9],
+            ["stone_01", 79, -65, 0, 1.1],
+            ["sandbags_01", 48, -65, 0, 0.9],
+            ["barrel_01", 23, -66, 0, 0.85],
+            ["stone_03", -55, -67, 0, 1.2],
+            ["crate_01", -92, -64, 0, 0.85],
+        ] as const
+    ) add(type, x, y, ori, scale);
+
+    const zoneFloor: Record<
+        Zone,
+        { type: string; color: number; sprite: string; tint: number }
+    > = {
+        start: {
+            type: "house",
+            color: 0x5a3824,
+            sprite: "map-zombie-floor-wood.img",
+            tint: 0xf0c89f,
+        },
+        foyer: {
+            type: "tile",
+            color: 0x454c52,
+            sprite: "map-zombie-floor-tile.img",
+            tint: 0xcad3d6,
+        },
+        apartment: {
+            type: "wood",
+            color: 0x68452b,
+            sprite: "map-zombie-floor-parquet.img",
+            tint: 0xf0bd8b,
+        },
+        power: {
+            type: "stone",
+            color: 0x353b3e,
+            sprite: "map-zombie-floor-concrete.img",
+            tint: 0xaeb9bc,
+        },
+        upperHall: {
+            type: "tile",
+            color: 0x3e474e,
+            sprite: "map-zombie-floor-tile.img",
+            tint: 0xaab8c0,
+        },
+        office: {
+            type: "wood",
+            color: 0x503725,
+            sprite: "map-zombie-floor-wood.img",
+            tint: 0xcda276,
+        },
+        nightclub: {
+            type: "carpet",
+            color: 0x4b1725,
+            sprite: "map-zombie-floor-carpet.img",
+            tint: 0xd492aa,
+        },
+        lowerHall: {
+            type: "stone",
+            color: 0x343a3d,
+            sprite: "map-zombie-floor-concrete.img",
+            tint: 0x9ba5a8,
+        },
+        central: {
+            type: "wood",
+            color: 0x5d3c27,
+            sprite: "map-zombie-floor-parquet.img",
+            tint: 0xd6a779,
+        },
+        lab: {
+            type: "tile",
+            color: 0x38545a,
+            sprite: "map-zombie-floor-tile.img",
+            tint: 0xa6d5d8,
+        },
+        loop: {
+            type: "stone",
+            color: 0x303638,
+            sprite: "map-zombie-floor-concrete.img",
+            tint: 0x879194,
+        },
     };
     const zones = Object.keys(zoneFloor) as Zone[];
     const floorSurfaces = zones.map((zone) => ({
@@ -2445,13 +2525,39 @@ function createZombieBranchingComplex<T extends BuildingDef>(e: Partial<T>): T {
             ),
         data: { isBright: false },
     }));
-    const groundPatches = [...cells.values()].map((cell) => ({
-        bound: collider.createAabbExtents(
-            v2.create(cell.gx * 10, cell.gy * 10),
-            v2.create(5, 5),
-        ),
-        color: zoneFloor[cell.zone].color,
-        order: 3,
+    const groundPatches = [
+        {
+            bound: collider.createAabbExtents(v2.create(8, 0), v2.create(110, 70)),
+            color: 0x443426,
+            order: 0,
+        },
+        {
+            bound: collider.createAabbExtents(v2.create(-62, 50), v2.create(48, 18)),
+            color: 0x51402d,
+            order: 0,
+        },
+        {
+            bound: collider.createAabbExtents(v2.create(68, -48), v2.create(44, 20)),
+            color: 0x382f28,
+            order: 0,
+        },
+        ...[...cells.values()].map((cell) => ({
+            bound: collider.createAabbExtents(
+                v2.create(cell.gx * 10, cell.gy * 10),
+                v2.create(5, 5),
+            ),
+            color: zoneFloor[cell.zone].color,
+            order: 1,
+        })),
+    ];
+    const floorImgs = [...cells.values()].map((cell) => ({
+        sprite: zoneFloor[cell.zone].sprite,
+        pos: v2.create(cell.gx * 10, cell.gy * 10),
+        scale: 0.5,
+        alpha: 1,
+        tint: zoneFloor[cell.zone].tint,
+        mirrorX: (cell.gx + cell.gy) % 2 === 0,
+        mirrorY: (cell.gx - cell.gy) % 2 === 0,
     }));
     const mapShapes = [...cells.values()].map((cell) => ({
         collider: collider.createAabbExtents(
@@ -2472,50 +2578,7 @@ function createZombieBranchingComplex<T extends BuildingDef>(e: Partial<T>): T {
         mapGroundPatches: groundPatches,
         floor: {
             surfaces: floorSurfaces,
-            imgs: [
-                {
-                    sprite: "map-building-house-floor-01.img",
-                    pos: v2.create(-60, 0),
-                    scale: 0.5,
-                    alpha: 1,
-                    tint: 0xd8c5b4,
-                },
-                {
-                    sprite: "map-building-house-floor-02.img",
-                    pos: v2.create(-20, 33),
-                    scale: 0.5,
-                    alpha: 1,
-                    tint: 0xe1c0aa,
-                },
-                {
-                    sprite: "map-building-house-floor-01.img",
-                    pos: v2.create(-20, -30),
-                    scale: 0.5,
-                    alpha: 1,
-                    tint: 0xb8c6d4,
-                },
-                {
-                    sprite: "map-building-club-floor-01c.img",
-                    pos: v2.create(10, -30),
-                    scale: 0.34,
-                    alpha: 1,
-                    tint: 0xd7a9ff,
-                },
-                {
-                    sprite: "map-building-warehouse-floor-01.img",
-                    pos: v2.create(10, 40),
-                    scale: 0.32,
-                    alpha: 1,
-                    tint: 0x9fc5d1,
-                },
-                {
-                    sprite: "map-bunker-generic-floor-02.img",
-                    pos: v2.create(95, 5),
-                    scale: 0.5,
-                    alpha: 1,
-                    tint: 0x8ed8e5,
-                },
-            ],
+            imgs: floorImgs,
         },
         ceiling: {
             zoomRegions: zones.map((zone) => {

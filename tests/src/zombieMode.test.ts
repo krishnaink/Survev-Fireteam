@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 
+import { ZombieWaveIntermissionTime } from "../../server/src/game/specOpsManager.ts";
 import {
     composeZombieWave,
     zombieEnemyHealth,
@@ -113,7 +114,15 @@ test("Nightfall Complex generates furnished branching routes and a laboratory lo
             .every((wall) => !wall.destructible),
     ).toBe(true);
     const definition = MapObjectDefs.typeToDef("zombie_branching_complex_01", "building");
-    expect(definition.floor.imgs.filter((image) => image.sprite).length).toBeGreaterThanOrEqual(6);
+    const floorCells = definition.floor.surfaces.reduce(
+        (count, surface) => count + (Array.isArray(surface.collision) ? surface.collision.length : 1),
+        0,
+    );
+    expect(definition.floor.imgs.filter((image) => image.sprite)).toHaveLength(floorCells);
+    expect(
+        definition.floor.imgs.every((image) => image.sprite.startsWith("map-zombie-floor-")),
+    ).toBe(true);
+    expect(definition.mapGroundPatches.some((patch) => patch.order === 0)).toBe(true);
     expect(operator.pos.x).toBeLessThan(game.map.center.x - 50);
     expect(
         game.specOps!.ensureNavGraph().hasPath(
@@ -121,6 +130,34 @@ test("Nightfall Complex generates furnished branching routes and a laboratory lo
             v2.add(game.map.center, v2.create(-90, 0)),
         ),
     ).toBe(false);
+});
+
+test("Zombie Survival automatically starts the next wave after an eight-second breather", () => {
+    const game = createGame(TeamMode.Solo, "specops_complex");
+    const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+    game.specOps!.startNextWave();
+    game.specOps!.drainWaveSpawnQueuePublic();
+
+    const zombies = game.playerBarn.livingPlayers.filter((player) => player.specOpsAi);
+    for (const zombie of zombies) {
+        zombie.damage({
+            amount: 9999,
+            damageType: GameConfig.DamageType.Player,
+            dir: v2.create(1, 0),
+            source: operator,
+        });
+    }
+    game.update(0.05);
+
+    expect(game.specOps!.phase).toBe("intermission");
+    expect(game.specOps!.phaseDuration).toBe(ZombieWaveIntermissionTime);
+    expect(game.specOps!.wave).toBe(1);
+    game.step(ZombieWaveIntermissionTime - 0.25);
+    expect(game.specOps!.wave).toBe(1);
+    game.step(0.3);
+    expect(game.specOps!.wave).toBe(2);
+    expect(game.specOps!.phase).toBe("combat");
 });
 
 test("Nightfall route gates charge cash and permanently open navigation", () => {
