@@ -103,7 +103,13 @@ import type { Structure } from "./objects/structure.ts";
 import { PracticeCombat } from "./practiceCombat.ts";
 import { PracticeController, type PracticeHost } from "./practiceController.ts";
 import { SpecOpsContractRunner } from "./specOpsContracts.ts";
-import { inferGroundLayer, MapNavGraph, navGroundLayer, stairAtPos } from "./specOpsNav.ts";
+import {
+    doorFrameCenter,
+    inferGroundLayer,
+    MapNavGraph,
+    navGroundLayer,
+    stairAtPos,
+} from "./specOpsNav.ts";
 import {
     composeZombieWave,
     isZombieClass,
@@ -2521,9 +2527,15 @@ function doorPlaneNormal(door: Obstacle): Vec2 {
     return v2.rotate(v2.create(1, 0), math.oriToRad(ori));
 }
 
+function doorNavPoint(door: Obstacle): Vec2 {
+    return door.game.map.mapDef.gameMode.indoorMode
+        ? doorFrameCenter(door)
+        : door.pos;
+}
+
 function doorInwardDir(door: Obstacle, building: Building): Vec2 {
     const n = doorPlaneNormal(door);
-    const toCenter = v2.sub(building.pos, door.pos);
+    const toCenter = v2.sub(building.pos, doorNavPoint(door));
     return v2.dot(n, toCenter) >= 0 ? n : v2.neg(n);
 }
 
@@ -2540,7 +2552,7 @@ function throughDoorDir(door: Obstacle, from: Vec2, goal: Vec2): Vec2 {
 
 function doorFoyerPoint(door: Obstacle, building: Building, dist: number, game: Game): Vec2 {
     const inward = doorInwardDir(door, building);
-    const pos = v2.add(door.pos, v2.mul(inward, dist));
+    const pos = v2.add(doorNavPoint(door), v2.mul(inward, dist));
     const zoom = building.zoomRegions.find((r) => r.zoomIn)?.zoomIn;
     if (zoom) {
         const pad = 1.15;
@@ -2561,8 +2573,9 @@ function doorFoyerPoint(door: Obstacle, building: Building, dist: number, game: 
 function doorBlocksCrossing(door: Obstacle, from: Vec2, goal: Vec2): boolean {
     if (!door.door?.open || !door.collidable) return false;
     const through = throughDoorDir(door, from, goal);
-    const a = v2.add(door.pos, v2.mul(v2.neg(through), 2.8));
-    const b = v2.add(door.pos, v2.mul(through, 2.8));
+    const center = doorNavPoint(door);
+    const a = v2.add(center, v2.mul(v2.neg(through), 2.8));
+    const b = v2.add(center, v2.mul(through, 2.8));
     const objs = door.game.grid.intersectLineSegment(a, b);
     for (let i = 0; i < objs.length; i++) {
         if (objs[i] === door) return true;
@@ -2589,14 +2602,14 @@ function botNearDoor(door: Obstacle, player: Player): boolean {
     if (!botDoorSameLayer(door, player)) return false;
     const reach = botDoorReach(door, player);
     if (collider.intersectCircle(door.collider, player.pos, reach)) return true;
-    return v2.distance(player.pos, door.pos) <= reach;
+    return v2.distance(player.pos, doorNavPoint(door)) <= reach;
 }
 
 function botOnDoorThreshold(door: Obstacle, player: Player): boolean {
     if (!botDoorSameLayer(door, player)) return false;
     const reach = player.rad + math.max(door.interactionRad * 0.85, 0.55);
     if (collider.intersectCircle(door.collider, player.pos, reach)) return true;
-    return v2.distance(player.pos, door.pos) <= reach;
+    return v2.distance(player.pos, doorNavPoint(door)) <= reach;
 }
 
 function botDoorOnCooldown(player: Player, door: Obstacle): boolean {
@@ -2607,7 +2620,7 @@ function botDoorOnCooldown(player: Player, door: Obstacle): boolean {
 
 function doorOnPathToGoal(door: Obstacle, player: Player, goal: Vec2): boolean {
     const toGoal = v2.sub(goal, player.pos);
-    const toDoor = v2.sub(door.pos, player.pos);
+    const toDoor = v2.sub(doorNavPoint(door), player.pos);
     const goalLen = v2.length(toGoal);
     if (goalLen < 0.2) return v2.length(toDoor) <= BOT_DOOR_SCAN_RAD;
     const along = v2.dot(toDoor, v2.normalizeSafe(toGoal));
@@ -2687,7 +2700,7 @@ function tryOpenNearbyDoors(player: Player, toward?: Vec2, stuckStrikes = 0, goa
         if (!botNearDoor(o, player)) continue;
         const onPath = doorOnPathToGoal(o, player, crossGoal);
         if (toward && stuckStrikes < 2 && !o.door.open && !onPath) {
-            const toDoor = v2.sub(o.pos, player.pos);
+            const toDoor = v2.sub(doorNavPoint(o), player.pos);
             if (v2.length(toDoor) > 0.35 && v2.dot(v2.normalizeSafe(toDoor), toward) < -0.3) {
                 continue;
             }
@@ -3478,9 +3491,48 @@ function isDoorCandidate(pos: Vec2, building?: Building): boolean {
         if (child.__type !== ObjectType.Obstacle) continue;
         const door = child as Obstacle;
         if (!door.isDoor) continue;
-        if (v2.distance(pos, door.pos) < 4.5) return true;
+        if (v2.distance(pos, doorNavPoint(door)) < 4.5) return true;
     }
     return false;
+}
+
+/**
+ * Portal route for the 3 x 3 Neon Complex. Internal vertical doors connect
+ * through the middle row; each column has doors into its upper and lower room.
+ */
+function zombieArenaWaypoint(game: Game, from: Vec2, goal: Vec2): Vec2 | undefined {
+    if (!game.map.mapDef.gameMode.indoorMode) return undefined;
+    if (!game.map.buildings.some((b) => b.type === "zombie_indoor_arena_01")) {
+        return undefined;
+    }
+
+    const center = game.map.center;
+    const localFrom = v2.sub(from, center);
+    const localGoal = v2.sub(goal, center);
+    const column = (x: number) => x < -18 ? 0 : (x < 18 ? 1 : 2);
+    const row = (y: number) => y < -14 ? 0 : (y < 14 ? 1 : 2);
+    const fromCol = column(localFrom.x);
+    const fromRow = row(localFrom.y);
+    const goalCol = column(localGoal.x);
+    const goalRow = row(localGoal.y);
+    if (fromCol === goalCol && fromRow === goalRow) return undefined;
+
+    const rowDoorX = [-34, 0, 34];
+    if (fromRow !== 1) {
+        const boundaryY = fromRow === 0 ? -14 : 14;
+        return v2.add(center, v2.create(rowDoorX[fromCol], boundaryY));
+    }
+    if (fromCol !== goalCol) {
+        const boundaryX = fromCol < goalCol
+            ? (fromCol === 0 ? -18 : 18)
+            : (fromCol === 2 ? 18 : -18);
+        return v2.add(center, v2.create(boundaryX, 0));
+    }
+    if (goalRow !== 1) {
+        const boundaryY = goalRow === 0 ? -14 : 14;
+        return v2.add(center, v2.create(rowDoorX[fromCol], boundaryY));
+    }
+    return undefined;
 }
 
 interface RouteBrain {
@@ -3518,7 +3570,12 @@ function findRouteWaypoint(
             }
         }
         const progress = v2.distance(from.pos, goal) - v2.distance(graphWp, goal);
-        if (!banned && v2.distance(from.pos, graphWp) > 1.15 && progress > -1.8) {
+        const indoorRoute = !!game.map.mapDef.gameMode.indoorMode;
+        if (
+            !banned
+            && v2.distance(from.pos, graphWp) > 1.15
+            && (progress > -1.8 || indoorRoute)
+        ) {
             return graphWp;
         }
     }
@@ -3648,19 +3705,20 @@ function pushDoorApproaches(building: Building, from: Player, goal: Vec2, out: V
         if (door.door.locked) continue;
         if (!door.door.open && !door.door.canUse) continue;
         const inward = doorInwardDir(door, building);
-        const fromInside = v2.dot(inward, v2.sub(from.pos, door.pos)) > 0.2;
+        const center = doorNavPoint(door);
+        const fromInside = v2.dot(inward, v2.sub(from.pos, center)) > 0.2;
         const approach = fromInside ? inward : v2.neg(inward);
         // Stay clear of the door collider on the approach side.
-        out.push(v2.add(door.pos, v2.mul(approach, 2.6)));
-        out.push(v2.add(door.pos, v2.mul(approach, 3.6)));
+        out.push(v2.add(center, v2.mul(approach, 2.6)));
+        out.push(v2.add(center, v2.mul(approach, 3.6)));
         if (!door.door.open) continue;
         const through = throughDoorDir(door, from.pos, goal);
         if (v2.dot(through, inward) > 0) {
             out.push(doorFoyerPoint(door, building, 3.4, from.game));
             out.push(doorFoyerPoint(door, building, 4.8, from.game));
         } else {
-            const foyer = v2.add(door.pos, v2.mul(through, 3.4));
-            const deep = v2.add(door.pos, v2.mul(through, 4.8));
+            const foyer = v2.add(center, v2.mul(through, 3.4));
+            const deep = v2.add(center, v2.mul(through, 4.8));
             from.game.map.clampToMapBounds(foyer, 6);
             from.game.map.clampToMapBounds(deep, 6);
             out.push(foyer);
@@ -4105,6 +4163,7 @@ class AiBrain {
         const desired = v2.normalizeSafe(toTarget);
         const canSee = hasLineOfSight(player.game, player, target);
         const isBomber = !!this.loadout.suicideVest;
+        const zombieMelee = isZombieClass(this.enemyClass);
         const directClear = isPathClear(player.game, player, target.pos, 0.8);
         const navHit = directClear ? undefined : firstNavHit(player.game, player, target.pos);
         const blockedByStructure = !!(navHit && (navHit.isWindow || navHit.isWall));
@@ -4388,13 +4447,10 @@ class AiBrain {
                     const detourGoal = this.stairTarget
                         ? (this.assaultDest ?? target.pos)
                         : target.pos;
-                    const detour = findRouteWaypoint(
-                        player.game,
-                        player,
-                        detourGoal,
-                        field,
-                        this,
-                    );
+                    const detour = zombieMelee
+                        ? (zombieArenaWaypoint(player.game, player.pos, detourGoal)
+                            ?? findRouteWaypoint(player.game, player, detourGoal, field, this))
+                        : findRouteWaypoint(player.game, player, detourGoal, field, this);
                     if (detour) {
                         this.detourPos = detour;
                         field.occupy(detour, 1.6);
@@ -4447,13 +4503,10 @@ class AiBrain {
                 const routeGoal = this.stairTarget
                     ? (this.assaultDest ?? target.pos)
                     : (this.assaultDest ?? target.pos);
-                const next = findRouteWaypoint(
-                    player.game,
-                    player,
-                    routeGoal,
-                    field,
-                    this,
-                );
+                const next = zombieMelee
+                    ? (zombieArenaWaypoint(player.game, player.pos, routeGoal)
+                        ?? findRouteWaypoint(player.game, player, routeGoal, field, this))
+                    : findRouteWaypoint(player.game, player, routeGoal, field, this);
                 if (next) {
                     this.detourPos = next;
                     field.occupy(next, 1.4);
@@ -4495,17 +4548,21 @@ class AiBrain {
                 && !target.downed
                 && !isBomber
                 && !doorBlock
+                && directClear
                 && dist > AiMeleeAttackRange - 0.35
             ) {
-                // Knife bots: commit to closing — wander/detour/cover must not orbit outside swing range.
+                // Melee units only charge when the route is clear. When a wall
+                // blocks them, preserve the graph waypoint so they use a door.
                 this.detourPos = undefined;
                 this.coverPos = undefined;
                 this.wanderTicker = 0;
                 this.assaultDest = undefined;
-                move = v2.add(
-                    v2.mul(desired, 1.15),
-                    v2.mul(v2.perp(desired), this.strafeSign * 0.12),
-                );
+                move = zombieMelee
+                    ? v2.mul(desired, 1.15)
+                    : v2.add(
+                        v2.mul(desired, 1.15),
+                        v2.mul(v2.perp(desired), this.strafeSign * 0.12),
+                    );
             } else if (
                 meleeEngage
                 && !dedicatedMelee
@@ -4612,8 +4669,10 @@ class AiBrain {
                     v2.mul(v2.perp(desired), this.strafeSign * (0.55 + overlap * 0.35)),
                 );
             } else if (meleeEngage) {
-                // In swing band: light strafe only (close-in handled above).
-                move = v2.mul(v2.perp(desired), this.strafeSign * 0.35);
+                // Zombies keep pressing into attack range instead of orbiting.
+                move = zombieMelee
+                    ? (dist > player.rad + target.rad + 0.25 ? desired : v2.create(0, 0))
+                    : v2.mul(v2.perp(desired), this.strafeSign * 0.35);
             } else if (!canSee || dist > maxRange) {
                 const hunt = this.investigatePos
                     ? v2.normalizeSafe(v2.sub(this.investigatePos, player.pos))
@@ -4668,8 +4727,9 @@ class AiBrain {
             }
 
             if (v2.length(move) > 0.01) {
+                const zombieGraphRoute = zombieMelee && !directClear && !!this.detourPos;
                 player.touchMoveActive = true;
-                player.touchMoveDir = assaultDirect
+                player.touchMoveDir = assaultDirect || zombieGraphRoute
                     ? v2.normalizeSafe(move)
                     : steerAroundWalls(
                         player.game,

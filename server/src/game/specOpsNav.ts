@@ -173,6 +173,16 @@ function doorNormal(door: Obstacle): Vec2 {
     return v2.rotate(v2.create(1, 0), math.oriToRad(ori));
 }
 
+/** Stable center of the doorway frame. Door object positions are hinges. */
+export function doorFrameCenter(door: Obstacle): Vec2 {
+    const state = door.door;
+    if (!state) return v2.copy(door.pos);
+    return v2.add(
+        state.closedPos,
+        v2.rotate(state.hinge, math.oriToRad(state.closedOri)),
+    );
+}
+
 function fixtureAway(fixture: Obstacle, building?: Building): Vec2 {
     if (building) {
         return v2.normalizeSafe(v2.sub(fixture.pos, building.pos), v2.create(1, 0));
@@ -476,9 +486,12 @@ export class MapNavGraph {
 
     private addDoorPair(game: Game, door: Obstacle, building: Building, layer: number): void {
         const n = doorNormal(door);
-        const inward = v2.dot(n, v2.sub(building.pos, door.pos)) >= 0 ? n : v2.neg(n);
-        const outside = v2.add(door.pos, v2.mul(v2.neg(inward), 3.1));
-        const inside = v2.add(door.pos, v2.mul(inward, 3.3));
+        const center = game.map.mapDef.gameMode.indoorMode
+            ? doorFrameCenter(door)
+            : door.pos;
+        const inward = v2.dot(n, v2.sub(building.pos, center)) >= 0 ? n : v2.neg(n);
+        const outside = v2.add(center, v2.mul(v2.neg(inward), 3.1));
+        const inside = v2.add(center, v2.mul(inward, 3.3));
         game.map.clampToMapBounds(outside, 6);
         game.map.clampToMapBounds(inside, 6);
         const a = this.addNode(outside, layer, "door");
