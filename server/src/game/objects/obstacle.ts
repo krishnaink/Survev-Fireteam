@@ -705,6 +705,11 @@ export class Obstacle extends BaseGameObject {
             return;
         }
 
+        if (player && !auto && this.type.startsWith("zombie_buy_gate_")) {
+            this.game.specOps?.tryBuyZombieGate(player, this);
+            return;
+        }
+
         if (player && !auto && this.interactCooldown > 0) {
             return;
         }

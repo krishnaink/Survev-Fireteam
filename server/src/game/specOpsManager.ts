@@ -104,16 +104,11 @@ import type { Structure } from "./objects/structure.ts";
 import { PracticeCombat } from "./practiceCombat.ts";
 import { PracticeController, type PracticeHost } from "./practiceController.ts";
 import { SpecOpsContractRunner } from "./specOpsContracts.ts";
-import {
-    doorFrameCenter,
-    inferGroundLayer,
-    MapNavGraph,
-    navGroundLayer,
-    stairAtPos,
-} from "./specOpsNav.ts";
+import { doorFrameCenter, inferGroundLayer, MapNavGraph, navGroundLayer, stairAtPos } from "./specOpsNav.ts";
 import {
     composeZombieWave,
     isZombieClass,
+    zombieBuyGateCost,
     type ZombieClass,
     zombieEnemyHealth,
     ZombieKillBounty,
@@ -157,7 +152,7 @@ function stationPlanForBuilding(type: string):
     >
     | undefined
 {
-    if (type === "zombie_indoor_arena_01") {
+    if (type === "zombie_indoor_arena_01" || type === "zombie_branching_complex_01") {
         return { size: "large", maxIndoor: 5, maxOutdoor: 0, maxTotal: 5 };
     }
     if (
@@ -5983,6 +5978,23 @@ export class SpecOpsManager implements PracticeHost {
         return true;
     }
 
+    /** Buy and remove a route gate, then rebuild navigation around the new opening. */
+    tryBuyZombieGate(player: Player, gate: Obstacle): boolean {
+        const cost = zombieBuyGateCost(gate.type);
+        if (!this.zombieMode || cost === undefined || !gate.button) return false;
+        if (player.specOpsAi || player.dead || player.downed || player.disconnected) return false;
+        if (!collider.intersectCircle(gate.collider, player.pos, gate.interactionRad + player.rad)) {
+            return false;
+        }
+        if (player.specOpsCash < cost) return false;
+
+        this.grantCash(player, -cost);
+        gate.destroy();
+        this.paths = undefined;
+        this.game.playerBarn.addMapPing("ping_unlock", gate.pos);
+        return true;
+    }
+
     ensureNavGraph(): MapNavGraph {
         if (!this.paths) this.paths = MapNavGraph.build(this.game);
         return this.paths;
@@ -6506,7 +6518,10 @@ export class SpecOpsManager implements PracticeHost {
 
         if (!this.operatorSpawn) {
             if (this.zombieMode && this.game.map.mapDef.gameMode.indoorMode) {
-                const indoorSpawn = this.pickSpawnNear(this.game.map.center, 0, 6);
+                const spawnAnchor = this.game.config.mapName === "specops_complex"
+                    ? v2.add(this.game.map.center, v2.create(-66, 0))
+                    : this.game.map.center;
+                const indoorSpawn = this.pickSpawnNear(spawnAnchor, 0, 5);
                 v2.set(player.pos, indoorSpawn);
                 player.game.grid.updateObject(player);
                 player.setDirty();
@@ -7921,7 +7936,10 @@ export class SpecOpsManager implements PracticeHost {
     private assignStationTargets(slots: BuildingStationSlot[]): void {
         for (let i = 0; i < slots.length; i++) {
             const slot = slots[i];
-            if (slot.building.type === "zombie_indoor_arena_01") {
+            if (
+                slot.building.type === "zombie_indoor_arena_01"
+                || slot.building.type === "zombie_branching_complex_01"
+            ) {
                 slot.target = slot.maxTotal;
                 continue;
             }

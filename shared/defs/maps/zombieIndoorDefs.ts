@@ -79,3 +79,41 @@ export const ZombieIndoor = util.mergeDeep(
         },
     } satisfies PartialMapDef,
 ) as MapDef;
+
+/** The larger, route-driven indoor survival map. */
+export const ZombieBranchingComplex = util.mergeDeep(
+    {},
+    ZombieIndoor,
+    {
+        desc: {
+            name: "Zombie Survival",
+            buttonText: "Nightfall Complex",
+            backgroundImg: "img/main_splash.png",
+        },
+        mapGen: {
+            map: {
+                baseWidth: 192,
+                baseHeight: 128,
+            },
+            places: [
+                {
+                    name: "Nightfall Complex",
+                    pos: v2.create(0.5, 0.5),
+                    dontSpawnObjects: true,
+                },
+            ],
+            customSpawnRules: {
+                locationSpawns: [
+                    {
+                        type: "zombie_branching_complex_01",
+                        pos: v2.create(0.5, 0.5),
+                        rad: 0,
+                        retryOnFailure: true,
+                    },
+                ],
+                placeSpawns: [],
+            },
+            importantSpawns: ["zombie_branching_complex_01"],
+        },
+    } satisfies PartialMapDef,
+) as MapDef;

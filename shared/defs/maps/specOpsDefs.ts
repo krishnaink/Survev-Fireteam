@@ -690,7 +690,7 @@ export const SpecOpsTurkey = specOpsVariant({
 });
 
 /** Player-facing survival maps. Outdoor biome maps remain available internally. */
-export const SpecOpsMapPool = ["specops"] as const;
+export const SpecOpsMapPool = ["specops", "specops_complex"] as const;
 
 export const LegacySpecOpsMapPool = [
     "specops_outdoor",
@@ -716,7 +716,7 @@ export function isSpecOpsMapName(name: string): boolean {
 /** True when `requested` is random/unspecified, or matches the running Spec Ops biome. */
 export function specOpsMapMatches(requested: string, actual: string): boolean {
     if (!isSpecOpsMapName(actual)) return false;
-    if (requested === "specops" || requested === "random") return true;
+    if (requested === "random") return true;
     if ((AllSpecOpsMapPool as readonly string[]).includes(requested)) {
         return actual === requested;
     }
@@ -727,6 +727,7 @@ export function specOpsMapMatches(requested: string, actual: string): boolean {
 export function specOpsMapDisplayName(mapKey: string): string {
     if (mapKey === "random") return "Random";
     if (mapKey === "specops") return "Neon Complex";
+    if (mapKey === "specops_complex") return "Nightfall Complex";
     if (mapKey === "specops_outdoor") return "Outdoor Legacy";
     const suffix = mapKey.replace(/^specops_/, "");
     if (!suffix || suffix === mapKey) return mapKey;

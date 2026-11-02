@@ -1987,10 +1987,12 @@ function createZombieIndoorArena<T extends BuildingDef>(e: Partial<T>): T {
     }
 
     // Residential wood on the left, dark police walls on the right.
-    for (const [x, wall10, wall7, door] of [
-        [-18, "reserve_wall_int_10", "mansion_wall_int_7", "house_door_01"],
-        [18, "police_wall_int_10", "police_wall_int_7", "house_door_02"],
-    ] as const) {
+    for (
+        const [x, wall10, wall7, door] of [
+            [-18, "reserve_wall_int_10", "mansion_wall_int_7", "house_door_01"],
+            [18, "police_wall_int_10", "police_wall_int_7", "house_door_02"],
+        ] as const
+    ) {
         for (const y of [-34, -24, -14, 7, 17, 27]) {
             add(wall10, x, y);
         }
@@ -2000,20 +2002,22 @@ function createZombieIndoorArena<T extends BuildingDef>(e: Partial<T>): T {
     }
 
     // The upper level uses mansion walls; the lower level uses teahouse walls.
-    for (const [y, wall13, wall10, doors] of [
-        [
-            -14,
-            "mansion_wall_int_13",
-            "mansion_wall_int_10",
-            ["house_door_01", "house_door_03", "house_door_05"],
-        ],
-        [
-            14,
-            "teahouse_wall_int_13",
-            "club_wall_int_10",
-            ["house_door_02", "zombie_door_01", "house_door_01"],
-        ],
-    ] as const) {
+    for (
+        const [y, wall13, wall10, doors] of [
+            [
+                -14,
+                "mansion_wall_int_13",
+                "mansion_wall_int_10",
+                ["house_door_01", "house_door_03", "house_door_05"],
+            ],
+            [
+                14,
+                "teahouse_wall_int_13",
+                "club_wall_int_10",
+                ["house_door_02", "zombie_door_01", "house_door_01"],
+            ],
+        ] as const
+    ) {
         add(wall13, -42.5, y, 1);
         add(wall13, 42.5, y, 1);
         for (const x of [-27, -17, -7, 7, 17, 27]) {
@@ -2025,24 +2029,26 @@ function createZombieIndoorArena<T extends BuildingDef>(e: Partial<T>): T {
     }
 
     // Props make the rooms read as apartments, offices, lounges and utilities.
-    for (const [type, x, y, ori] of [
-        ["bed_sm_01", -42, -31, 0],
-        ["table_01", -27, -27, 1],
-        ["table_04", -8, -28, 0],
-        ["chair_02", 8, -28, 2],
-        ["couch_03", 36, -28, 1],
-        ["table_02", 27, -24, 0],
-        ["stove_01", -42, 5, 0],
-        ["sink_01", -42, -5, 0],
-        ["barrel_01", 39, -5, 0],
-        ["table_03", 31, 5, 1],
-        ["table_05", -35, 27, 0],
-        ["chair_01", -28, 28, 2],
-        ["barrel_01", -8, 28, 0],
-        ["barrel_01", 8, 28, 0],
-        ["bed_lg_01", 38, 29, 2],
-        ["couch_01", 27, 25, 0],
-    ] as const) {
+    for (
+        const [type, x, y, ori] of [
+            ["bed_sm_01", -42, -31, 0],
+            ["table_01", -27, -27, 1],
+            ["table_04", -8, -28, 0],
+            ["chair_02", 8, -28, 2],
+            ["couch_03", 36, -28, 1],
+            ["table_02", 27, -24, 0],
+            ["stove_01", -42, 5, 0],
+            ["sink_01", -42, -5, 0],
+            ["barrel_01", 39, -5, 0],
+            ["table_03", 31, 5, 1],
+            ["table_05", -35, 27, 0],
+            ["chair_01", -28, 28, 2],
+            ["barrel_01", -8, 28, 0],
+            ["barrel_01", 8, 28, 0],
+            ["bed_lg_01", 38, 29, 2],
+            ["couch_01", 27, 25, 0],
+        ] as const
+    ) {
         add(type, x, y, ori);
     }
     add("zombie_mystery_box", 0, 33);
@@ -2175,6 +2181,267 @@ function createZombieIndoorArena<T extends BuildingDef>(e: Partial<T>): T {
         mapObjects,
     };
     return util.mergeDeep(arena, e || {}) as T;
+}
+
+/**
+ * A hand-authored, route-driven indoor map. Two early wings offer different
+ * combat geometry, converge in a central holdout, and lead to a laboratory
+ * with a costly escape loop back to the opening rooms.
+ */
+function createZombieBranchingComplex<T extends BuildingDef>(e: Partial<T>): T {
+    const mapObjects: BuildingDef["mapObjects"] = [];
+    const add = (type: string, x: number, y: number, ori = 0, scale = 1) => {
+        mapObjects.push({ type, pos: v2.create(x, y), scale, ori });
+    };
+    const vertical = (type: string, x: number, centers: number[]) => {
+        for (const y of centers) add(type, x, y);
+    };
+    const horizontal = (type: string, y: number, centers: number[]) => {
+        for (const x of centers) add(type, x, y, 1);
+    };
+
+    // Starting room and main corridor. The open threshold teaches the route
+    // before the first paid choice.
+    vertical("zombie_wall_shell_reserve_10", -78, [-10, 0, 10]);
+    horizontal("zombie_wall_shell_reserve_10", 15, [-73, -63, -53]);
+    horizontal("zombie_wall_shell_reserve_10", -15, [-73, -63, -53]);
+    vertical("reserve_wall_int_10", -55, [-10, 10]);
+    horizontal("zombie_wall_shell_police_10", 30, [-50, -40]);
+    horizontal("zombie_wall_shell_police_10", -30, [-50, -40]);
+
+    // Upper apartment and power route.
+    horizontal("zombie_wall_shell_mansion_10", 43, [-30, -20, -10, 0, 10, 20]);
+    horizontal("mansion_wall_int_10", 5, [-30, -20, -10, 0, 10, 20]);
+    vertical("mansion_wall_int_10", -35, [10, 30, 40]);
+    add("zombie_buy_gate_750", -35, 20);
+    vertical("mansion_wall_int_10", -7, [10]);
+    vertical("mansion_wall_int_5", -7, [17.5]);
+    vertical("mansion_wall_int_13", -7, [36.5]);
+    add("zombie_buy_gate_1000", -7, 25);
+    vertical("reserve_wall_int_10", 21, [10]);
+    vertical("reserve_wall_int_5", 21, [17.5]);
+    vertical("reserve_wall_int_13", 21, [36.5]);
+    add("zombie_buy_gate_1250", 21, 25);
+
+    // Lower office and nightclub route.
+    horizontal("police_wall_int_10", -5, [-30, -20, -10]);
+    horizontal("club_wall_int_10", -5, [0, 10, 20]);
+    horizontal("zombie_wall_shell_police_10", -43, [-30, -20, -10]);
+    horizontal("zombie_wall_outer_10", -43, [0, 10, 20]);
+    vertical("police_wall_int_10", -35, [-40, -30, -10]);
+    add("zombie_buy_gate_750", -35, -20);
+    vertical("reserve_wall_int_13", -7, [-36.5]);
+    vertical("reserve_wall_int_5", -7, [-17.5]);
+    vertical("reserve_wall_int_10", -7, [-10]);
+    add("zombie_buy_gate_1000", -7, -25);
+    vertical("reserve_wall_int_13", 21, [-36.5]);
+    vertical("reserve_wall_int_5", 21, [-17.5]);
+    vertical("reserve_wall_int_10", 21, [-10]);
+    add("zombie_buy_gate_1250", 21, -25);
+
+    // Central arena: four pillars break sightlines without preventing kiting.
+    horizontal("zombie_wall_outer_10", 30, [26, 36, 46]);
+    horizontal("zombie_wall_outer_10", -30, [26, 36, 46]);
+    vertical("zombie_wall_outer_10", 50, [-25, -15, 15, 25]);
+    vertical("reserve_wall_int_5", 50, [-7.5, 7.5]);
+    add("zombie_buy_gate_1500", 50, 0);
+
+    // Laboratory and its expensive escape loop.
+    horizontal("zombie_wall_shell_police_10", 20, [55, 65, 75]);
+    horizontal("zombie_wall_shell_police_10", -20, [55, 75]);
+    add("zombie_buy_gate_2000", 65, -20, 1);
+    vertical("zombie_wall_shell_police_10", 80, [-15, -5, 5, 15]);
+    vertical("zombie_wall_outer_10", 59, [-38, -28]);
+    vertical("zombie_wall_outer_10", 70, [-48, -38, -28]);
+    horizontal("zombie_wall_outer_10", -53, [
+        -45,
+        -35,
+        -25,
+        -15,
+        -5,
+        5,
+        15,
+        25,
+        35,
+        45,
+        55,
+        65,
+    ]);
+    horizontal("zombie_wall_outer_10", -43, [30, 40, 50, 60]);
+    vertical("zombie_wall_outer_10", -50, [-48, -38]);
+    vertical("zombie_wall_outer_10", -40, [-48, -38]);
+
+    // Starting room: readable loadout space with cover that cannot trap players.
+    for (
+        const [type, x, y, ori] of [
+            ["table_01", -70, 8, 1],
+            ["chair_01", -66, 8, 3],
+            ["locker_01", -74, -10, 0],
+            ["crate_03", -61, -9, 0],
+            ["barrel_01", -74, 10, 0],
+        ] as const
+    ) add(type, x, y, ori);
+
+    // Main corridor uses offset cover so retreating players must weave.
+    for (
+        const [type, x, y, ori] of [
+            ["bookshelf_01", -51, 22, 0],
+            ["vending_01", -39, 23, 0],
+            ["crate_01", -49, -20, 0],
+            ["barrel_02", -40, -15, 0],
+            ["planter_01", -48, 0, 0],
+        ] as const
+    ) add(type, x, y, ori);
+
+    // Apartment wing: small domestic clusters create close-range corners.
+    for (
+        const [type, x, y, ori] of [
+            ["bed_sm_01", -29, 36, 0],
+            ["stove_01", -29, 11, 0],
+            ["sink_01", -20, 11, 0],
+            ["table_02", -18, 31, 1],
+            ["chair_02", -13, 32, 3],
+            ["couch_01", -14, 12, 1],
+            ["toilet_01", -30, 21, 0],
+        ] as const
+    ) add(type, x, y, ori);
+
+    // Power room: hard industrial cover creates a dangerous funnel.
+    for (
+        const [type, x, y, ori] of [
+            ["power_box_01", 1, 38, 0],
+            ["power_box_01", 12, 38, 0],
+            ["locker_02", 16, 12, 1],
+            ["barrel_01", 1, 14, 0],
+            ["barrel_02", 8, 19, 0],
+            ["crate_02", 15, 31, 0],
+        ] as const
+    ) add(type, x, y, ori);
+
+    // Office wing: rows are intentionally staggered to avoid straight kiting lanes.
+    for (
+        const [type, x, y, ori] of [
+            ["table_04", -29, -36, 0],
+            ["chair_01", -24, -35, 2],
+            ["table_05", -16, -14, 1],
+            ["chair_02", -15, -20, 0],
+            ["bookshelf_02", -29, -10, 0],
+            ["locker_03", -12, -38, 0],
+            ["planter_02", -22, -25, 0],
+        ] as const
+    ) add(type, x, y, ori);
+
+    // Nightclub: bar islands make a compact figure-eight fight.
+    for (
+        const [type, x, y, ori] of [
+            ["club_bar_small", 0, -36, 0],
+            ["club_bar_large", 10, -31, 1],
+            ["club_bar_back_large", 14, -12, 1],
+            ["couch_02", 0, -13, 0],
+            ["couch_03", 8, -16, 1],
+            ["table_03", 12, -38, 0],
+            ["bottle_04", 7, -31, 0],
+            ["bottle_05", 12, -31, 0],
+        ] as const
+    ) add(type, x, y, ori);
+
+    // Central arena: cover protects revives but leaves four clear circulation lanes.
+    for (
+        const [type, x, y, ori] of [
+            ["crate_14", 29, 14, 0],
+            ["crate_14", 42, 14, 0],
+            ["crate_03", 29, -14, 0],
+            ["crate_03", 42, -14, 0],
+            ["barrel_01", 35, 21, 0],
+            ["barrel_02", 35, -21, 0],
+            ["table_03", 35, 0, 1],
+        ] as const
+    ) add(type, x, y, ori);
+
+    // Laboratory: the Mystery Box sits in a dead-end risk pocket until the loop opens.
+    for (
+        const [type, x, y, ori] of [
+            ["lab_window_01", 55, 15, 1],
+            ["lab_window_01", 55, -15, 1],
+            ["locker_02", 75, -14, 0],
+            ["power_box_01", 75, 14, 0],
+            ["table_05", 61, 10, 1],
+            ["crate_02", 61, -10, 0],
+            ["barrel_01", 73, 0, 0],
+        ] as const
+    ) add(type, x, y, ori);
+    add("zombie_mystery_box", 66, 13);
+
+    const floorRooms = [
+        { pos: v2.create(-66.5, 0), ext: v2.create(11.5, 14.5), type: "wood", color: 0x352b2e },
+        { pos: v2.create(-45, 0), ext: v2.create(10, 29.5), type: "tile", color: 0x20283b },
+        { pos: v2.create(-21, 24), ext: v2.create(14, 18.5), type: "wood", color: 0x3b2d25 },
+        { pos: v2.create(7, 24), ext: v2.create(14, 18.5), type: "stone", color: 0x202126 },
+        { pos: v2.create(-21, -24), ext: v2.create(14, 18.5), type: "tile", color: 0x27303a },
+        { pos: v2.create(7, -24), ext: v2.create(14, 18.5), type: "asphalt", color: 0x28162f },
+        { pos: v2.create(35.5, 0), ext: v2.create(14.5, 29.5), type: "stone", color: 0x171525 },
+        { pos: v2.create(65, 0), ext: v2.create(15, 19.5), type: "tile", color: 0x13232c },
+        { pos: v2.create(10, -48), ext: v2.create(60, 5), type: "asphalt", color: 0x111624 },
+        { pos: v2.create(-45, -36.5), ext: v2.create(5, 7.5), type: "asphalt", color: 0x111624 },
+        { pos: v2.create(64.5, -31.5), ext: v2.create(5.5, 11.5), type: "asphalt", color: 0x111624 },
+    ];
+
+    const complex: BuildingDef = {
+        type: "building",
+        ori: 0,
+        terrain: { grass: true, beach: false },
+        map: {
+            display: true,
+            shapes: [{
+                collider: collider.createAabbExtents(v2.create(1, -5), v2.create(80, 49)),
+                color: 0x101221,
+            }],
+        },
+        mapObstacleBounds: [
+            collider.createAabbExtents(v2.create(1, -5), v2.create(81, 50)),
+        ],
+        mapGroundPatches: floorRooms.map((room) => ({
+            bound: collider.createAabbExtents(room.pos, room.ext),
+            color: room.color,
+            order: 3,
+        })),
+        floor: {
+            surfaces: floorRooms.map((room) => ({
+                type: room.type,
+                collision: [collider.createAabbExtents(room.pos, room.ext)],
+                data: { isBright: false },
+            })),
+            imgs: [{ sprite: "", scale: 1, alpha: 1, tint: 0x101221 }],
+        },
+        ceiling: {
+            zoomRegions: [{
+                zoomIn: collider.createAabbExtents(v2.create(1, -5), v2.create(79, 48)),
+            }],
+            vision: { dist: 8, width: 3.25, linger: 0.2, fadeRate: 10 },
+            imgs: [{ sprite: "", scale: 1, alpha: 1, tint: 0x070812 }],
+        },
+        mapObjects,
+    };
+    return util.mergeDeep(complex, e || {}) as T;
+}
+
+function createZombieBuyGate<T extends ObstacleDef>(tint: number): T {
+    return createWall({
+        material: "metal",
+        health: 9999,
+        destructible: false,
+        extents: v2.create(0.75, 5),
+        img: wallImg("map-wall-10-rounded.img", tint),
+        button: {
+            interactionRad: 4,
+            interactionText: "game-use",
+            useOnce: false,
+            useDelay: 0,
+            useDir: v2.create(-1, 0),
+            useImg: "map-wall-10-rounded.img",
+            sound: { on: "button_press_01", off: "button_press_01" },
+        },
+    } as unknown as Partial<T>);
 }
 function createWheel<T extends ObstacleDef>(e: Partial<T>): T {
     const t = {
@@ -36424,7 +36691,13 @@ export const RawMapObjectDefs: Record<string, MapObjectDef> = {
             enter: "none",
         },
     }),
+    zombie_buy_gate_750: createZombieBuyGate(0x7447a8),
+    zombie_buy_gate_1000: createZombieBuyGate(0x315a8f),
+    zombie_buy_gate_1250: createZombieBuyGate(0x8c315f),
+    zombie_buy_gate_1500: createZombieBuyGate(0x1b7f8c),
+    zombie_buy_gate_2000: createZombieBuyGate(0xb07a24),
     zombie_indoor_arena_01: createZombieIndoorArena({}),
+    zombie_branching_complex_01: createZombieBranchingComplex({}),
     specops_station_weapon: createCrate({
         destructible: false,
         health: 9999,

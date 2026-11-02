@@ -59,8 +59,7 @@ import {
     specOpsStationFromType,
     SpecOpsTargetingBountyMult,
     specOpsUnequipSku,
-    specOpsUnpackBreakVotes
-
+    specOpsUnpackBreakVotes,
 } from "../../shared/defs/maps/specOpsShop.ts";
 import { GameObjectDefs } from "../../shared/defs/register.ts";
 import { GameConfig, GasMode, TeamMode } from "../../shared/gameConfig.ts";
@@ -129,7 +128,7 @@ test("Spec Ops starts with one operator and no gas", () => {
 });
 
 test("Zombie Survival defaults to the indoor map while legacy biomes remain addressable", () => {
-    expect(SpecOpsMapPool).toEqual(["specops"]);
+    expect(SpecOpsMapPool).toEqual(["specops", "specops_complex"]);
     expect(pickSpecOpsMapName("test_specops")).toBe("test_specops");
     expect(pickSpecOpsMapName("specops")).toBe("specops");
     expect(pickSpecOpsMapName("random")).toBe("specops");
@@ -5119,8 +5118,6 @@ test("Spec Ops kill counter serializes past 255 kills", () => {
     decoded.deserialize(stream);
     expect(decoded.killerKills).toBe(300);
 });
-
-
 
 function clearSpecOpsWave(
     game: import("../../server/src/game/game.ts").Game,

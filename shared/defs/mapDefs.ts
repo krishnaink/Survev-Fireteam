@@ -12,6 +12,7 @@ import { Halloween } from "./maps/halloweenDefs.ts";
 import { MainSpring } from "./maps/mainSpringDefs.ts";
 import { MainSummer } from "./maps/mainSummerDefs.ts";
 import { Potato } from "./maps/potatoDefs.ts";
+import { PotatoSpring } from "./maps/potatoSpringDefs.ts";
 import {
     PracticeArena,
     PracticeBeach,
@@ -25,7 +26,6 @@ import {
     PracticeTurkey,
     PracticeWoods,
 } from "./maps/practiceDefs.ts";
-import { PotatoSpring } from "./maps/potatoSpringDefs.ts";
 import { Savannah } from "./maps/savannahDefs.ts";
 import { Snow } from "./maps/snowDefs.ts";
 import {
@@ -46,7 +46,7 @@ import { Woods } from "./maps/woodsDefs.ts";
 import { WoodsSnow } from "./maps/woodsSnowDefs.ts";
 import { WoodsSpring } from "./maps/woodsSpringDefs.ts";
 import { WoodsSummer } from "./maps/woodsSummerDefs.ts";
-import { ZombieIndoor } from "./maps/zombieIndoorDefs.ts";
+import { ZombieBranchingComplex, ZombieIndoor } from "./maps/zombieIndoorDefs.ts";
 
 export type Atlas =
     | "gradient"
@@ -85,6 +85,7 @@ const _MapDefs = {
     birthday: Birthday,
     beach: Beach,
     specops: ZombieIndoor,
+    specops_complex: ZombieBranchingComplex,
     specops_outdoor: SpecOps,
     specops_woods: SpecOpsWoods,
     specops_desert: SpecOpsDesert,

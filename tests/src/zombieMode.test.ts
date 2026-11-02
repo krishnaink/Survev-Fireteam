@@ -84,6 +84,55 @@ test("Zombie Survival generates an enclosed nine-room arena with working doors",
     expect(Math.abs(operator.pos.y - game.map.center.y)).toBeLessThan(8);
 });
 
+test("Nightfall Complex generates furnished branching routes and a laboratory loop", () => {
+    const game = createGame(TeamMode.Solo, "specops_complex");
+    const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+
+    const complex = game.map.buildings.find(
+        (building) => building.type === "zombie_branching_complex_01",
+    );
+    expect(complex).toBeDefined();
+    expect(complex?.surfaces).toHaveLength(11);
+    expect(game.map.width).toBe(192);
+    expect(game.map.height).toBe(128);
+
+    const props = new Set(game.map.obstacles.map((obstacle) => obstacle.type));
+    expect(props.has("bed_sm_01")).toBe(true);
+    expect(props.has("power_box_01")).toBe(true);
+    expect(props.has("club_bar_large")).toBe(true);
+    expect(props.has("lab_window_01")).toBe(true);
+    expect(props.has("zombie_mystery_box")).toBe(true);
+
+    const gates = game.map.obstacles.filter((obstacle) => obstacle.type.startsWith("zombie_buy_gate_"));
+    expect(gates).toHaveLength(8);
+    expect(gates.every((gate) => gate.isButton && gate.collidable)).toBe(true);
+    expect(operator.pos.x).toBeLessThan(game.map.center.x - 50);
+});
+
+test("Nightfall route gates charge cash and permanently open navigation", () => {
+    const game = createGame(TeamMode.Solo, "specops_complex");
+    const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+    const gate = game.map.obstacles.find(
+        (obstacle) =>
+            obstacle.type === "zombie_buy_gate_750"
+            && obstacle.pos.y > game.map.center.y,
+    )!;
+    const apartment = v2.add(game.map.center, v2.create(-21, 24));
+
+    expect(game.specOps!.ensureNavGraph().hasPath(operator, apartment)).toBe(false);
+
+    operator.specOpsCash = 1000;
+    v2.set(operator.pos, gate.pos);
+    game.grid.updateObject(operator);
+    gate.interact(operator);
+
+    expect(operator.specOpsCash).toBe(250);
+    expect(gate.destroyed).toBe(true);
+    expect(game.specOps!.ensureNavGraph().hasPath(operator, apartment)).toBe(true);
+});
+
 test("Zombie wave one spawns unarmed melee walkers with cash bounties", () => {
     const game = createGame(TeamMode.Solo, "specops");
     game.playerBarn.addTestPlayer({ name: "Operator" });

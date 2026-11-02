@@ -1,7 +1,4 @@
-import {
-    type SpecOpsDifficulty,
-    specOpsDifficultyMods,
-} from "../../../shared/defs/maps/specOpsShop.ts";
+import { type SpecOpsDifficulty, specOpsDifficultyMods } from "../../../shared/defs/maps/specOpsShop.ts";
 
 /**
  * Zombie Survival content lives separately from the legacy Spec Ops roster.
@@ -59,6 +56,18 @@ export const ZombieMysteryBoxRollDuration = 2.4;
 export const ZombieMysteryBoxCycleInterval = 0.16;
 export const ZombieMysteryBoxClaimDuration = 10;
 export const ZombieMysteryBoxCooldown = 1.25;
+
+export const ZombieBuyGateCosts = {
+    zombie_buy_gate_750: 750,
+    zombie_buy_gate_1000: 1000,
+    zombie_buy_gate_1250: 1250,
+    zombie_buy_gate_1500: 1500,
+    zombie_buy_gate_2000: 2000,
+} as const;
+
+export function zombieBuyGateCost(type: string): number | undefined {
+    return ZombieBuyGateCosts[type as keyof typeof ZombieBuyGateCosts];
+}
 
 /** Guns with normal ammo and pickup behavior that work cleanly in the box. */
 export const ZombieMysteryBoxWeapons = [
