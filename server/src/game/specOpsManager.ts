@@ -3496,43 +3496,98 @@ function isDoorCandidate(pos: Vec2, building?: Building): boolean {
     return false;
 }
 
-/**
- * Portal route for the 3 x 3 Neon Complex. Internal vertical doors connect
- * through the middle row; each column has doors into its upper and lower room.
- */
-function zombieArenaWaypoint(game: Game, from: Vec2, goal: Vec2): Vec2 | undefined {
-    if (!game.map.mapDef.gameMode.indoorMode) return undefined;
+function zombieArenaCell(pos: Vec2, center: Vec2): { col: number; row: number } {
+    const local = v2.sub(pos, center);
+    return {
+        col: local.x < -18 ? 0 : (local.x < 18 ? 1 : 2),
+        row: local.y < -14 ? 0 : (local.y < 14 ? 1 : 2),
+    };
+}
+
+function zombieArenaCellKey(game: Game, pos: Vec2): string {
+    const cell = zombieArenaCell(pos, game.map.center);
+    return `${cell.col},${cell.row}`;
+}
+
+/** Full portal route through the 3 x 3 Neon Complex. */
+function zombieArenaRoute(game: Game, from: Vec2, goal: Vec2, lane: number): Vec2[] {
+    if (!game.map.mapDef.gameMode.indoorMode) return [];
     if (!game.map.buildings.some((b) => b.type === "zombie_indoor_arena_01")) {
-        return undefined;
+        return [];
     }
 
     const center = game.map.center;
-    const localFrom = v2.sub(from, center);
-    const localGoal = v2.sub(goal, center);
-    const column = (x: number) => x < -18 ? 0 : (x < 18 ? 1 : 2);
-    const row = (y: number) => y < -14 ? 0 : (y < 14 ? 1 : 2);
-    const fromCol = column(localFrom.x);
-    const fromRow = row(localFrom.y);
-    const goalCol = column(localGoal.x);
-    const goalRow = row(localGoal.y);
-    if (fromCol === goalCol && fromRow === goalRow) return undefined;
-
+    const start = zombieArenaCell(from, center);
+    const end = zombieArenaCell(goal, center);
+    let col = start.col;
+    let row = start.row;
     const rowDoorX = [-34, 0, 34];
-    if (fromRow !== 1) {
-        const boundaryY = fromRow === 0 ? -14 : 14;
-        return v2.add(center, v2.create(rowDoorX[fromCol], boundaryY));
+    const points: Vec2[] = [];
+    for (let guard = 0; guard < 8 && (col !== end.col || row !== end.row); guard++) {
+        if (row !== 1) {
+            const exitY = row === 0 ? -10.6 : 10.6;
+            points.push(v2.add(center, v2.create(rowDoorX[col] + lane, exitY)));
+            row = 1;
+            continue;
+        }
+        if (col !== end.col) {
+            const step = col < end.col ? 1 : -1;
+            const boundaryX = step > 0
+                ? (col === 0 ? -18 : 18)
+                : (col === 2 ? 18 : -18);
+            points.push(v2.add(center, v2.create(boundaryX + step * 3.4, lane)));
+            col += step;
+            continue;
+        }
+        const step = end.row < row ? -1 : 1;
+        const boundaryY = step < 0 ? -14 : 14;
+        points.push(v2.add(center, v2.create(rowDoorX[col] + lane, boundaryY + step * 3.4)));
+        row += step;
     }
-    if (fromCol !== goalCol) {
-        const boundaryX = fromCol < goalCol
-            ? (fromCol === 0 ? -18 : 18)
-            : (fromCol === 2 ? 18 : -18);
-        return v2.add(center, v2.create(boundaryX, 0));
+    return points;
+}
+
+function canAiOccupy(game: Game, player: Player, pos: Vec2): boolean {
+    if (game.map.isOnWater(pos, util.toGroundLayer(player.layer))) return false;
+    const circle = collider.createCircle(pos, player.rad);
+    const objs = game.grid.intersectCollider(circle);
+    for (let i = 0; i < objs.length; i++) {
+        const obj = objs[i];
+        if (obj.__type !== ObjectType.Obstacle || !util.sameLayer(obj.layer, player.layer)) {
+            continue;
+        }
+        const obstacle = obj as Obstacle;
+        if (obstacle.collidable && coldet.test(circle, obstacle.collider)) return false;
     }
-    if (goalRow !== 1) {
-        const boundaryY = goalRow === 0 ? -14 : 14;
-        return v2.add(center, v2.create(rowDoorX[fromCol], boundaryY));
+    return !game.map.mapDef.gameMode.indoorMode
+        || !!buildingContaining(game, pos, util.toGroundLayer(player.layer));
+}
+
+/** A trailing zombie yields while another hostile is already entering the door. */
+function zombieDoorwayCongested(player: Player, waypoint: Vec2): boolean {
+    let doorway: Vec2 | undefined;
+    const obstacles = player.game.map.obstacles;
+    for (let i = 0; i < obstacles.length; i++) {
+        const obstacle = obstacles[i];
+        if (!obstacle.isDoor || !obstacle.door || obstacle.dead) continue;
+        const center = doorNavPoint(obstacle);
+        if (v2.distance(center, waypoint) < 4.8) {
+            doorway = center;
+            break;
+        }
     }
-    return undefined;
+    if (!doorway) return false;
+
+    const selfDist = v2.distance(player.pos, doorway);
+    const players = player.game.playerBarn.livingPlayers;
+    for (let i = 0; i < players.length; i++) {
+        const other = players[i];
+        if (other === player || !other.specOpsAi || other.specOpsKind !== "enemy") continue;
+        if (!util.sameLayer(other.layer, player.layer)) continue;
+        if (v2.distance(other.pos, player.pos) > 3.4) continue;
+        if (v2.distance(other.pos, doorway) + 0.45 < selfDist) return true;
+    }
+    return false;
 }
 
 interface RouteBrain {
@@ -3816,6 +3871,11 @@ class AiBrain {
     detourPos?: Vec2;
     stuckStrikes = 0;
     routeRefreshTicker = 0;
+    /** Remembered room-to-room portal sequence for indoor zombies. */
+    indoorRoute: Vec2[] = [];
+    indoorRouteGoalCell = "";
+    indoorRouteLane = 0;
+    doorYieldTicker = 0;
     lookScanTicker = util.random(0.4, 1.2);
     lookScanSign = Math.random() < 0.5 ? 1 : -1;
     searchFovDot = 0.55;
@@ -3894,6 +3954,47 @@ class AiBrain {
         } else if (loadout.role === "grenadier" || enemyClass === "grenadier") {
             this.nadeCooldown = util.random(0.45, 1.0);
         }
+        this.indoorRouteLane = ((player.__id % 3) - 1) * 0.35;
+    }
+
+    resetIndoorRoute(): void {
+        this.indoorRoute.length = 0;
+        this.indoorRouteGoalCell = "";
+    }
+
+    private indoorRouteWaypoint(goal: Vec2): Vec2 | undefined {
+        if (!isZombieClass(this.enemyClass)) return undefined;
+        const game = this.player.game;
+        if (!game.map.mapDef.gameMode.indoorMode) return undefined;
+
+        const goalCell = zombieArenaCellKey(game, goal);
+        if (goalCell !== this.indoorRouteGoalCell) {
+            this.indoorRouteGoalCell = goalCell;
+            this.indoorRoute = zombieArenaRoute(
+                game,
+                this.player.pos,
+                goal,
+                this.indoorRouteLane,
+            );
+        }
+        while (
+            this.indoorRoute.length
+            && v2.distance(this.player.pos, this.indoorRoute[0]) < 2.1
+        ) {
+            this.indoorRoute.shift();
+        }
+        if (!this.indoorRoute.length) {
+            const currentCell = zombieArenaCellKey(game, this.player.pos);
+            if (currentCell !== goalCell) {
+                this.indoorRoute = zombieArenaRoute(
+                    game,
+                    this.player.pos,
+                    goal,
+                    this.indoorRouteLane,
+                );
+            }
+        }
+        return this.indoorRoute[0];
     }
 
     resolveAnchor(manager: SpecOpsManager): void {
@@ -4417,9 +4518,11 @@ class AiBrain {
                 looping = pathLen > 5.5 && net < 1.55;
             }
             const reversing = v2.dot(stepDir, this.lastStepDir) < -0.45 && moved > 0.08;
+            const indoorZombie = zombieMelee && !!player.game.map.mapDef.gameMode.indoorMode;
 
             this.stuckTicker += dt;
-            if (this.stuckTicker > 0.32 && !stairTransit && !this.stairTarget) {
+            const stuckCheckDelay = indoorZombie ? 0.75 : 0.32;
+            if (this.stuckTicker > stuckCheckDelay && !stairTransit && !this.stairTarget) {
                 if (moved < 0.14 || looping || reversing) {
                     this.stuckStrikes++;
                     this.pathSideSign *= -1;
@@ -4427,7 +4530,8 @@ class AiBrain {
                     field.penalize(player.pos, looping ? 3.2 : 2.1);
                     if (this.detourPos) {
                         field.penalizeToward(player.pos, this.detourPos, 2.4);
-                        this.failedWaypoints.push({ pos: v2.copy(this.detourPos), ttl: 3.2 });
+                        if (indoorZombie) this.resetIndoorRoute();
+                        else this.failedWaypoints.push({ pos: v2.copy(this.detourPos), ttl: 3.2 });
                         this.detourPos = undefined;
                         this.trail.length = 0;
                     }
@@ -4448,7 +4552,7 @@ class AiBrain {
                         ? (this.assaultDest ?? target.pos)
                         : target.pos;
                     const detour = zombieMelee
-                        ? (zombieArenaWaypoint(player.game, player.pos, detourGoal)
+                        ? (this.indoorRouteWaypoint(detourGoal)
                             ?? findRouteWaypoint(player.game, player, detourGoal, field, this))
                         : findRouteWaypoint(player.game, player, detourGoal, field, this);
                     if (detour) {
@@ -4456,7 +4560,25 @@ class AiBrain {
                         field.occupy(detour, 1.6);
                     }
 
-                    if (this.stuckStrikes >= 5) {
+                    if (indoorZombie && this.stuckStrikes >= 3) {
+                        const waypoint = this.detourPos ?? target.pos;
+                        const forward = v2.normalizeSafe(v2.sub(waypoint, player.pos), desired);
+                        const side = v2.mul(v2.perp(forward), this.pathSideSign);
+                        for (const amount of [0.9, 1.35, -0.9, -1.35]) {
+                            const nudge = v2.add(
+                                player.pos,
+                                v2.add(v2.mul(side, amount), v2.mul(forward, 0.35)),
+                            );
+                            player.game.map.clampToMapBounds(nudge, 4);
+                            if (!canAiOccupy(player.game, player, nudge)) continue;
+                            v2.set(player.pos, nudge);
+                            player.game.grid.updateObject(player);
+                            player.setDirty();
+                            break;
+                        }
+                        this.resetIndoorRoute();
+                        this.stuckStrikes = 1;
+                    } else if (this.stuckStrikes >= 5) {
                         const escape = steerAroundWalls(
                             player.game,
                             player,
@@ -4465,7 +4587,7 @@ class AiBrain {
                             field,
                         );
                         const nudge = v2.add(player.pos, v2.mul(escape, 1.05));
-                        if (player.game.map.canPlayerSpawn(nudge)) {
+                        if (canAiOccupy(player.game, player, nudge)) {
                             v2.set(player.pos, nudge);
                             player.game.grid.updateObject(player);
                             player.setDirty();
@@ -4504,7 +4626,7 @@ class AiBrain {
                     ? (this.assaultDest ?? target.pos)
                     : (this.assaultDest ?? target.pos);
                 const next = zombieMelee
-                    ? (zombieArenaWaypoint(player.game, player.pos, routeGoal)
+                    ? (this.indoorRouteWaypoint(routeGoal)
                         ?? findRouteWaypoint(player.game, player, routeGoal, field, this))
                     : findRouteWaypoint(player.game, player, routeGoal, field, this);
                 if (next) {
@@ -4728,27 +4850,42 @@ class AiBrain {
 
             if (v2.length(move) > 0.01) {
                 const zombieGraphRoute = zombieMelee && !directClear && !!this.detourPos;
-                player.touchMoveActive = true;
-                player.touchMoveDir = assaultDirect || zombieGraphRoute
-                    ? v2.normalizeSafe(move)
-                    : steerAroundWalls(
-                        player.game,
-                        player,
-                        move,
-                        this.pathSideSign,
-                        field,
-                        push,
+                this.doorYieldTicker = math.max(this.doorYieldTicker - dt, 0);
+                if (
+                    zombieGraphRoute
+                    && this.detourPos
+                    && zombieDoorwayCongested(player, this.detourPos)
+                ) {
+                    this.doorYieldTicker = math.max(
+                        this.doorYieldTicker,
+                        0.14 + (player.__id % 3) * 0.04,
                     );
-                player.touchMoveLen = 255;
+                }
+                if (this.doorYieldTicker <= 0) {
+                    player.touchMoveActive = true;
+                    player.touchMoveDir = assaultDirect || zombieGraphRoute
+                        ? v2.normalizeSafe(move)
+                        : steerAroundWalls(
+                            player.game,
+                            player,
+                            move,
+                            this.pathSideSign,
+                            field,
+                            push,
+                        );
+                    player.touchMoveLen = 255;
+                }
             }
 
             if (doorBlock) {
                 const through = throughDoorDir(doorBlock, player.pos, crossingGoal);
-                player.touchMoveActive = true;
-                player.touchMoveDir = through;
-                player.touchMoveLen = 255;
+                if (this.doorYieldTicker <= 0) {
+                    player.touchMoveActive = true;
+                    player.touchMoveDir = through;
+                    player.touchMoveLen = 255;
+                }
                 this.shooting = false;
-                if (this.doorStuckTicker > 2.2) {
+                if (this.doorYieldTicker <= 0 && this.doorStuckTicker > 2.2) {
                     tryUseDoor(doorBlock, player, crossingGoal, true);
                     const step = v2.add(player.pos, v2.mul(through, 0.85));
                     player.game.map.clampToMapBounds(step, 4);
@@ -8998,6 +9135,7 @@ export class SpecOpsManager implements PracticeHost {
             brain.player.game.grid.updateObject(brain.player);
             brain.player.setDirty();
             brain.detourPos = undefined;
+            brain.resetIndoorRoute();
             brain.coverPos = undefined;
             brain.stuckStrikes = 0;
             brain.idleTicker = 0;

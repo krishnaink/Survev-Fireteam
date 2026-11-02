@@ -114,3 +114,59 @@ test("Zombies pursue operators through multiple rooms and hinged doors", () => {
         ),
     ).toBe(true);
 });
+
+test("Indoor zombies remember room portals and yield to the zombie ahead at doors", () => {
+    const game = createGame(TeamMode.Solo, "specops");
+    const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+
+    v2.set(operator.pos, v2.create(30, 50));
+    game.grid.updateObject(operator);
+    const leader = game.specOps!.spawnEnemyPublic("zombie_walker");
+    const trailer = game.specOps!.spawnEnemyPublic("zombie_walker");
+    v2.set(leader.pos, v2.create(30, 76.5));
+    v2.set(trailer.pos, v2.create(30, 79));
+    game.grid.updateObject(leader);
+    game.grid.updateObject(trailer);
+    const leaderBrain = game.specOps!.getBrainPublic(leader)!;
+    const trailerBrain = game.specOps!.getBrainPublic(trailer)!;
+    leaderBrain.alertTo(operator.pos);
+    trailerBrain.alertTo(operator.pos);
+
+    game.update(0.1);
+
+    expect(leaderBrain.indoorRouteGoalCell).toBe("0,1");
+    expect(trailerBrain.indoorRouteGoalCell).toBe("0,1");
+    expect(leaderBrain.indoorRoute.length).toBeGreaterThan(0);
+    expect(trailerBrain.indoorRoute.length).toBeGreaterThan(0);
+    expect(leaderBrain.indoorRouteLane).not.toBe(trailerBrain.indoorRouteLane);
+    expect(leaderBrain.doorYieldTicker).toBe(0);
+    expect(trailerBrain.doorYieldTicker).toBeGreaterThan(0);
+});
+
+test("Indoor zombies recover from repeated stalls and rebuild their remembered route", () => {
+    const game = createGame(TeamMode.Solo, "specops");
+    const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+
+    v2.set(operator.pos, v2.create(30, 29));
+    game.grid.updateObject(operator);
+    const zombie = game.specOps!.spawnEnemyPublic("zombie_walker");
+    v2.set(zombie.pos, v2.create(98, 83));
+    game.grid.updateObject(zombie);
+    const brain = game.specOps!.getBrainPublic(zombie)!;
+    brain.alertTo(operator.pos);
+    brain.stuckTicker = 0.8;
+    brain.stuckStrikes = 2;
+    brain.lastPos = v2.copy(zombie.pos);
+    brain.indoorRoute = [v2.create(1, 1)];
+    brain.indoorRouteGoalCell = "stale";
+    const start = v2.copy(zombie.pos);
+
+    game.update(0.1);
+
+    expect(brain.stuckStrikes).toBe(1);
+    expect(v2.distance(zombie.pos, start)).toBeGreaterThan(0.2);
+    expect(brain.indoorRouteGoalCell).toBe("0,0");
+    expect(brain.indoorRoute.length).toBeGreaterThan(1);
+});
