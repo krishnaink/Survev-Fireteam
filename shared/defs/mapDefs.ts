@@ -62,7 +62,8 @@ export type Atlas =
     | "cobalt"
     | "savannah"
     | "turkey"
-    | "beach";
+    | "beach"
+    | "lastcall";
 
 const _MapDefs = {
     main: Main,

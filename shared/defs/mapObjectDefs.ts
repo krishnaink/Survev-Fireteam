@@ -2,6 +2,12 @@ import { FactionTeam } from "../gameConfig.ts";
 import { collider } from "../utils/collider.ts";
 import { type DeepPartial, util } from "../utils/util.ts";
 import { v2 } from "../utils/v2.ts";
+import {
+    lastCallCarDef,
+    LastCallMapObjectDefs,
+    lastCallPowerGateDef,
+    lastCallShutterDef,
+} from "./lastCallObjectDefs.ts";
 import type { BuildingDef, LootSpawnDef, MapObjectDef, ObstacleDef, StructureDef } from "./mapObjectsTyping.ts";
 
 // some errors could be fixed by this but opted to using Partial and casting instead to avoid choking the lsp server
@@ -2189,381 +2195,6 @@ function createZombieIndoorArena<T extends BuildingDef>(e: Partial<T>): T {
  * with a costly escape loop back to the opening rooms.
  */
 /** Last Call: a motel, courtyard, nightclub and garage survival block. */
-function createZombieBranchingComplex<T extends BuildingDef>(e: Partial<T>): T {
-    type Zone =
-        | "lobby"
-        | "storage"
-        | "courtyard"
-        | "diner"
-        | "alley"
-        | "motel"
-        | "club"
-        | "office"
-        | "garage";
-
-    const mapObjects: BuildingDef["mapObjects"] = [];
-    const cells = new Map<string, { gx: number; gy: number; zone: Zone }>();
-    const add = (type: string, x: number, y: number, ori = 0, scale = 1) => {
-        mapObjects.push({ type, pos: v2.create(x, y), scale, ori });
-    };
-    const cellKey = (gx: number, gy: number) => `${gx},${gy}`;
-    const fill = (zone: Zone, minX: number, maxX: number, minY: number, maxY: number) => {
-        for (let gx = minX; gx <= maxX; gx++) {
-            for (let gy = minY; gy <= maxY; gy++) {
-                cells.set(cellKey(gx, gy), { gx, gy, zone });
-            }
-        }
-    };
-
-    // The PDF's route graph translated to a 10-unit construction grid.
-    fill("diner", -6, -3, -5, -4);
-    fill("lobby", -2, 0, -5, -4);
-    fill("storage", 1, 2, -5, -4);
-    fill("alley", 3, 3, -5, 0);
-    fill("garage", 4, 6, -5, 3);
-    fill("courtyard", -2, 2, -3, 0);
-    fill("motel", -6, -3, -3, 2);
-    fill("club", -2, 3, 1, 5);
-    fill("office", 4, 6, 4, 5);
-
-    type Connection = { gate?: string };
-    const connections = new Map<string, Connection>();
-    const edgeKey = (a: readonly [number, number], b: readonly [number, number]) => {
-        const first = cellKey(a[0], a[1]);
-        const second = cellKey(b[0], b[1]);
-        return first < second ? `${first}|${second}` : `${second}|${first}`;
-    };
-    const connect = (
-        a: readonly [number, number],
-        b: readonly [number, number],
-        gate?: string,
-    ) => connections.set(edgeKey(a, b), { gate });
-
-    connect([-1, -4], [-1, -3], "zombie_buy_gate_750");
-    connect([0, -4], [1, -4], "zombie_buy_gate_750");
-    connect([-2, -4], [-3, -4], "zombie_buy_gate_1000");
-    connect([-5, -4], [-5, -3], "zombie_buy_gate_1250");
-    connect([-3, -1], [-2, -1], "zombie_buy_gate_1250");
-    connect([0, 0], [0, 1], "zombie_buy_gate_1500");
-    connect([2, -1], [3, -1], "zombie_buy_gate_1000");
-    connect([2, -4], [3, -4]);
-    connect([3, -2], [4, -2], "zombie_buy_gate_1250");
-    connect([3, 4], [4, 4], "zombie_buy_gate_1000");
-    connect([5, 3], [5, 4], "zombie_power_gate");
-
-    const zoneWall: Record<Zone, string> = {
-        lobby: "zombie_wall_shell_police_10",
-        storage: "zombie_wall_outer_10",
-        courtyard: "zombie_wall_shell_mansion_10",
-        diner: "zombie_wall_shell_reserve_10",
-        alley: "zombie_wall_outer_10",
-        motel: "zombie_wall_shell_mansion_10",
-        club: "zombie_wall_outer_10",
-        office: "zombie_wall_shell_reserve_10",
-        garage: "zombie_wall_shell_police_10",
-    };
-    const directions = [
-        { dx: 1, dy: 0, ori: 0 },
-        { dx: -1, dy: 0, ori: 0 },
-        { dx: 0, dy: 1, ori: 1 },
-        { dx: 0, dy: -1, ori: 1 },
-    ] as const;
-
-    // Every exposed edge and every unconnected zone boundary is permanent.
-    for (const cell of cells.values()) {
-        for (const dir of directions) {
-            const neighbor = cells.get(cellKey(cell.gx + dir.dx, cell.gy + dir.dy));
-            const x = (cell.gx + dir.dx * 0.5) * 10;
-            const y = (cell.gy + dir.dy * 0.5) * 10;
-            if (!neighbor) {
-                add(zoneWall[cell.zone], x, y, dir.ori);
-                continue;
-            }
-            if (neighbor.zone === cell.zone) continue;
-            if (dir.dx < 0 || dir.dy < 0) continue;
-
-            const connection = connections.get(
-                edgeKey([cell.gx, cell.gy], [neighbor.gx, neighbor.gy]),
-            );
-            if (connection) {
-                if (connection.gate) add(connection.gate, x, y, dir.ori);
-                continue;
-            }
-            add(zoneWall[cell.zone], x, y, dir.ori);
-        }
-    }
-
-    // Motel rooms open onto one shared walkway; partitions stop easy circular kiting.
-    for (const y of [-20, -5, 10]) {
-        for (const x of [-60, -50, -40]) {
-            add("zombie_wall_shell_mansion_10", x, y, 1);
-        }
-    }
-
-    // Drained pool: low permanent coping forms the courtyard's central training loop.
-    for (const x of [-10, 0, 10]) {
-        add("zombie_pool_edge_10", x, -25, 1);
-        add("zombie_pool_edge_10", x, -5, 1);
-    }
-    for (const y of [-20, -10]) {
-        add("zombie_pool_edge_10", -15, y, 0);
-        add("zombie_pool_edge_10", 15, y, 0);
-    }
-
-    // Lobby and storage.
-    for (
-        const [type, x, y, ori] of [
-            ["table_04", -10, -42, 1],
-            ["chair_01", -10, -47, 0],
-            ["specops_station_weapon", 1, -51, 0],
-            ["specops_station_gear", 20, -48, 0],
-            ["crate_02", 13, -41, 0],
-            ["locker_02", 22, -40, 1],
-        ] as const
-    ) add(type, x, y, ori);
-
-    // Neon Diner: counter and booths create tight Hotline-style corner fights.
-    add("club_bar_large", -45, -42, 1);
-    for (const x of [-57, -46, -35]) {
-        add("table_02", x, -50, 0);
-        add("couch_02", x, -46, 0);
-    }
-    add("specops_station_weapon", -30, -39, 0);
-    add("specops_station_armor", -29, -51, 0);
-
-    // Courtyard: box beside the pool, with sparse cover around the outer lane.
-    for (
-        const [type, x, y, ori] of [
-            ["planter_01", -20, -28, 0],
-            ["planter_02", 20, -2, 0],
-            ["table_03", -20, 0, 0],
-            ["barrel_01", 20, -29, 0],
-        ] as const
-    ) add(type, x, y, ori);
-    add("zombie_mystery_box", 21, -22);
-
-    // Motel rooms 101-104.
-    for (
-        const [type, x, y, ori] of [
-            ["bed_sm_01", -57, 19, 0],
-            ["drawers_01", -38, 20, 0],
-            ["bed_sm_01", -57, 4, 0],
-            ["specops_station_perk", -36, 4, 0],
-            ["bed_sm_01", -57, -11, 0],
-            ["table_01", -38, -11, 0],
-            ["bed_sm_01", -57, -27, 0],
-            ["locker_01", -38, -27, 0],
-        ] as const
-    ) add(type, x, y, ori);
-
-    // Club Paradiso: open dance floor, perimeter cover, bar and DJ booth.
-    add("club_bar_large", -16, 33, 0);
-    add("club_bar_back_large", -20, 42, 0);
-    add("piano_01", 5, 49, 1);
-    add("specops_station_perk", -21, 47, 0);
-    add("specops_station_weapon", 27, 48, 0);
-    for (const [x, y] of [[-13, 14], [13, 14], [-13, 47], [25, 25]] as const) {
-        add("table_03", x, y);
-        add("chair_02", x + 4, y, 3);
-    }
-    add("couch_03", 26, 10, 1);
-    add("zombie_mystery_box_spot", 27, 18);
-
-    // Manager's office controls the powered freight gate.
-    add("table_05", 50, 48, 1);
-    add("chair_01", 50, 42, 0);
-    add("bookshelf_02", 62, 51, 0);
-    add("zombie_power_switch", 62, 41, 0);
-
-    // Alley is a deliberate single-file hold with poor reversal options.
-    add("specops_station_weapon", 30, -3, 0);
-    add("crate_01", 30, -17, 0);
-    add("barrel_02", 30, -31, 0);
-    add("zombie_mystery_box_spot", 30, -45);
-
-    // Garage pillars and vehicles make the long late-round loop.
-    for (const [x, y] of [[45, 25], [60, 5], [45, -15], [60, -35]] as const) {
-        add("warehouse_column", x, y, 0, 0.75);
-    }
-    add("zombie_garage_car", 55, 16, 1);
-    add("zombie_garage_car", 48, -2, 1);
-    add("zombie_garage_car", 57, -25, 1);
-    add("zombie_garage_car", 48, -45, 1);
-    add("specops_station_support", 40, -38, 0);
-    add("zombie_upgrade_bench", 60, -48, 0);
-    add("zombie_mystery_box_spot", 42, 29);
-
-    // Visual entry windows and invisible, reachable spawn anchors just inside them.
-    const entry = (windowX: number, windowY: number, spawnX: number, spawnY: number, ori: number) => {
-        add("zombie_entry_window", windowX, windowY, ori);
-        add("zombie_spawn_point", spawnX, spawnY);
-    };
-    entry(-17, -55, -17, -50, 1);
-    entry(-3, -55, -3, -50, 1);
-    entry(-58, -55, -58, -50, 1);
-    entry(-46, -55, -46, -50, 1);
-    entry(-34, -55, -34, -50, 1);
-    entry(-65, 18, -60, 18, 0);
-    entry(-65, -12, -60, -12, 0);
-    entry(-14, 55, -14, 50, 1);
-    entry(8, 55, 8, 50, 1);
-    entry(29, 55, 29, 50, 1);
-    entry(50, 55, 50, 50, 1);
-    entry(65, 45, 60, 45, 0);
-    entry(35, -55, 30, -50, 1);
-    entry(65, 24, 60, 24, 0);
-    entry(65, -8, 60, -8, 0);
-    entry(65, -42, 60, -42, 0);
-    for (const [x, y] of [[-18, -17], [18, -18], [50, -20]] as const) {
-        add("decal_chrys_01", x, y);
-        add("zombie_spawn_point", x, y);
-    }
-
-    const zoneFloor: Record<
-        Zone,
-        { type: string; color: number; sprite: string; tint: number }
-    > = {
-        lobby: { type: "tile", color: 0x284c55, sprite: "map-zombie-floor-tile.img", tint: 0x8ecfd7 },
-        storage: {
-            type: "stone",
-            color: 0x343a3d,
-            sprite: "map-zombie-floor-concrete.img",
-            tint: 0x98a3a6,
-        },
-        courtyard: {
-            type: "tile",
-            color: 0x3f414b,
-            sprite: "map-zombie-floor-tile.img",
-            tint: 0x9ca1b7,
-        },
-        diner: {
-            type: "carpet",
-            color: 0x54192b,
-            sprite: "map-zombie-floor-carpet.img",
-            tint: 0xd08da2,
-        },
-        alley: {
-            type: "stone",
-            color: 0x303638,
-            sprite: "map-zombie-floor-concrete.img",
-            tint: 0x879194,
-        },
-        motel: {
-            type: "wood",
-            color: 0x5f3e28,
-            sprite: "map-zombie-floor-wood.img",
-            tint: 0xd8aa7c,
-        },
-        club: {
-            type: "carpet",
-            color: 0x35152f,
-            sprite: "map-zombie-floor-carpet.img",
-            tint: 0xad77c6,
-        },
-        office: {
-            type: "wood",
-            color: 0x5b3b25,
-            sprite: "map-zombie-floor-parquet.img",
-            tint: 0xd7a271,
-        },
-        garage: {
-            type: "stone",
-            color: 0x383d3f,
-            sprite: "map-zombie-floor-concrete.img",
-            tint: 0x9da5a6,
-        },
-    };
-    const zones = Object.keys(zoneFloor) as Zone[];
-    const floorSurfaces = zones.map((zone) => ({
-        type: zoneFloor[zone].type,
-        collision: [...cells.values()]
-            .filter((cell) => cell.zone === zone)
-            .map((cell) => collider.createAabbExtents(v2.create(cell.gx * 10, cell.gy * 10), v2.create(5, 5))),
-        data: { isBright: false },
-    }));
-    const floorImgs = [...cells.values()].map((cell) => {
-        const pool = cell.zone === "courtyard"
-            && cell.gx >= -1
-            && cell.gx <= 1
-            && cell.gy >= -2
-            && cell.gy <= -1;
-        return {
-            sprite: pool ? "map-zombie-floor-tile.img" : zoneFloor[cell.zone].sprite,
-            pos: v2.create(cell.gx * 10, cell.gy * 10),
-            scale: 0.5,
-            alpha: 1,
-            tint: pool ? 0x62aeb8 : zoneFloor[cell.zone].tint,
-            mirrorX: (cell.gx + cell.gy) % 2 === 0,
-            mirrorY: (cell.gx - cell.gy) % 2 === 0,
-        };
-    });
-    const groundPatches = [
-        {
-            bound: collider.createAabbExtents(v2.create(0, 0), v2.create(86, 66)),
-            color: 0x443426,
-            order: 0,
-        },
-        {
-            bound: collider.createAabbExtents(v2.create(-48, 43), v2.create(18, 12)),
-            color: 0x2c2d35,
-            order: 0,
-        },
-        ...[...cells.values()].map((cell) => ({
-            bound: collider.createAabbExtents(v2.create(cell.gx * 10, cell.gy * 10), v2.create(5, 5)),
-            color: zoneFloor[cell.zone].color,
-            order: 1,
-        })),
-    ];
-    const mapShapes = [...cells.values()].map((cell) => ({
-        collider: collider.createAabbExtents(v2.create(cell.gx * 10, cell.gy * 10), v2.create(5, 5)),
-        color: zoneFloor[cell.zone].color,
-    }));
-
-    const complex: BuildingDef = {
-        type: "building",
-        ori: 0,
-        terrain: { grass: true, beach: false },
-        map: { display: true, shapes: mapShapes },
-        mapObstacleBounds: [
-            collider.createAabbExtents(v2.create(0, 0), v2.create(68, 58)),
-        ],
-        mapGroundPatches: groundPatches,
-        floor: { surfaces: floorSurfaces, imgs: floorImgs },
-        ceiling: {
-            zoomRegions: zones.map((zone) => {
-                const zoneCells = [...cells.values()].filter((cell) => cell.zone === zone);
-                const minX = Math.min(...zoneCells.map((cell) => cell.gx * 10 - 5));
-                const maxX = Math.max(...zoneCells.map((cell) => cell.gx * 10 + 5));
-                const minY = Math.min(...zoneCells.map((cell) => cell.gy * 10 - 5));
-                const maxY = Math.max(...zoneCells.map((cell) => cell.gy * 10 + 5));
-                return { zoomIn: collider.createAabb(v2.create(minX, minY), v2.create(maxX, maxY)) };
-            }),
-            vision: { dist: 7, width: 3, linger: 0.2, fadeRate: 11 },
-            imgs: [{ sprite: "", scale: 1, alpha: 1, tint: 0x070812 }],
-        },
-        mapObjects,
-    };
-    return util.mergeDeep(complex, e || {}) as T;
-}
-
-function createZombieBuyGate<T extends ObstacleDef>(tint: number): T {
-    return createWall({
-        material: "metal",
-        health: 9999,
-        destructible: false,
-        extents: v2.create(0.75, 5),
-        img: wallImg("map-wall-10-rounded.img", tint),
-        button: {
-            interactionRad: 4,
-            interactionText: "game-use",
-            useOnce: false,
-            useDelay: 0,
-            useDir: v2.create(-1, 0),
-            useImg: "map-wall-10-rounded.img",
-            sound: { on: "button_press_01", off: "button_press_01" },
-        },
-    } as unknown as Partial<T>);
-}
 function createWheel<T extends ObstacleDef>(e: Partial<T>): T {
     const t = {
         type: "obstacle",
@@ -36828,17 +36459,6 @@ export const RawMapObjectDefs: Record<string, MapObjectDef> = {
         img: { sprite: "none", alpha: 0 },
         map: { display: false },
     }),
-    zombie_entry_window: createWindow({
-        destructible: true,
-        collidable: false,
-        health: 35,
-        collision: collider.createAabbExtents(v2.create(0, 0), v2.create(0.4, 3.5)),
-        destroyType: "",
-        img: {
-            sprite: "map-building-reserve-window-01.img",
-            tint: 0x49d9df,
-        },
-    }),
     zombie_power_switch: createControlPanel({
         destructible: false,
         health: 9999,
@@ -36854,29 +36474,9 @@ export const RawMapObjectDefs: Record<string, MapObjectDef> = {
             sound: { on: "button_press_01", off: "button_press_01" },
         },
     } as unknown as Partial<ObstacleDef>),
-    zombie_power_gate: createWall({
-        material: "metal",
-        health: 9999,
-        destructible: false,
-        extents: v2.create(0.75, 5),
-        img: wallImg("map-wall-10-rounded.img", 0xf72585),
-    }),
-    zombie_pool_edge_10: createWall({
-        material: "stone",
-        health: 9999,
-        destructible: false,
-        height: 0.2,
-        extents: v2.create(0.5, 5),
-        img: wallImg("map-wall-10-rounded.img", 0x4dd9e6),
-    }),
-    zombie_garage_car: createCrate({
-        destructible: false,
-        health: 9999,
-        loot: [],
-        collision: collider.createAabbExtents(v2.create(0, 0), v2.create(5, 2.25)),
-        img: { sprite: "map-zombie-garage-car.img", scale: 0.5 },
-        map: { display: true, color: 0x4b555e, scale: 1.1 },
-    }),
+    // Last Call's freight gate, pool-free courtyard and garage cars (see lastCallObjectDefs.ts).
+    zombie_power_gate: lastCallPowerGateDef(),
+    zombie_garage_car: lastCallCarDef(),
     zombie_upgrade_bench: createCrate({
         destructible: false,
         health: 9999,
@@ -36895,13 +36495,13 @@ export const RawMapObjectDefs: Record<string, MapObjectDef> = {
             sound: { on: "button_press_01", off: "button_press_01" },
         },
     }),
-    zombie_buy_gate_750: createZombieBuyGate(0x7447a8),
-    zombie_buy_gate_1000: createZombieBuyGate(0x315a8f),
-    zombie_buy_gate_1250: createZombieBuyGate(0x8c315f),
-    zombie_buy_gate_1500: createZombieBuyGate(0x1b7f8c),
-    zombie_buy_gate_2000: createZombieBuyGate(0xb07a24),
+    // Rolling shutters you pay to open (Last Call doorways are 6 units wide).
+    zombie_buy_gate_750: lastCallShutterDef(),
+    zombie_buy_gate_1000: lastCallShutterDef(),
+    zombie_buy_gate_1250: lastCallShutterDef(),
+    zombie_buy_gate_1500: lastCallShutterDef(),
+    zombie_buy_gate_2000: lastCallShutterDef(),
     zombie_indoor_arena_01: createZombieIndoorArena({}),
-    zombie_branching_complex_01: createZombieBranchingComplex({}),
     specops_station_weapon: createCrate({
         destructible: false,
         health: 9999,
@@ -36976,4 +36576,6 @@ export const RawMapObjectDefs: Record<string, MapObjectDef> = {
         map: { display: true, color: 0x76000b, scale: 1.15 },
         terrain: { grass: true, beach: true },
     }),
+    // Last Call: walls, props and the zombie_branching_complex_01 block.
+    ...LastCallMapObjectDefs,
 };

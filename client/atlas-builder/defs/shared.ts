@@ -4,7 +4,6 @@ import { BuildingSprites } from "./buildings.ts";
 export const SharedAtlas: AtlasDef = {
     compress: true,
     images: [
-        ...BuildingSprites.zombie,
         ...BuildingSprites.bank,
         ...BuildingSprites.barn,
         ...BuildingSprites.cabin,

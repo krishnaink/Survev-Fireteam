@@ -1,5 +1,11 @@
 import { BulletDefs } from "../../../shared/defs/gameObjects/bulletDefs.ts";
 import { type GunDef, GunDefs } from "../../../shared/defs/gameObjects/gunDefs.ts";
+import {
+    LastCallBuildingType,
+    LastCallMapName,
+    LastCallPlayerSpawns,
+    lastCallToLocal,
+} from "../../../shared/defs/maps/lastCallLayout.ts";
 import { SpecOpsEnemyClasses } from "../../../shared/defs/maps/specOpsNpcDebug.ts";
 import {
     isSpecOpsArmorSatchel,
@@ -96,6 +102,7 @@ import { v2, type Vec2 } from "../../../shared/utils/v2.ts";
 import { Config } from "../config.ts";
 import type { Game } from "./game.ts";
 import type { Team } from "./group.ts";
+import { lastCallBlock, lastCallOpenZones, lastCallPosReachable, lastCallWalkable } from "./lastCallNav.ts";
 import type { Building } from "./objects/building.ts";
 import type { Loot } from "./objects/loot.ts";
 import type { Obstacle } from "./objects/obstacle.ts";
@@ -3617,6 +3624,20 @@ function findRouteWaypoint(
         return undefined;
     }
 
+    // Last Call: every room is inside one building, so the door/corner heuristics
+    // below point at the wrong places. Walk to the farthest node of the graph path
+    // that is in straight-line reach (string pulling), so bots don't flip-flop.
+    if (lastCallBlock(game)) {
+        if (lastCallWalkable(game, from.pos, goal)) return undefined;
+        const path = game.specOps?.paths?.path(game, from.pos, goal, 0, 0);
+        if (!path?.length) return undefined;
+        for (let i = path.length - 1; i >= 0; i--) {
+            if (v2.distance(from.pos, path[i]) < 1.2) break;
+            if (lastCallWalkable(game, from.pos, path[i])) return path[i];
+        }
+        return path.find((p) => v2.distance(from.pos, p) >= 1.2);
+    }
+
     const graphWp = game.specOps?.paths?.firstWaypoint(from, goal);
     const goalLayer = inferGroundLayer(game, goal, from.layer);
     const crossFloor = navGroundLayer(from.layer) !== goalLayer;
@@ -6082,6 +6103,17 @@ export class SpecOpsManager implements PracticeHost {
         return true;
     }
 
+    /** Next free lobby spawn on Last Call (lastCallLayout.ts), or undefined on other maps. */
+    private lastCallPlayerSpawn(): Vec2 | undefined {
+        if (!this.zombieMode || this.game.config.mapName !== LastCallMapName) return undefined;
+        const complex = this.game.map.buildings.find((b) => b.type === LastCallBuildingType);
+        if (!complex) return undefined;
+        const spots = LastCallPlayerSpawns.map((p) => v2.add(complex.pos, lastCallToLocal(p.x, p.y)));
+        const taken = this.livingHumans();
+        const free = spots.find((spot) => taken.every((h) => v2.distance(h.pos, spot) > 1.5));
+        return free ?? spots[taken.length % spots.length];
+    }
+
     private configureLastCallSystems(): void {
         if (!this.zombieMode || this.game.config.mapName !== "specops_complex") return;
         this.zombiePowerOn = false;
@@ -6617,12 +6649,16 @@ export class SpecOpsManager implements PracticeHost {
             return;
         }
 
-        if (!this.operatorSpawn) {
+        const lastCallSpawn = this.lastCallPlayerSpawn();
+        if (lastCallSpawn) {
+            // Last Call: the squad lines up on the lobby rug, never through a wall.
+            v2.set(player.pos, lastCallSpawn);
+            player.game.grid.updateObject(player);
+            player.setDirty();
+            if (!this.operatorSpawn) this.operatorSpawn = v2.copy(player.pos);
+        } else if (!this.operatorSpawn) {
             if (this.zombieMode && this.game.map.mapDef.gameMode.indoorMode) {
-                const spawnAnchor = this.game.config.mapName === "specops_complex"
-                    ? v2.add(this.game.map.center, v2.create(-10, -45))
-                    : this.game.map.center;
-                const indoorSpawn = this.pickSpawnNear(spawnAnchor, 0, 5);
+                const indoorSpawn = this.pickSpawnNear(this.game.map.center, 0, 5);
                 v2.set(player.pos, indoorSpawn);
                 player.game.grid.updateObject(player);
                 player.setDirty();
@@ -7367,6 +7403,8 @@ export class SpecOpsManager implements PracticeHost {
         minRad: number,
         host: Player | undefined,
         humans: Player[],
+        /** Minimum gap to other enemies; Last Call windows pack zombies tighter. */
+        crowdDist = 4,
     ): boolean {
         this.game.map.clampToMapBounds(pos, 10);
         if (!this.canCombatantSpawn(pos)) return false;
@@ -7389,7 +7427,7 @@ export class SpecOpsManager implements PracticeHost {
         }
         for (const brain of this.brains.values()) {
             if (brain.kind !== "enemy" || brain.player.dead) continue;
-            if (v2.distance(pos, brain.player.pos) < 4) return false;
+            if (v2.distance(pos, brain.player.pos) < crowdDist) return false;
         }
         return true;
     }
@@ -7403,6 +7441,8 @@ export class SpecOpsManager implements PracticeHost {
         const map = this.game.map;
         if (!map.mapDef.gameMode.indoorMode) return map.canPlayerSpawn(pos);
         if (map.isOnWater(pos, 0) || !buildingContaining(this.game, pos, 0)) return false;
+        // Last Call: never in a room behind a shutter the squad hasn't bought.
+        if (!lastCallPosReachable(this.game, pos)) return false;
 
         const circle = collider.createCircle(pos, GameConfig.player.radius);
         const objs = this.game.grid.intersectCollider(circle);
@@ -7523,17 +7563,25 @@ export class SpecOpsManager implements PracticeHost {
         squadSize = 1,
     ): Vec2 | undefined {
         if (this.zombieMode && this.game.config.mapName === "specops_complex") {
-            const entries = this.game.map.obstacles.filter((obstacle) => obstacle.type === "zombie_spawn_point");
+            // Zombies climb in through the windows (and manholes) of opened rooms only.
+            const open = lastCallOpenZones(this.game);
+            const entries = this.game.map.obstacles.filter((obstacle) =>
+                obstacle.type === "zombie_spawn_point" && lastCallPosReachable(this.game, obstacle.pos, open)
+            );
             const start = entries.length
                 ? (indexInSquad + this.waveSpawnPulseIndex * 3) % entries.length
                 : 0;
-            for (let e = 0; e < entries.length; e++) {
-                const entry = entries[(start + e) % entries.length];
-                for (let attempt = 0; attempt < 10; attempt++) {
-                    const pos = attempt === 0
-                        ? v2.copy(entry.pos)
-                        : v2.add(entry.pos, util.randomPointInCircle(5.5));
-                    if (this.enemySpawnOk(pos, origin, 8, host, humans)) return pos;
+            // Prefer windows away from the squad; if they're camping every one, allow closer.
+            for (const minDist of [8, 4, 2.5]) {
+                for (let e = 0; e < entries.length; e++) {
+                    const entry = entries[(start + e) % entries.length];
+                    // the window first, then a growing patch of floor just inside it
+                    for (let attempt = 0; attempt < 12; attempt++) {
+                        const pos = attempt === 0
+                            ? v2.copy(entry.pos)
+                            : v2.add(entry.pos, util.randomPointInCircle(attempt < 6 ? 2.5 : 5.5));
+                        if (this.enemySpawnOk(pos, origin, minDist, host, humans, 2.4)) return pos;
+                    }
                 }
             }
         }

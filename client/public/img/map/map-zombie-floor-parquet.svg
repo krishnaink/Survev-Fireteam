@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
-  <rect width="320" height="320" fill="#55341f"/>
-  <g stroke="#2d1b13" stroke-width="4">
-    <path fill="#81502c" d="M0 0h80l80 80-40 40L0 0zm160 0h80l80 80v80L160 0zM0 160l160 160H80L0 240zM160 160l160 160h-80l-120-120z"/>
-    <path fill="#6c4024" d="M80 0h80L0 160V80zm160 0h80L160 160h-80zm-80 160h80L80 320H0zm160 0v80l-80 80h-80z"/>
-    <path fill="#936039" d="M160 80l40 40-80 80-40-40zM0 160l40-40 80 80-40 40zm240 0 40-40 40 40v80zm-80 80 40-40 80 80-40 40z"/>
-  </g>
-  <path d="M0 0l320 320M320 0 0 320" stroke="#d18a4e" stroke-opacity=".13" stroke-width="5"/>
-</svg>

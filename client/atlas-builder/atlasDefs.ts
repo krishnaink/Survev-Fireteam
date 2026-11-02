@@ -5,6 +5,7 @@ import { DesertAtlas } from "./defs/desert.ts";
 import { FactionAtlas } from "./defs/faction.ts";
 import { GradientAtlas } from "./defs/gradient.ts";
 import { HalloweenAtlas } from "./defs/halloween.ts";
+import { LastCallAtlas } from "./defs/lastcall.ts";
 import { LoadoutAtlas } from "./defs/loadout.ts";
 import { MainAtlas } from "./defs/main.ts";
 import { PotatoAtlas } from "./defs/potato.ts";
@@ -44,6 +45,7 @@ export const Atlases: Record<Atlas, AtlasDef> = {
     savannah: SavannahAtlas,
     turkey: TurkeyAtlas,
     beach: BeachAtlas,
+    lastcall: LastCallAtlas,
 };
 export type AtlasRes = "high" | "low";
 

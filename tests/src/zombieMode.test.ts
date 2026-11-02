@@ -103,7 +103,8 @@ test("Last Call generates its furnished motel, club, courtyard and garage routes
 
     const props = new Set(game.map.obstacles.map((obstacle) => obstacle.type));
     expect(props.has("bed_sm_01")).toBe(true);
-    expect(props.has("club_bar_large")).toBe(true);
+    expect(props.has("lastcall_bar_club")).toBe(true);
+    expect(props.has("lastcall_pool")).toBe(true);
     expect(props.has("zombie_power_switch")).toBe(true);
     expect(props.has("zombie_upgrade_bench")).toBe(true);
     expect(props.has("zombie_garage_car")).toBe(true);
@@ -129,16 +130,10 @@ test("Last Call generates its furnished motel, club, courtyard and garage routes
             .filter((object) => object.parentBuilding === complex && object.isWall)
             .every((wall) => !wall.destructible),
     ).toBe(true);
+    // One painted floor for the whole block, generated from the same layout as the walls.
     const definition = MapObjectDefs.typeToDef("zombie_branching_complex_01", "building");
-    const floorCells = definition.floor.surfaces.reduce(
-        (count, surface) => count + (Array.isArray(surface.collision) ? surface.collision.length : 1),
-        0,
-    );
-    expect(definition.floor.imgs.filter((image) => image.sprite)).toHaveLength(floorCells);
-    expect(
-        definition.floor.imgs.every((image) => image.sprite.startsWith("map-zombie-floor-")),
-    ).toBe(true);
-    expect(definition.mapGroundPatches.some((patch) => patch.order === 0)).toBe(true);
+    expect(definition.floor.imgs.map((image) => image.sprite)).toEqual(["map-lastcall-floor.img"]);
+    expect(MapDefs.specops_complex.assets.atlases).toContain("lastcall");
     expect(Math.abs(operator.pos.x - (game.map.center.x - 10))).toBeLessThan(8);
     expect(operator.pos.y).toBeLessThan(game.map.center.y - 35);
     expect(

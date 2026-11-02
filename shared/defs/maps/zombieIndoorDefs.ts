@@ -80,7 +80,10 @@ export const ZombieIndoor = util.mergeDeep(
     } satisfies PartialMapDef,
 ) as MapDef;
 
-/** Last Call's motel, nightclub and parking-garage survival block. */
+/**
+ * Last Call's motel, nightclub and parking-garage survival block at night.
+ * Layout: lastCallLayout.ts; art: scripts/lastcall/buildArt.ts.
+ */
 export const ZombieBranchingComplex = util.mergeDeep(
     {},
     ZombieIndoor,
@@ -90,19 +93,23 @@ export const ZombieBranchingComplex = util.mergeDeep(
             buttonText: "Last Call",
             backgroundImg: "img/main_splash.png",
         },
+        assets: {
+            atlases: ["gradient", "loadout", "shared", "main", "lastcall"],
+        },
         biome: {
             colors: {
-                background: 0x2b241f,
-                water: 0x1b2020,
-                waterRipple: 0x343c39,
-                beach: 0x51402d,
-                riverbank: 0x3d3227,
-                grass: 0x443426,
-                underground: 0x171512,
-                playerSubmerge: 0x363c38,
-                playerGhillie: 0x4b4335,
+                background: 0x0a0910,
+                water: 0x0a0910,
+                waterRipple: 0x1b1826,
+                beach: 0x15131c,
+                riverbank: 0x15131c,
+                grass: 0x15131c,
+                underground: 0x0a0910,
+                playerSubmerge: 0x1b1826,
+                playerGhillie: 0x15131c,
             },
-            valueAdjust: 0.78,
+            // The floor art is already painted at night; don't darken props further.
+            valueAdjust: 1,
         },
         mapGen: {
             map: {
