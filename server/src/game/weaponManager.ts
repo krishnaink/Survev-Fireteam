@@ -579,6 +579,9 @@ export class WeaponManager {
         if (this.player.specOpsHumanRules) {
             duration = specOpsWeaponReloadTime(this.activeWeapon, duration);
         }
+        if (this.player.hasPerk("zombie_speed_cola")) {
+            duration *= PerkProperties.zombie_speed_cola.reloadMult;
+        }
         if (this.player.specOpsKind === "sentry") {
             duration = SpecOpsSentryReloadTime;
             action = GameConfig.Action.Reload;
@@ -615,6 +618,9 @@ export class WeaponManager {
             : weaponDef.reloadTime;
         if (this.player.specOpsHumanRules) {
             duration = specOpsWeaponReloadTime(weapon.type, duration);
+        }
+        if (this.player.hasPerk("zombie_speed_cola")) {
+            duration *= PerkProperties.zombie_speed_cola.reloadMult;
         }
         return duration * WeaponManager.OffhandReloadMult;
     }
@@ -995,6 +1001,10 @@ export class WeaponManager {
 
         if (this.player.hasPerk("turkey_shoot")) {
             damageMult *= PerkProperties.turkey_shoot.bonusDamageMult;
+        }
+
+        if (this.player.hasPerk("zombie_double_tap")) {
+            damageMult *= PerkProperties.zombie_double_tap.bonusDamageMult;
         }
 
         if (shouldApplyChambered) {

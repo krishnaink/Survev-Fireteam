@@ -14,6 +14,7 @@ import {
     zombieWaveCount,
 } from "../../server/src/game/zombieMode.ts";
 import { MapDefs } from "../../shared/defs/mapDefs.ts";
+import { ZombiePerkMachines, ZombiePerkMachineTypes } from "../../shared/defs/maps/zombiePerks.ts";
 import { GameObjectDefs, MapObjectDefs } from "../../shared/defs/register.ts";
 import { GameConfig, TeamMode } from "../../shared/gameConfig.ts";
 import { collider } from "../../shared/utils/collider.ts";
@@ -109,16 +110,12 @@ test("Last Call generates its furnished motel, club, courtyard and garage routes
     expect(props.has("zombie_upgrade_bench")).toBe(true);
     expect(props.has("zombie_garage_car")).toBe(true);
     expect(props.has("zombie_mystery_box")).toBe(true);
-    expect(game.map.obstacles.filter((obstacle) => obstacle.type === "specops_station_weapon"))
-        .toHaveLength(4);
-    expect(game.map.obstacles.filter((obstacle) => obstacle.type === "specops_station_perk"))
-        .toHaveLength(2);
-    expect(game.map.obstacles.filter((obstacle) => obstacle.type === "specops_station_gear"))
-        .toHaveLength(1);
-    expect(game.map.obstacles.filter((obstacle) => obstacle.type === "specops_station_armor"))
-        .toHaveLength(1);
-    expect(game.map.obstacles.filter((obstacle) => obstacle.type === "specops_station_support"))
-        .toHaveLength(1);
+    expect(game.map.obstacles.filter((obstacle) => obstacle.type.startsWith("specops_station_")))
+        .toHaveLength(0);
+    for (const machineType of ZombiePerkMachineTypes) {
+        expect(game.map.obstacles.filter((obstacle) => obstacle.type === machineType))
+            .toHaveLength(1);
+    }
     expect(game.map.obstacles.filter((obstacle) => obstacle.type === "zombie_spawn_point"))
         .toHaveLength(19);
 
@@ -142,6 +139,35 @@ test("Last Call generates its furnished motel, club, courtyard and garage routes
             v2.add(game.map.center, v2.create(-80, 0)),
         ),
     ).toBe(false);
+});
+
+test("Last Call perk machines sell their fixed perks for cash", () => {
+    const game = createGame(TeamMode.Solo, "specops_complex");
+    const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+    game.specOps!.grantCash(operator, 10_000);
+    const startingCash = operator.specOpsCash;
+
+    for (const machineType of ZombiePerkMachineTypes) {
+        const machine = game.map.obstacles.find((obstacle) => obstacle.type === machineType)!;
+        v2.set(operator.pos, machine.pos);
+        game.grid.updateObject(operator);
+        machine.interact(operator);
+        game.update(0.5);
+    }
+
+    const totalCost = ZombiePerkMachineTypes.reduce(
+        (sum, machineType) => sum + ZombiePerkMachines[machineType].cost,
+        0,
+    );
+    expect(operator.specOpsCash).toBe(startingCash - totalCost);
+    expect(operator.hasPerk("zombie_juggernog")).toBe(true);
+    expect(operator.hasPerk("zombie_speed_cola")).toBe(true);
+    expect(operator.hasPerk("self_revive")).toBe(true);
+    expect(operator.hasPerk("zombie_stamin_up")).toBe(true);
+    expect(operator.hasPerk("zombie_double_tap")).toBe(true);
+    expect(operator.maxHealth).toBe(250);
+    expect(operator.health).toBe(250);
 });
 
 test("Zombie Survival automatically starts the next wave after an eight-second breather", () => {

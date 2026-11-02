@@ -9,9 +9,9 @@ import {
     LastCallDoors,
     LastCallEntries,
     lastCallFromLocal,
+    LastCallPerkMachines,
     LastCallPlayerSpawns,
     LastCallProps,
-    LastCallStations,
     lastCallToLocal,
     lastCallWalls,
     lastCallZoneAt,
@@ -89,7 +89,9 @@ describe("Last Call layout", () => {
     });
 
     test("spawns, stations, box spots and props stay inside their rooms", () => {
-        for (const s of LastCallStations) expect(inZone(s.zone, s.pos, 2), `station ${s.type}`).toBe(true);
+        for (const machine of LastCallPerkMachines) {
+            expect(inZone(machine.zone, machine.pos, 2), `perk machine ${machine.type}`).toBe(true);
+        }
         for (const b of LastCallBoxSpots) expect(inZone(b.zone, b.pos, 2), "box spot").toBe(true);
         for (const e of LastCallEntries) expect(inZone(e.zone, e.pos, 1.5), "entry").toBe(true);
         for (const p of LastCallPlayerSpawns) expect(lastCallZoneAt(p, 1.5)).toBe("lobby");

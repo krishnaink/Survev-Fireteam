@@ -168,7 +168,12 @@ app.post("/api/find_game_v2", validateParams(zFindGameBody), async (c) => {
 
     const mode = practice
         ? { mapName: body.practiceMap as MapDefKey, teamMode: TeamMode.Solo, enabled: true }
-        : server.modes[body.gameModeIdx];
+        : (() => {
+            const configured = server.modes[body.gameModeIdx];
+            return configured && body.mapName
+                ? { ...configured, mapName: body.mapName as MapDefKey }
+                : configured;
+        })();
     if (!mode || !mode.enabled) {
         return c.json<FindGameResponse>({ type: "error", error: "mode_disabled" });
     }

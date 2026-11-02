@@ -73,6 +73,7 @@ import {
     specOpsUnequipPerk,
     specOpsWaveBonus,
 } from "../../../shared/defs/maps/specOpsShop.ts";
+import { zombiePerkMachine } from "../../../shared/defs/maps/zombiePerks.ts";
 import { GameObjectDefs, MapObjectDefs } from "../../../shared/defs/register.ts";
 import type { ObstacleDef } from "../../../shared/defs/types/obstacle.ts";
 import { GameConfig, type InventoryItem, TeamMode } from "../../../shared/gameConfig.ts";
@@ -6068,6 +6069,33 @@ export class SpecOpsManager implements PracticeHost {
         }
         this.paths = undefined;
         this.game.playerBarn.addMapPing("ping_unlock", powerSwitch.pos);
+        return true;
+    }
+
+    tryBuyZombiePerk(player: Player, machine: Obstacle): boolean {
+        const offer = zombiePerkMachine(machine.type);
+        if (!this.zombieMode || !offer || !machine.button?.canUse) return false;
+        if (player.specOpsAi || player.dead || player.downed || player.disconnected) return false;
+        if (this.buyCooldown.get(player.__id)) return false;
+        if (
+            !collider.intersectCircle(
+                machine.collider,
+                player.pos,
+                machine.interactionRad + player.rad,
+            )
+        ) return false;
+        if (player.hasPerk(offer.perk) || player.perks.length >= SpecOpsMaxPerks) return false;
+        if (player.specOpsCash < offer.cost) return false;
+
+        const previousMaxHealth = player.maxHealth;
+        player.addPerk(offer.perk, false);
+        if (offer.perk === "zombie_juggernog") {
+            player.health += player.maxHealth - previousMaxHealth;
+        }
+        player.setDirty();
+        this.grantCash(player, -offer.cost);
+        this.buyCooldown.set(player.__id, 0.45);
+        this.game.playerBarn.addEmote("emote_loot", player.__id, offer.perk);
         return true;
     }
 

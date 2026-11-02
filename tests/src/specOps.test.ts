@@ -882,6 +882,7 @@ test("Spec Ops shop lists all guns, perks, support, and gear", () => {
             || type === "classless"
             || type === "assume_leadership"
             || type === "halloween_mystery"
+            || type.startsWith("zombie_")
             || type.startsWith("trick_")
             || type.startsWith("treat_")
         ) {

@@ -2927,3 +2927,14 @@ body.steam-deck .specops-start .specops-lb-sidebar {
   font-size: 9px;
   letter-spacing: 0.02em;
 }
+.specops-mode-map-select {
+  display: none;
+}
+
+.specops-mode-map-note {
+  margin: 5px 0 0;
+  color: rgba(225, 237, 247, 0.7);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-align: center;
+}

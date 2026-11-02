@@ -4,6 +4,7 @@ import type { LootDef } from "../../../shared/defs/gameObjectDefs.ts";
 import type { BoostDef, HealDef } from "./../../../shared/defs/gameObjects/gearDefs.ts";
 import type { GunDef } from "../../../shared/defs/gameObjects/gunDefs.ts";
 import type { MeleeDef } from "../../../shared/defs/gameObjects/meleeDefs.ts";
+import { PerkProperties } from "../../../shared/defs/gameObjects/perkDefs.ts";
 import type { RoleDef } from "../../../shared/defs/gameObjects/roleDefs.ts";
 import type { ThrowableDef } from "../../../shared/defs/gameObjects/throwableDefs.ts";
 import type { ObstacleDef } from "../../../shared/defs/mapObjectsTyping.ts";
@@ -2722,7 +2723,12 @@ export class PlayerBarn {
         const activePlayer = this.getPlayerById(activeId)!;
 
         const specOpsRules = map.specOpsMode && !map.getMapDef().gameMode.practiceMode;
-        const maxHealth = specOpsRules ? SpecOpsMaxHealth : GameConfig.player.health;
+        const maxHealth = specOpsRules
+            ? SpecOpsMaxHealth
+                + (activePlayer.m_hasPerk("zombie_juggernog")
+                    ? PerkProperties.zombie_juggernog.bonusHealth
+                    : 0)
+            : GameConfig.player.health;
 
         this.setPlayerStatus(activeId, {
             pos: v2.copy(activePlayer.m_netData.m_pos),

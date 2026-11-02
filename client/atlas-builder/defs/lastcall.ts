@@ -10,5 +10,10 @@ export const LastCallAtlas: AtlasDef = {
         "map/map-lastcall-pillar.svg",
         "map/map-lastcall-car.svg",
         "map/map-lastcall-dumpster.svg",
+        "map/map-zombie-perk-juggernog.png",
+        "map/map-zombie-perk-speed-cola.png",
+        "map/map-zombie-perk-quick-revive.png",
+        "map/map-zombie-perk-stamin-up.png",
+        "map/map-zombie-perk-double-tap.png",
     ],
 };

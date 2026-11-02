@@ -20,6 +20,8 @@ export const zFindGameBody = z.object({
     reclaimPlayerId: z.number().int().positive().optional(),
     /** Practice vs bots on this map (practice_* key). Always a new private match. */
     practiceMap: z.string().max(32).optional(),
+    /** Fireteam/Zombies map selected by the home screen. */
+    mapName: z.enum(["specops", "specops_complex"]).optional(),
 });
 
 export type FindGameBody = z.infer<typeof zFindGameBody>;

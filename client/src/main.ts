@@ -80,6 +80,8 @@ export class Application {
     playMode1Btn = $("#btn-start-mode-1");
     playMode2Btn = $("#btn-start-mode-2");
     deployBtn = $("#btn-specops-deploy");
+    gameModeSelect = $<HTMLSelectElement>("#game-mode-select");
+    createGameModeSelect = $<HTMLSelectElement>("#create-game-mode-select");
     muteBtns = $(".btn-sound-toggle");
     aimLineBtn = $("#btn-game-aim-line");
     masterSliders = $<HTMLInputElement>(".sl-master-volume");
@@ -250,15 +252,39 @@ export class Application {
                     return false;
                 });
             }
+            const practiceSelect = $<HTMLSelectElement>("#practice-map-select");
+            const updateGameModeFields = () => {
+                const mode = String(this.gameModeSelect.val() || "fireteam");
+                const practice = mode === "practice";
+                practiceSelect.toggle(practice);
+                $("#home-team-size-field").toggle(!practice);
+                $("#selected-mode-map")
+                    .toggle(!practice)
+                    .text(mode === "zombies" ? "Zombies · Last Call" : "Fireteam · Neon Complex");
+            };
+            this.gameModeSelect.on("change", updateGameModeFields);
+            updateGameModeFields();
+
             this.deployBtn.on("click", () => {
                 SDK.requestMidGameAd(() => {
-                    this.tryQuickStartGame(this.selectedGameModeIdx);
+                    const mode = String(this.gameModeSelect.val() || "fireteam");
+                    if (mode === "practice") {
+                        this.tryQuickStartGame(
+                            0,
+                            String(practiceSelect.val() || PracticeDefaultMap),
+                        );
+                    } else {
+                        this.tryQuickStartGame(
+                            this.selectedGameModeIdx,
+                            undefined,
+                            mode === "zombies" ? "specops_complex" : "specops",
+                        );
+                    }
                 });
                 return false;
             });
 
             // Practice vs bots: map picker + start button (always solo, private).
-            const practiceSelect = $<HTMLSelectElement>("#practice-map-select");
             for (const practiceMap of PracticeMapPool) {
                 practiceSelect.append($("<option>").val(practiceMap.key).text(practiceMap.label));
             }
@@ -277,10 +303,6 @@ export class Application {
                 } catch {
                     // Not remembered; harmless.
                 }
-            });
-            $("#btn-practice").on("click", () => {
-                this.tryQuickStartGame(0, String(practiceSelect.val() || PracticeDefaultMap));
-                return false;
             });
 
             this.menuLeaderboard = new MenuLeaderboard(this.localization);
@@ -370,10 +392,23 @@ export class Application {
                 }
             });
             $("#btn-create-team").on("click", () => {
+                const mode = String(this.createGameModeSelect.val() || "fireteam");
+                if (mode === "practice") {
+                    this.tryQuickStartGame(
+                        0,
+                        String($("#practice-map-select").val() || PracticeDefaultMap),
+                    );
+                    return false;
+                }
                 // Carry start-menu Solo/Duo/Squad + selected server into the lobby.
                 this.config.set("gameModeIdx", this.selectedGameModeIdx);
+                this.config.set(
+                    "teamMapName",
+                    mode === "zombies" ? "specops_complex" : "specops",
+                );
                 this.setConfigFromDOM();
                 this.tryJoinTeam(true);
+                return false;
             });
             $("#btn-team-mobile-link-join").on("click", () => {
                 let t = $<HTMLInputElement>("#team-link-input").val()!.trim()!;
@@ -988,7 +1023,7 @@ export class Application {
             region,
             zones,
             playerCount: 1,
-            //does not turn off autofill (allow new player to join from browse)
+            // does not turn off autofill (allow new player to join from browse)
             autoFill: true,
             gameModeIdx: this.quickPlayPendingModeIdx,
             gameId: game.gameId,
@@ -1003,7 +1038,11 @@ export class Application {
         });
     }
 
-    tryQuickStartGame(gameModeIdx: number, practiceMap?: string) {
+    tryQuickStartGame(
+        gameModeIdx: number,
+        practiceMap?: string,
+        mapName?: "specops" | "specops_complex",
+    ) {
         if (this.quickPlayPendingModeIdx === -1) {
             requestSteamDeckFullscreen();
             // Update UI to display a spinner on the play button
@@ -1048,6 +1087,7 @@ export class Application {
                 autoFill: !practiceMap,
                 gameModeIdx,
                 practiceMap,
+                mapName,
                 difficulty: parseSpecOpsDifficulty(
                     this.config.get("teamDifficulty")
                         || this.siteInfo.info.specOpsDifficulty

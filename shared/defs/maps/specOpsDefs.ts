@@ -726,8 +726,8 @@ export function specOpsMapMatches(requested: string, actual: string): boolean {
 /** Human-readable biome label for team menu / server browser. */
 export function specOpsMapDisplayName(mapKey: string): string {
     if (mapKey === "random") return "Random";
-    if (mapKey === "specops") return "Neon Complex";
-    if (mapKey === "specops_complex") return "Last Call";
+    if (mapKey === "specops") return "Fireteam";
+    if (mapKey === "specops_complex") return "Zombies — Last Call";
     if (mapKey === "specops_outdoor") return "Outdoor Legacy";
     const suffix = mapKey.replace(/^specops_/, "");
     if (!suffix || suffix === mapKey) return mapKey;

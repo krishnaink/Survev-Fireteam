@@ -1,4 +1,5 @@
 import { v2, type Vec2 } from "../../utils/v2.ts";
+import type { ZombiePerkMachineType } from "./zombiePerks.ts";
 
 /**
  * Last Call (Zombie Survival map `specops_complex`): one walled motel +
@@ -76,7 +77,6 @@ export const LastCallBaseZones: LastCallZone[] = [
     { id: "office", name: "Manager's Office", rect: { x0: 110, y0: 0, x1: 145, y1: 25 } },
     { id: "garage", name: "Parking Garage", rect: { x0: 115, y0: 25, x1: 145, y1: 115 } },
 ];
-
 
 /** Motel rooms 101–104 inside the wing (walls only, same zone). */
 const BaseMotelRooms: LastCallRect[] = [
@@ -186,18 +186,16 @@ const BasePlayerSpawns: Vec2[] = [
     v2.create(76, 106),
 ];
 
-export type LastCallStationType = "weapon" | "gear" | "armor" | "support" | "perk";
-
-const BaseStations: Array<{ type: LastCallStationType; pos: Vec2; zone: LastCallZoneId }> = [
-    { type: "weapon", pos: v2.create(81, 110), zone: "lobby" },
-    { type: "gear", pos: v2.create(92.5, 110.5), zone: "storage" },
-    { type: "weapon", pos: v2.create(46, 95), zone: "diner" },
-    { type: "armor", pos: v2.create(50, 110), zone: "diner" },
-    { type: "perk", pos: v2.create(4, 57), zone: "wing" },
-    { type: "perk", pos: v2.create(50, 21), zone: "club" },
-    { type: "weapon", pos: v2.create(104, 6), zone: "club" },
-    { type: "weapon", pos: v2.create(110, 57), zone: "alley" },
-    { type: "support", pos: v2.create(139, 63), zone: "garage" },
+const BasePerkMachines: Array<{
+    type: ZombiePerkMachineType;
+    pos: Vec2;
+    zone: LastCallZoneId;
+}> = [
+    { type: "zombie_perk_machine_quick_revive", pos: v2.create(81, 110), zone: "lobby" },
+    { type: "zombie_perk_machine_stamin_up", pos: v2.create(50, 110), zone: "diner" },
+    { type: "zombie_perk_machine_speed_cola", pos: v2.create(4, 57), zone: "wing" },
+    { type: "zombie_perk_machine_double_tap", pos: v2.create(50, 21), zone: "club" },
+    { type: "zombie_perk_machine_juggernog", pos: v2.create(139, 63), zone: "garage" },
 ];
 
 /**
@@ -346,7 +344,10 @@ export const LastCallEntries: LastCallEntry[] = BaseEntries.map((e) => ({
     window: e.window && scaleOpening(e.window),
 }));
 export const LastCallPlayerSpawns: Vec2[] = BasePlayerSpawns.map(lastCallPlace);
-export const LastCallStations = BaseStations.map((s) => ({ ...s, pos: lastCallPlace(s.pos) }));
+export const LastCallPerkMachines = BasePerkMachines.map((machine) => ({
+    ...machine,
+    pos: lastCallPlace(machine.pos),
+}));
 export const LastCallBoxSpots = BaseBoxSpots.map((b) => ({ ...b, pos: lastCallPlace(b.pos) }));
 export const LastCallPowerSwitchPos = lastCallPlace(BasePowerSwitchPos);
 export const LastCallBenchPos = lastCallPlace(BaseBenchPos);

@@ -1,17 +1,18 @@
 import type { AABB } from "../utils/coldet.ts";
 import { collider } from "../utils/collider.ts";
 import { v2, type Vec2 } from "../utils/v2.ts";
+import type { BuildingDef, MapObjectDef, ObstacleDef } from "./mapObjectsTyping.ts";
 import {
     LastCallBenchPos,
     LastCallBoxSpots,
     LastCallBuildingType,
     LastCallDoors,
     LastCallEntries,
+    LastCallPerkMachines,
     LastCallPowerSwitchPos,
     LastCallProps,
     LastCallScale,
     lastCallShutterType,
-    LastCallStations,
     lastCallToLocal,
     lastCallWallLengths,
     lastCallWalls,
@@ -20,7 +21,6 @@ import {
     type LastCallZoneId,
     LastCallZones,
 } from "./maps/lastCallLayout.ts";
-import type { BuildingDef, MapObjectDef, ObstacleDef } from "./mapObjectsTyping.ts";
 
 /**
  * Map objects for Last Call (see maps/lastCallLayout.ts).
@@ -189,7 +189,7 @@ function buildingMapObjects(): BuildingDef["mapObjects"] {
     }
 
     for (const p of LastCallProps) add(p.type, at(p.pos), p.ori ?? 0);
-    for (const s of LastCallStations) add(`specops_station_${s.type}`, at(s.pos));
+    for (const machine of LastCallPerkMachines) add(machine.type, at(machine.pos));
     // Zombies climb in at these (boarded windows are painted on the walls).
     for (const e of LastCallEntries) add("zombie_spawn_point", at(e.pos));
 
@@ -285,6 +285,33 @@ function lastCallDefs(): Record<string, MapObjectDef> {
         metal: true,
         height: 1,
     });
+
+    const perkMachine = (sprite: string, mapColor: number): ObstacleDef => ({
+        ...lastCallSolidBlock({
+            extents: v2.create(2.15, 1.35),
+            height: 1,
+            sprite,
+            spriteScale: 1,
+            metal: true,
+            zIdx: 10,
+        }),
+        map: { display: true, color: mapColor, scale: 1.15 },
+        button: {
+            interactionRad: 2.5,
+            interactionText: "game-use",
+            useOnce: false,
+            useType: "",
+            useDelay: 0,
+            useDir: v2.create(0, -1),
+            useImg: sprite,
+            sound: { on: "perk_pickup_01", off: "perk_pickup_01" },
+        },
+    });
+    defs.zombie_perk_machine_juggernog = perkMachine("map-zombie-perk-juggernog.img", 0xb52b32);
+    defs.zombie_perk_machine_speed_cola = perkMachine("map-zombie-perk-speed-cola.img", 0x2c5d91);
+    defs.zombie_perk_machine_quick_revive = perkMachine("map-zombie-perk-quick-revive.img", 0x55c8d0);
+    defs.zombie_perk_machine_stamin_up = perkMachine("map-zombie-perk-stamin-up.img", 0x72932e);
+    defs.zombie_perk_machine_double_tap = perkMachine("map-zombie-perk-double-tap.img", 0xcf6a24);
 
     defs[LastCallBuildingType] = complexDef();
     return defs;

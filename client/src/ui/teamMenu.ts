@@ -845,11 +845,7 @@ export class TeamMenu {
 
     ensureMapSelectOptions() {
         if (this.mapSelectPopulated) return;
-        const randomLabel = this.localization.translate("index-specops-map-random");
         this.mapSelect.empty();
-        this.mapSelect.append(
-            $("<option/>", { value: "random", text: randomLabel }),
-        );
         for (const key of SpecOpsMapPool) {
             this.mapSelect.append(
                 $("<option/>", { value: key, text: specOpsMapDisplayName(key) }),
@@ -1011,7 +1007,9 @@ export class TeamMenu {
             const wasApplying = this.applyingServerState;
             this.applyingServerState = true;
             try {
-                const mapName = this.roomData.mapName || "random";
+                const mapName = this.roomData.mapName === "specops_complex"
+                    ? "specops_complex"
+                    : "specops";
                 this.mapSelect.val(mapName);
                 this.mapSelect.prop("disabled", !this.isLeader);
 

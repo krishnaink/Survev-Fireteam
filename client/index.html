@@ -4,25 +4,25 @@
     %VITE_TURNSTILE_SCRIPT%
     <!-- Meta Properties -->
     <meta charset="UTF-8">
-    <title>Survev — Zombie Survival</title>
+    <title>Zurvev</title>
     <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <link rel="manifest" href="manifest.json">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Survev Fireteam">
+    <meta name="apple-mobile-web-app-title" content="Zurvev">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="application-name" content="Survev Fireteam">
-    <meta name="description" content="Survev Zombie Survival — fight the horde, earn cash, buy gear, and survive escalating rounds.">
-    <meta property="og:description" content="Survev Zombie Survival — fight the horde, earn cash, buy gear, and survive escalating rounds.">
+    <meta name="application-name" content="Zurvev">
+    <meta name="description" content="Zurvev — Fireteam, Zombies, and bot practice.">
+    <meta property="og:description" content="Zurvev — Fireteam, Zombies, and bot practice.">
     <meta name="keywords" content="survev fireteam, spec ops, wave survival, fireteam shooter, squad, survev, co-op shooter, browser game">
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Survev — Zombie Survival">
+    <meta property="og:title" content="Zurvev">
     <meta property="og:url" content="https://fireteam.bbyte.app/">
-    <meta property="og:site_name" content="Survev Fireteam">
+    <meta property="og:site_name" content="Zurvev">
     <meta content="https://fireteam.bbyte.app/img/title.png" property="og:image">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Survev — Zombie Survival">
-    <meta name="twitter:description" content="Fight the zombie horde, buy gear, and survive escalating rounds.">
+    <meta name="twitter:title" content="Zurvev">
+    <meta name="twitter:description" content="Fireteam, Zombies, and bot practice.">
     <link rel="canonical" href="https://fireteam.bbyte.app/" />
     <link rel="apple-touch-icon-precomposed" href="img/icon_app.png">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
@@ -995,8 +995,7 @@
                     <div id="server-warning"></div>
                     <div class="specops-logo-lockup">
                       <div class="specops-logo-box">
-                        <span class="specops-logo-title">SURVEV</span>
-                        <span class="specops-logo-mode" data-l10n="index-fireteam-brand">ZOMBIES</span>
+                        <span class="specops-logo-title">ZURVEV</span>
                       </div>
                     </div>
                   </div>
@@ -1064,13 +1063,23 @@
               </div>
               <div class="specops-panel-content play-button-container">
                 <div class="specops-field specops-field--center">
-                  <span class="specops-field-label" data-l10n="index-specops-callsign">Callsign</span>
+                  <span class="specops-field-label" data-l10n="index-specops-callsign">Name</span>
                   <div id="player-options" class="specops-field-row specops-field-row--center">
                     <input type="text" class="menu-option player-name-input specops-input" tabindex="0" placeholder="Enter your name" data-l10n="index-enter-name-here" id="player-name-input-solo" maxlength="16" />
                     <a class="btn-darken menu-option player-options-btn specops-loadout-btn" id="btn-customize" title="Loadout"></a>
                   </div>
                 </div>
                 <div class="specops-field specops-field--center">
+                  <label class="specops-field-label" for="game-mode-select" data-l10n="index-select-game-mode">Select Game Mode</label>
+                  <select id="game-mode-select" class="menu-option specops-select">
+                    <option value="fireteam" data-l10n="index-mode-fireteam">Fireteam</option>
+                    <option value="zombies" data-l10n="index-mode-zombies">Zombies — Last Call</option>
+                    <option value="practice" data-l10n="index-mode-practice">Practice Mode (Bots)</option>
+                  </select>
+                  <select id="practice-map-select" class="menu-option specops-select specops-mode-map-select" title="Practice map"></select>
+                  <p id="selected-mode-map" class="specops-mode-map-note">Fireteam · Neon Complex</p>
+                </div>
+                <div id="home-team-size-field" class="specops-field specops-field--center">
                   <span class="specops-field-label" data-l10n="index-specops-fireteam">Fireteam size</span>
                   <div class="specops-mode-switch" role="tablist">
                     <a class="specops-mode-tab is-active menu-option" id="btn-start-mode-0" data-l10n="index-solo">Solo</a>
@@ -1090,14 +1099,12 @@
                 </a>
                 <a class="specops-secondary-btn btn-darken menu-option" id="btn-browse-games" data-l10n="index-browse-games">Browse Games</a>
                 <div class="specops-field specops-field--center">
-                  <span class="specops-field-label">Practice Mode (Bots)</span>
-                  <div class="specops-mode-switch specops-mode-switch--pair">
-                    <select id="practice-map-select" class="specops-secondary-btn btn-darken menu-option" title="Practice map"></select>
-                    <a id="btn-practice" class="specops-mode-tab btn-darken menu-option">Practice</a>
-                  </div>
-                </div>
-                <div class="specops-field specops-field--center">
                   <span class="specops-field-label" data-l10n="index-create-game">Create a game</span>
+                  <select id="create-game-mode-select" class="menu-option specops-select">
+                    <option value="fireteam" data-l10n="index-mode-fireteam">Fireteam</option>
+                    <option value="zombies" data-l10n="index-mode-zombies">Zombies — Last Call</option>
+                    <option value="practice" data-l10n="index-mode-practice">Practice Mode (Bots)</option>
+                  </select>
                   <div class="specops-mode-switch specops-mode-switch--pair specops-create-team-switch">
                     <a id="btn-create-team" class="specops-mode-tab btn-darken menu-option" data-l10n="index-create-team">Create Game</a>
                     <a id="btn-join-team" class="specops-mode-tab btn-darken menu-option" data-l10n="index-join-team">Join Game</a>
@@ -1179,9 +1186,8 @@
                           </select>
                         </div>
                         <div class="specops-team-field">
-                          <label class="specops-team-field-label" for="team-map-select" data-l10n="index-specops-map">Map</label>
+                          <label class="specops-team-field-label" for="team-map-select" data-l10n="index-select-game-mode">Game Mode</label>
                           <select id="team-map-select" class="server-select menu-option specops-select specops-team-select">
-                            <option value="random" data-l10n="index-specops-map-random">Random</option>
                           </select>
                         </div>
                         <div class="specops-team-field">
@@ -1253,7 +1259,7 @@
               <div class="specops-lb-sidebar-inner">
                 <header class="specops-lb-header">
                   <h2 class="specops-lb-title" data-l10n="index-leaderboards">Leaderboards</h2>
-                  <p class="specops-lb-subtitle" data-l10n="index-leaderboard-live-subtitle">Top 100 · rounds survived</p>
+                  <p class="specops-lb-subtitle" data-l10n="index-leaderboard-live-subtitle">Fireteam · Top 100 · rounds survived</p>
                 </header>
                 <div class="specops-lb-tabs" role="tablist" aria-label="Leaderboard mode">
                   <a class="specops-lb-tab is-active" data-team="solo" href="#" role="tab" data-l10n="index-leaderboard-solo">Solo</a>

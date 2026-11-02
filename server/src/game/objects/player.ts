@@ -771,7 +771,10 @@ export class Player extends BaseGameObject {
 
     get maxHealth(): number {
         if (this.specOpsHumanRules) {
-            return SpecOpsMaxHealth;
+            return SpecOpsMaxHealth
+                + (this.hasPerk("zombie_juggernog")
+                    ? PerkProperties.zombie_juggernog.bonusHealth
+                    : 0);
         }
         if (this.game.map.specOpsMode && this.specOpsKind === "enemy") {
             return SpecOpsEnemyMaxHealth;
@@ -1398,6 +1401,9 @@ export class Player extends BaseGameObject {
                 break;
             case "firepower":
                 this.weaponManager.clampGunsAmmo();
+                break;
+            case "zombie_juggernog":
+                this.health = math.min(this.health, this.maxHealth);
                 break;
             case "aoe_heal": {
                 util.removeFrom(this.game.playerBarn.aoeHealPlayers, this);
@@ -5400,6 +5406,10 @@ export class Player extends BaseGameObject {
 
         if (this.hasteType != GameConfig.HasteType.None) {
             this.speed += GameConfig.player.hasteSpeedBonus;
+        }
+
+        if (this.hasPerk("zombie_stamin_up")) {
+            this.speed += PerkProperties.zombie_stamin_up.speedBoost;
         }
 
         if (this.frozen) {
