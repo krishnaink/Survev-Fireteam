@@ -128,18 +128,15 @@ test("Spec Ops starts with one operator and no gas", () => {
     expect(game.modeManager.aliveCount()).toBe(1);
 });
 
-test("Spec Ops rotates through distinct biome maps", () => {
-    expect(SpecOpsMapPool.length).toBeGreaterThan(4);
+test("Zombie Survival defaults to the indoor map while legacy biomes remain addressable", () => {
+    expect(SpecOpsMapPool).toEqual(["specops"]);
     expect(pickSpecOpsMapName("test_specops")).toBe("test_specops");
+    expect(pickSpecOpsMapName("specops")).toBe("specops");
+    expect(pickSpecOpsMapName("random")).toBe("specops");
     expect(pickSpecOpsMapName("specops_desert")).toBe("specops_desert");
     expect(isSpecOpsMapName("specops_woods")).toBe(true);
+    expect(isSpecOpsMapName("specops_outdoor")).toBe(true);
     expect(isSpecOpsMapName("main")).toBe(false);
-
-    const names = new Set<string>();
-    for (let i = 0; i < 40; i++) {
-        names.add(pickSpecOpsMapName("specops"));
-    }
-    expect(names.size).toBeGreaterThan(1);
 
     for (const key of SpecOpsMapPool) {
         const def = MapDefs[key];

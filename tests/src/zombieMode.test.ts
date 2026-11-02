@@ -19,7 +19,28 @@ test("Live survival maps expose Zombie Survival while keeping Spec Ops internals
     expect(MapDefs.specops.desc.name).toBe("Zombie Survival");
     expect(MapDefs.specops.gameMode.zombieMode).toBe(true);
     expect(MapDefs.specops.gameMode.specOpsMode).toBe(true);
+    expect(MapDefs.specops.gameMode.indoorMode).toBe(true);
+    expect(MapDefs.specops_outdoor.gameMode.indoorMode).not.toBe(true);
     expect(MapDefs.practice_specops.gameMode.zombieMode).toBe(false);
+});
+
+test("Zombie Survival generates an enclosed nine-room arena with working doors", () => {
+    const game = createGame(TeamMode.Solo, "specops");
+    const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+
+    expect(game.map.width).toBe(128);
+    expect(game.map.height).toBe(112);
+    expect(game.map.buildings.some((building) => building.type === "zombie_indoor_arena_01"))
+        .toBe(true);
+    const doors = game.map.obstacles.filter((obstacle) => obstacle.type === "zombie_door_01");
+    expect(doors).toHaveLength(8);
+    expect(doors.every((door) => door.isDoor && door.door?.canUse)).toBe(true);
+    expect(game.map.obstacles.filter((obstacle) => obstacle.type.startsWith("specops_station_")))
+        .toHaveLength(5);
+    expect(operator.indoors).toBe(true);
+    expect(Math.abs(operator.pos.x - game.map.center.x)).toBeLessThan(8);
+    expect(Math.abs(operator.pos.y - game.map.center.y)).toBeLessThan(8);
 });
 
 test("Zombie wave one spawns unarmed melee walkers with cash bounties", () => {
@@ -43,6 +64,7 @@ test("Zombie wave one spawns unarmed melee walkers with cash bounties", () => {
     ).toBe(true);
     expect(zombies.every((zombie) => zombie.specOpsBounty === 100)).toBe(true);
     expect(zombies.every((zombie) => zombie.health === 42)).toBe(true);
+    expect(zombies.every((zombie) => zombie.indoors)).toBe(true);
 
     const start = v2.copy(zombies[0].pos);
     game.step(0.5);

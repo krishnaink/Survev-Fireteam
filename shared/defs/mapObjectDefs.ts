@@ -1957,6 +1957,136 @@ function createWall<T extends ObstacleDef>(e: Partial<T>): T {
     }
     return util.mergeDeep(t, MaterialDefs[material], e || {});
 }
+
+/**
+ * A compact, single-floor survival arena assembled from existing Survev wall,
+ * door and furniture sprites. The two long partitions and two cross walls form
+ * nine connected rooms around a central combat lane.
+ */
+function createZombieIndoorArena<T extends BuildingDef>(e: Partial<T>): T {
+    const mapObjects: BuildingDef["mapObjects"] = [];
+    const add = (type: string, x: number, y: number, ori = 0) => {
+        mapObjects.push({ type, pos: v2.create(x, y), scale: 1, ori });
+    };
+
+    // Enclosed 100 x 80 shell.
+    for (let x = -45; x <= 45; x += 10) {
+        add("zombie_wall_outer_10", x, -40, 1);
+        add("zombie_wall_outer_10", x, 40, 1);
+    }
+    for (let y = -35; y <= 35; y += 10) {
+        add("zombie_wall_outer_10", -50, y);
+        add("zombie_wall_outer_10", 50, y);
+    }
+
+    // Two vertical room dividers with a door into the central lane.
+    for (const x of [-18, 18]) {
+        for (const y of [-34, -24, -14, 7, 17, 27]) {
+            add("zombie_wall_room_10", x, y);
+        }
+        add("zombie_wall_room_7", x, -5.5);
+        add("zombie_wall_room_7", x, 35.5);
+        add("zombie_door_01", x, -2);
+    }
+
+    // Cross walls create three rooms per column. Every room has a working door.
+    for (const y of [-14, 14]) {
+        add("zombie_wall_room_13", -42.5, y, 1);
+        add("zombie_wall_room_13", 42.5, y, 1);
+        for (const x of [-27, -17, -7, 7, 17, 27]) {
+            add("zombie_wall_room_10", x, y, 1);
+        }
+        for (const x of [-36, -2, 32]) {
+            add("zombie_door_01", x, y, 3);
+        }
+    }
+
+    // Sparse props give each room a readable purpose without blocking traffic.
+    for (const [type, x, y, ori] of [
+        ["table_04", -35, -27, 0],
+        ["couch_03", 34, -27, 1],
+        ["table_05", -34, 27, 0],
+        ["chair_02", 34, 27, 2],
+        ["barrel_01", -10, -28, 0],
+        ["barrel_01", 10, 28, 0],
+    ] as const) {
+        add(type, x, y, ori);
+    }
+
+    const arena: BuildingDef = {
+        type: "building",
+        ori: 0,
+        terrain: { grass: true, beach: false },
+        map: {
+            display: true,
+            shapes: [
+                {
+                    collider: collider.createAabbExtents(
+                        v2.create(0, 0),
+                        v2.create(50, 40),
+                    ),
+                    color: 0x171525,
+                },
+            ],
+        },
+        mapObstacleBounds: [
+            collider.createAabbExtents(v2.create(0, 0), v2.create(51, 41)),
+        ],
+        mapGroundPatches: [
+            {
+                bound: collider.createAabbExtents(
+                    v2.create(0, 0),
+                    v2.create(49.5, 39.5),
+                ),
+                color: 0x171525,
+                order: 2,
+            },
+        ],
+        floor: {
+            surfaces: [
+                {
+                    type: "stone",
+                    collision: [
+                        collider.createAabbExtents(
+                            v2.create(0, 0),
+                            v2.create(49.5, 39.5),
+                        ),
+                    ],
+                    data: { isBright: false },
+                },
+            ],
+            imgs: [
+                {
+                    sprite: "",
+                    scale: 1,
+                    alpha: 1,
+                    tint: 0x171525,
+                },
+            ],
+        },
+        ceiling: {
+            zoomRegions: [
+                {
+                    zoomIn: collider.createAabbExtents(
+                        v2.create(0, 0),
+                        v2.create(49, 39),
+                    ),
+                },
+            ],
+            vision: { dist: 7, width: 3.5, linger: 0.2, fadeRate: 10 },
+            imgs: [
+                {
+                    sprite: "",
+                    scale: 1,
+                    alpha: 1,
+                    tint: 0x090812,
+                },
+            ],
+        },
+        mapObjects,
+    };
+    return util.mergeDeep(arena, e || {}) as T;
+}
 function createWheel<T extends ObstacleDef>(e: Partial<T>): T {
     const t = {
         type: "obstacle",
@@ -36146,6 +36276,35 @@ export const RawMapObjectDefs: Record<string, MapObjectDef> = {
             zIdx: 4,
         },
     },
+    zombie_wall_outer_10: createWall({
+        material: "metal",
+        extents: v2.create(0.5, 5),
+        img: wallImg("map-wall-10-rounded.img", 0x1b6a82),
+    }),
+    zombie_wall_room_7: createWall({
+        material: "metal",
+        extents: v2.create(0.5, 3.5),
+        img: wallImg("map-wall-07-rounded.img", 0x7d1b67),
+    }),
+    zombie_wall_room_10: createWall({
+        material: "metal",
+        extents: v2.create(0.5, 5),
+        img: wallImg("map-wall-10-rounded.img", 0x7d1b67),
+    }),
+    zombie_wall_room_13: createWall({
+        material: "metal",
+        extents: v2.create(0.5, 6.5),
+        img: wallImg("map-wall-13-rounded.img", 0x7d1b67),
+    }),
+    zombie_door_01: createLabDoor({
+        img: { tint: 0x00d9ff },
+        door: {
+            autoOpen: true,
+            autoClose: true,
+            autoCloseDelay: 1.25,
+        },
+    } as unknown as Partial<ObstacleDef>),
+    zombie_indoor_arena_01: createZombieIndoorArena({}),
     specops_station_weapon: createCrate({
         destructible: false,
         health: 9999,

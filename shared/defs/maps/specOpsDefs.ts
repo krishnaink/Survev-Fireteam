@@ -689,8 +689,11 @@ export const SpecOpsTurkey = specOpsVariant({
     /* STRIP_FROM_PROD_CLIENT:END */
 });
 
-export const SpecOpsMapPool = [
-    "specops",
+/** Player-facing survival maps. Outdoor biome maps remain available internally. */
+export const SpecOpsMapPool = ["specops"] as const;
+
+export const LegacySpecOpsMapPool = [
+    "specops_outdoor",
     "specops_woods",
     "specops_desert",
     "specops_snow",
@@ -702,17 +705,19 @@ export const SpecOpsMapPool = [
     "specops_turkey",
 ] as const;
 
+const AllSpecOpsMapPool = [...SpecOpsMapPool, ...LegacySpecOpsMapPool] as const;
+
 export type SpecOpsMapKey = (typeof SpecOpsMapPool)[number];
 
 export function isSpecOpsMapName(name: string): boolean {
-    return name === "test_specops" || (SpecOpsMapPool as readonly string[]).includes(name);
+    return name === "test_specops" || (AllSpecOpsMapPool as readonly string[]).includes(name);
 }
 
 /** True when `requested` is random/unspecified, or matches the running Spec Ops biome. */
 export function specOpsMapMatches(requested: string, actual: string): boolean {
     if (!isSpecOpsMapName(actual)) return false;
     if (requested === "specops" || requested === "random") return true;
-    if ((SpecOpsMapPool as readonly string[]).includes(requested)) {
+    if ((AllSpecOpsMapPool as readonly string[]).includes(requested)) {
         return actual === requested;
     }
     return true;
@@ -721,19 +726,20 @@ export function specOpsMapMatches(requested: string, actual: string): boolean {
 /** Human-readable biome label for team menu / server browser. */
 export function specOpsMapDisplayName(mapKey: string): string {
     if (mapKey === "random") return "Random";
-    if (mapKey === "specops") return "Main";
+    if (mapKey === "specops") return "Neon Complex";
+    if (mapKey === "specops_outdoor") return "Outdoor Legacy";
     const suffix = mapKey.replace(/^specops_/, "");
     if (!suffix || suffix === mapKey) return mapKey;
     return suffix.charAt(0).toUpperCase() + suffix.slice(1);
 }
 
-/** Live Spec Ops: random rotates biomes; a specific pool key plays that biome. */
+/** Normal and random survival matchmaking both enter the indoor arena. */
 export function pickSpecOpsMapName(requested: string): string {
     if (requested === "test_specops" || requested === SpecOpsBotDebugMapName) return requested;
     if (requested === "specops" || requested === "random") {
-        return SpecOpsMapPool[util.randomInt(0, SpecOpsMapPool.length - 1)];
+        return "specops";
     }
-    if ((SpecOpsMapPool as readonly string[]).includes(requested)) {
+    if ((AllSpecOpsMapPool as readonly string[]).includes(requested)) {
         return requested;
     }
     return requested;

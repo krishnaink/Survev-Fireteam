@@ -46,6 +46,7 @@ import { Woods } from "./maps/woodsDefs.ts";
 import { WoodsSnow } from "./maps/woodsSnowDefs.ts";
 import { WoodsSpring } from "./maps/woodsSpringDefs.ts";
 import { WoodsSummer } from "./maps/woodsSummerDefs.ts";
+import { ZombieIndoor } from "./maps/zombieIndoorDefs.ts";
 
 export type Atlas =
     | "gradient"
@@ -83,7 +84,8 @@ const _MapDefs = {
     turkey: Turkey,
     birthday: Birthday,
     beach: Beach,
-    specops: SpecOps,
+    specops: ZombieIndoor,
+    specops_outdoor: SpecOps,
     specops_woods: SpecOpsWoods,
     specops_desert: SpecOpsDesert,
     specops_snow: SpecOpsSnow,
@@ -178,6 +180,8 @@ export interface MapDef {
         specOpsMode?: boolean;
         /** Player-facing Zombie Survival rules built on the Spec Ops engine. */
         zombieMode?: boolean;
+        /** Restricts survival combatants and operator spawns to building interiors. */
+        indoorMode?: boolean;
         /** Pauses wave progression for bot spawn debugging. */
         specOpsBotArena?: boolean;
         /** Practice: 1 player vs configurable respawning bots; no waves or shop. */

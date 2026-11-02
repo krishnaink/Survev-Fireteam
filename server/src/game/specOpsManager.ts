@@ -144,6 +144,9 @@ function stationPlanForBuilding(type: string):
     >
     | undefined
 {
+    if (type === "zombie_indoor_arena_01") {
+        return { size: "large", maxIndoor: 5, maxOutdoor: 0, maxTotal: 5 };
+    }
     if (
         type.includes("outhouse")
         || type.includes("container")
@@ -6169,6 +6172,12 @@ export class SpecOpsManager implements PracticeHost {
         }
 
         if (!this.operatorSpawn) {
+            if (this.zombieMode && this.game.map.mapDef.gameMode.indoorMode) {
+                const indoorSpawn = this.pickSpawnNear(this.game.map.center, 0, 6);
+                v2.set(player.pos, indoorSpawn);
+                player.game.grid.updateObject(player);
+                player.setDirty();
+            }
             this.operatorSpawn = v2.copy(player.pos);
         } else {
             const nearby = this.pickSpawnNear(this.operatorSpawn, 4, 10);
@@ -6893,12 +6902,33 @@ export class SpecOpsManager implements PracticeHost {
         humans: Player[],
     ): boolean {
         this.game.map.clampToMapBounds(pos, 10);
-        if (!this.game.map.canPlayerSpawn(pos)) return false;
+        if (!this.canCombatantSpawn(pos)) return false;
         if (v2.distance(pos, origin) < minRad) return false;
         if (this.spawnTooClose(pos, host, humans, minRad)) return false;
         for (const brain of this.brains.values()) {
             if (brain.kind !== "enemy" || brain.player.dead) continue;
             if (v2.distance(pos, brain.player.pos) < 4) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Normal map spawning rejects building floor and zoom regions. Indoor
+     * survival deliberately accepts those regions while still rejecting walls,
+     * closed doors, props and water.
+     */
+    private canCombatantSpawn(pos: Vec2): boolean {
+        const map = this.game.map;
+        if (!map.mapDef.gameMode.indoorMode) return map.canPlayerSpawn(pos);
+        if (map.isOnWater(pos, 0) || !buildingContaining(this.game, pos, 0)) return false;
+
+        const circle = collider.createCircle(pos, GameConfig.player.radius);
+        const objs = this.game.grid.intersectCollider(circle);
+        for (let i = 0; i < objs.length; i++) {
+            const obj = objs[i];
+            if (obj.__type !== ObjectType.Obstacle || !util.sameLayer(obj.layer, 0)) continue;
+            const obstacle = obj as Obstacle;
+            if (obstacle.collidable && coldet.test(circle, obstacle.collider)) return false;
         }
         return true;
     }
@@ -6909,9 +6939,25 @@ export class SpecOpsManager implements PracticeHost {
             const pos = v2.add(origin, util.randomPointInCircle(maxRad));
             const dist = v2.distance(pos, origin);
             map.clampToMapBounds(pos, 8);
-            if (dist >= minRad && map.canPlayerSpawn(pos)) {
+            if (dist >= minRad && this.canCombatantSpawn(pos)) {
                 return pos;
             }
+        }
+        if (map.mapDef.gameMode.indoorMode) {
+            const fallback = v2.copy(origin);
+            map.clampToMapBounds(fallback, 8);
+            if (this.canCombatantSpawn(fallback)) return fallback;
+            for (let ring = 2; ring <= maxRad; ring += 2) {
+                for (let i = 0; i < 16; i++) {
+                    const angle = (i / 16) * Math.PI * 2;
+                    const pos = v2.add(
+                        origin,
+                        v2.create(Math.cos(angle) * ring, Math.sin(angle) * ring),
+                    );
+                    if (this.canCombatantSpawn(pos)) return pos;
+                }
+            }
+            return fallback;
         }
         return map.getRandomSpawnPos(() => {
             return v2.add(origin, util.randomPointInCircle(maxRad));
@@ -7049,7 +7095,7 @@ export class SpecOpsManager implements PracticeHost {
         for (let step = minRad; step < Math.max(map.width, map.height); step += 6) {
             const pos = v2.add(origin, v2.mul(dir, step));
             map.clampToMapBounds(pos, 10);
-            if (map.canPlayerSpawn(pos) && !this.spawnTooClose(pos, host, humans, minRad)) {
+            if (this.canCombatantSpawn(pos) && !this.spawnTooClose(pos, host, humans, minRad)) {
                 return pos;
             }
         }
@@ -7541,6 +7587,10 @@ export class SpecOpsManager implements PracticeHost {
     private assignStationTargets(slots: BuildingStationSlot[]): void {
         for (let i = 0; i < slots.length; i++) {
             const slot = slots[i];
+            if (slot.building.type === "zombie_indoor_arena_01") {
+                slot.target = slot.maxTotal;
+                continue;
+            }
             const near = i < 6; // nearest buildings get shops first
             if (slot.size === "small") {
                 // 0–1 indoors only; nearest shacks/huts more likely to get one.
