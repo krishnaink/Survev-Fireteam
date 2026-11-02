@@ -19,7 +19,9 @@ import {
     debugRenderConfig,
     type debugToolsConfig,
 } from "../config.ts";
+import type { Game } from "../game.ts";
 import { type InputHandler, Key } from "../input.ts";
+import { GrayboxEditor } from "./grayboxEditor.ts";
 
 const availableLoot = GameObjectDefs.getAllTypes()
     .filter((type) => !!("lootImg" in GameObjectDefs.typeToDef(type)));
@@ -68,6 +70,8 @@ export class Editor {
     printLootStats = false;
 
     sendMsg = false;
+    grayboxLayoutJson = "";
+    grayboxEditor: GrayboxEditor;
     spawnNpc = false;
     spawnNpcOneOfEach = false;
 
@@ -81,7 +85,7 @@ export class Editor {
     sendCheatHealth = true;
     sendCheatWave = true;
 
-    constructor(config: ConfigManager) {
+    constructor(config: ConfigManager, game: Game) {
         this.config = config;
         this.config.addModifiedListener(this.onConfigModified.bind(this));
 
@@ -123,9 +127,16 @@ export class Editor {
                 {
                     title: "Cheats",
                 },
+                {
+                    title: "Layout",
+                },
             ],
         });
-        const [tools, render, HUD, players, cheats] = tabs.pages;
+        const [tools, render, HUD, players, cheats, layout] = tabs.pages;
+        this.grayboxEditor = new GrayboxEditor(game, layout, (json) => {
+            this.grayboxLayoutJson = json;
+            this.sendMsg = true;
+        });
 
         //
         // Tools
@@ -609,6 +620,8 @@ export class Editor {
     }
 
     m_update(input: InputHandler) {
+        this.grayboxEditor.update(input);
+        if (this.grayboxEditor.params.active) this.renderParams.enabled = true;
         let zoom = this.toolParams.zoom;
         if (input.keyPressed(Key.Plus)) {
             zoom -= 8;
@@ -681,6 +694,7 @@ export class Editor {
         if (this.sendCheatWave) {
             msg.setWave = Math.max(1, Math.min(90, this.toolParams.cheatSetWave || 1));
         }
+        msg.grayboxLayoutJson = this.grayboxLayoutJson;
 
         return msg;
     }
@@ -704,6 +718,7 @@ export class Editor {
         this.sendCheatGive = false;
         this.sendCheatHealth = false;
         this.sendCheatWave = false;
+        this.grayboxLayoutJson = "";
 
         this.sendMsg = false;
     }

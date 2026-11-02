@@ -38,8 +38,8 @@ import {
     type InventoryItem,
 } from "../../../../shared/gameConfig.ts";
 import * as net from "../../../../shared/net/net.ts";
-import type { ScoreboardEntry } from "../../../../shared/net/updateMsg.ts";
 import { ObjectType } from "../../../../shared/net/objectSerializeFns.ts";
+import type { ScoreboardEntry } from "../../../../shared/net/updateMsg.ts";
 import { type Circle, coldet } from "../../../../shared/utils/coldet.ts";
 import { collider } from "../../../../shared/utils/collider.ts";
 import { math } from "../../../../shared/utils/math.ts";
@@ -5011,6 +5011,17 @@ export class Player extends BaseGameObject {
             this.health = Math.min(msg.setHealth, this.maxHealth);
             this.setDirty();
             this.game.logger.info(`[cheat] Set health=${this.health} for ${this.name}`);
+        }
+
+        if (msg.grayboxLayoutJson) {
+            try {
+                const layout = this.game.map.applyDebugLayout(msg.grayboxLayoutJson);
+                this.game.logger.info(
+                    `[graybox] Applied ${layout.objects.length} layout objects from ${this.name}`,
+                );
+            } catch (error) {
+                this.game.logger.warn(`[graybox] Rejected layout from ${this.name}: ${String(error)}`);
+            }
         }
 
         if (

@@ -331,6 +331,7 @@ test("EditMsg roundtrip with Spec Ops NPC fields", () => {
     inMsg.spawnNpcCount = 3;
     inMsg.spawnNpcOneOfEach = false;
     inMsg.npcIgnoreOperators = true;
+    inMsg.grayboxLayoutJson = JSON.stringify({ version: 1, objects: [] });
 
     stream.serializeMsg(net.MsgType.Edit, inMsg);
     stream.stream.index = 0;
@@ -344,6 +345,7 @@ test("EditMsg roundtrip with Spec Ops NPC fields", () => {
     expect(outMsg.spawnNpcCount).toBe(3);
     expect(outMsg.spawnNpcOneOfEach).toBe(false);
     expect(outMsg.npcIgnoreOperators).toBe(true);
+    expect(outMsg.grayboxLayoutJson).toBe(inMsg.grayboxLayoutJson);
 });
 
 test("EditMsg roundtrip pacifist flag without spawn", () => {
