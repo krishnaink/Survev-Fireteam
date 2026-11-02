@@ -10,7 +10,7 @@ import {
     zombieWaveCount,
 } from "../../server/src/game/zombieMode.ts";
 import { MapDefs } from "../../shared/defs/mapDefs.ts";
-import { GameObjectDefs } from "../../shared/defs/register.ts";
+import { GameObjectDefs, MapObjectDefs } from "../../shared/defs/register.ts";
 import { GameConfig, TeamMode } from "../../shared/gameConfig.ts";
 import { collider } from "../../shared/utils/collider.ts";
 import { v2 } from "../../shared/utils/v2.ts";
@@ -94,8 +94,8 @@ test("Nightfall Complex generates furnished branching routes and a laboratory lo
     );
     expect(complex).toBeDefined();
     expect(complex?.surfaces).toHaveLength(11);
-    expect(game.map.width).toBe(192);
-    expect(game.map.height).toBe(128);
+    expect(game.map.width).toBe(224);
+    expect(game.map.height).toBe(144);
 
     const props = new Set(game.map.obstacles.map((obstacle) => obstacle.type));
     expect(props.has("bed_sm_01")).toBe(true);
@@ -107,7 +107,20 @@ test("Nightfall Complex generates furnished branching routes and a laboratory lo
     const gates = game.map.obstacles.filter((obstacle) => obstacle.type.startsWith("zombie_buy_gate_"));
     expect(gates).toHaveLength(8);
     expect(gates.every((gate) => gate.isButton && gate.collidable)).toBe(true);
+    expect(
+        game.map.obstacles
+            .filter((object) => object.parentBuilding === complex && object.isWall)
+            .every((wall) => !wall.destructible),
+    ).toBe(true);
+    const definition = MapObjectDefs.typeToDef("zombie_branching_complex_01", "building");
+    expect(definition.floor.imgs.filter((image) => image.sprite).length).toBeGreaterThanOrEqual(6);
     expect(operator.pos.x).toBeLessThan(game.map.center.x - 50);
+    expect(
+        game.specOps!.ensureNavGraph().hasPath(
+            operator,
+            v2.add(game.map.center, v2.create(-90, 0)),
+        ),
+    ).toBe(false);
 });
 
 test("Nightfall route gates charge cash and permanently open navigation", () => {
@@ -131,6 +144,22 @@ test("Nightfall route gates charge cash and permanently open navigation", () => 
     expect(operator.specOpsCash).toBe(250);
     expect(gate.destroyed).toBe(true);
     expect(game.specOps!.ensureNavGraph().hasPath(operator, apartment)).toBe(true);
+});
+
+test("Nightfall only spawns zombies with a route through unlocked rooms", () => {
+    const game = createGame(TeamMode.Solo, "specops_complex");
+    const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+
+    game.specOps!.startNextWave();
+    game.specOps!.drainWaveSpawnQueuePublic();
+    game.update(0.05);
+
+    const zombies = game.playerBarn.livingPlayers.filter((player) => player.specOpsAi);
+    expect(zombies.length).toBeGreaterThan(0);
+    expect(
+        zombies.every((zombie) => game.specOps!.ensureNavGraph().hasPath(zombie, operator.pos)),
+    ).toBe(true);
 });
 
 test("Zombie wave one spawns unarmed melee walkers with cash bounties", () => {

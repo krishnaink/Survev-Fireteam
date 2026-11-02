@@ -92,8 +92,8 @@ export const ZombieBranchingComplex = util.mergeDeep(
         },
         mapGen: {
             map: {
-                baseWidth: 192,
-                baseHeight: 128,
+                baseWidth: 224,
+                baseHeight: 144,
             },
             places: [
                 {

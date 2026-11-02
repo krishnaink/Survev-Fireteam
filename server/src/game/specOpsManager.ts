@@ -6519,7 +6519,7 @@ export class SpecOpsManager implements PracticeHost {
         if (!this.operatorSpawn) {
             if (this.zombieMode && this.game.map.mapDef.gameMode.indoorMode) {
                 const spawnAnchor = this.game.config.mapName === "specops_complex"
-                    ? v2.add(this.game.map.center, v2.create(-66, 0))
+                    ? v2.add(this.game.map.center, v2.create(-60, 0))
                     : this.game.map.center;
                 const indoorSpawn = this.pickSpawnNear(spawnAnchor, 0, 5);
                 v2.set(player.pos, indoorSpawn);
@@ -7254,6 +7254,21 @@ export class SpecOpsManager implements PracticeHost {
         if (!this.canCombatantSpawn(pos)) return false;
         if (v2.distance(pos, origin) < minRad) return false;
         if (this.spawnTooClose(pos, host, humans, minRad)) return false;
+        if (this.zombieMode && this.game.map.mapDef.gameMode.indoorMode && humans.length) {
+            const target = host
+                ?? humans.reduce((nearest, human) =>
+                    v2.distance(pos, human.pos) < v2.distance(pos, nearest.pos) ? human : nearest
+                );
+            const route = this.ensureNavGraph().path(
+                this.game,
+                pos,
+                target.pos,
+                0,
+                util.toGroundLayer(target.layer),
+                0,
+            );
+            if (route === null) return false;
+        }
         for (const brain of this.brains.values()) {
             if (brain.kind !== "enemy" || brain.player.dead) continue;
             if (v2.distance(pos, brain.player.pos) < 4) return false;
@@ -7388,7 +7403,7 @@ export class SpecOpsManager implements PracticeHost {
         humans: Player[],
         indexInSquad = 0,
         squadSize = 1,
-    ): Vec2 {
+    ): Vec2 | undefined {
         const map = this.game.map;
         const tryPos = (angle: number, radius: number): Vec2 | undefined => {
             const pos = v2.add(
@@ -7444,11 +7459,26 @@ export class SpecOpsManager implements PracticeHost {
         for (let step = minRad; step < Math.max(map.width, map.height); step += 6) {
             const pos = v2.add(origin, v2.mul(dir, step));
             map.clampToMapBounds(pos, 10);
-            if (this.canCombatantSpawn(pos) && !this.spawnTooClose(pos, host, humans, minRad)) {
+            if (this.enemySpawnOk(pos, origin, minRad, host, humans)) {
                 return pos;
             }
         }
-        return fallback;
+        // Tight starting rooms can lack a legal point at the normal outdoor
+        // radius. Prefer a closer reachable spawn over placing a zombie behind
+        // a route gate that players have not opened.
+        if (this.zombieMode && this.game.map.mapDef.gameMode.indoorMode) {
+            for (let radius = 8; radius <= maxRad; radius += 4) {
+                for (let i = 0; i < 24; i++) {
+                    const angle = (i / 24) * Math.PI * 2;
+                    const pos = v2.add(
+                        origin,
+                        v2.create(Math.cos(angle) * radius, Math.sin(angle) * radius),
+                    );
+                    if (this.enemySpawnOk(pos, origin, 4, host, humans)) return pos;
+                }
+            }
+        }
+        return undefined;
     }
 
     private spawnEnemy(
@@ -7492,6 +7522,10 @@ export class SpecOpsManager implements PracticeHost {
             indexInSquad,
             squadSize,
         );
+        if (!pos) {
+            this.game.logger.warn(`No reachable spawn point for ${kind}`);
+            return undefined;
+        }
 
         const template = Loadouts[kind];
         const gun = pickGun(kind, this.wave);
@@ -9286,6 +9320,10 @@ export class SpecOpsManager implements PracticeHost {
                 i,
                 stuck.length,
             );
+            if (!pos) {
+                brain.relocateCooldown = 2;
+                continue;
+            }
             v2.set(brain.player.pos, pos);
             brain.player.game.grid.updateObject(brain.player);
             brain.player.setDirty();
