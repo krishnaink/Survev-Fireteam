@@ -54,6 +54,40 @@ export const ZombieLoadouts: Record<ZombieClass, ZombieLoadout> = {
 
 export const ZombieKillBounty = 100;
 
+export const ZombieMysteryBoxCost = 1000;
+export const ZombieMysteryBoxRollDuration = 2.4;
+export const ZombieMysteryBoxCycleInterval = 0.16;
+export const ZombieMysteryBoxClaimDuration = 10;
+export const ZombieMysteryBoxCooldown = 1.25;
+
+/** Guns with normal ammo and pickup behavior that work cleanly in the box. */
+export const ZombieMysteryBoxWeapons = [
+    "mp5",
+    "mac10",
+    "ump9",
+    "vector",
+    "famas",
+    "hk416",
+    "m4a1",
+    "ak47",
+    "scar",
+    "an94",
+    "m870",
+    "m1100",
+    "saiga",
+    "spas12",
+    "m1014",
+    "deagle",
+    "m39",
+    "sv98",
+    "awc",
+    "dp28",
+    "m249",
+    "qbb97",
+] as const;
+
+export type ZombieMysteryBoxWeapon = typeof ZombieMysteryBoxWeapons[number];
+
 export function isZombieClass(kind: string | undefined): kind is ZombieClass {
     return kind === "zombie_walker";
 }

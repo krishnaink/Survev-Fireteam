@@ -1,7 +1,16 @@
 import { expect, test } from "vitest";
 
-import { composeZombieWave, zombieEnemyHealth, zombieWaveCount } from "../../server/src/game/zombieMode.ts";
+import {
+    composeZombieWave,
+    zombieEnemyHealth,
+    ZombieMysteryBoxCooldown,
+    ZombieMysteryBoxCost,
+    ZombieMysteryBoxRollDuration,
+    ZombieMysteryBoxWeapons,
+    zombieWaveCount,
+} from "../../server/src/game/zombieMode.ts";
 import { MapDefs } from "../../shared/defs/mapDefs.ts";
+import { GameObjectDefs } from "../../shared/defs/register.ts";
 import { GameConfig, TeamMode } from "../../shared/gameConfig.ts";
 import { v2 } from "../../shared/utils/v2.ts";
 import { createGame } from "./gameTestHelpers.ts";
@@ -13,6 +22,11 @@ test("Zombie Survival uses a dedicated, scaling zombie wave profile", () => {
     expect(zombieWaveCount(100, 8)).toBe(48);
     expect(composeZombieWave(3, 1).every((kind) => kind === "zombie_walker")).toBe(true);
     expect(zombieEnemyHealth(10)).toBeGreaterThan(zombieEnemyHealth(1));
+    expect(
+        ZombieMysteryBoxWeapons.every(
+            (weapon) => GameObjectDefs.typeToDefSafe(weapon)?.type === "gun",
+        ),
+    ).toBe(true);
 });
 
 test("Live survival maps expose Zombie Survival while keeping Spec Ops internals", () => {
@@ -169,4 +183,85 @@ test("Indoor zombies recover from repeated stalls and rebuild their remembered r
     expect(v2.distance(zombie.pos, start)).toBeGreaterThan(0.2);
     expect(brain.indoorRouteGoalCell).toBe("0,0");
     expect(brain.indoorRoute.length).toBeGreaterThan(1);
+});
+
+test("Mystery Box charges once, synchronizes its roll, and replaces the held gun", () => {
+    const game = createGame(TeamMode.Duo, "specops");
+    const buyer = game.playerBarn.addTestPlayer({ name: "Buyer" });
+    const teammate = game.playerBarn.addTestPlayer({ name: "Teammate" });
+    game.update(0.1);
+    const box = game.map.obstacles.find((obstacle) => obstacle.type === "zombie_mystery_box")!;
+    v2.set(buyer.pos, box.pos);
+    v2.set(teammate.pos, box.pos);
+    game.grid.updateObject(buyer);
+    game.grid.updateObject(teammate);
+
+    const startingCash = buyer.specOpsCash;
+    expect(startingCash).toBeLessThan(ZombieMysteryBoxCost);
+    box.interact(buyer);
+    expect(buyer.specOpsCash).toBe(startingCash);
+    expect(box.button?.canUse).toBe(true);
+
+    game.specOps!.grantCash(buyer, ZombieMysteryBoxCost);
+    const paidCash = buyer.specOpsCash;
+    box.interact(buyer);
+    expect(buyer.specOpsCash).toBe(paidCash - ZombieMysteryBoxCost);
+    expect(box.button?.onOff).toBe(true);
+    expect(box.button?.canUse).toBe(false);
+    let preview = game.lootBarn.loots.find((loot) => loot.mysteryBoxId === box.__id)!;
+    expect(preview.mysteryBoxLocked).toBe(true);
+    expect(ZombieMysteryBoxWeapons).toContain(preview.type);
+
+    const teammateCash = teammate.specOpsCash;
+    box.interact(teammate);
+    expect(teammate.specOpsCash).toBe(teammateCash);
+    expect(game.lootBarn.loots.filter((loot) => loot.mysteryBoxId === box.__id)).toHaveLength(1);
+
+    game.step(ZombieMysteryBoxRollDuration + 0.2);
+    preview = game.lootBarn.loots.find(
+        (loot) => loot.mysteryBoxId === box.__id && !loot.destroyed,
+    )!;
+    expect(preview.mysteryBoxLocked).toBe(false);
+
+    buyer.weaponManager.setWeapon(GameConfig.WeaponSlot.Secondary, "glock", 17);
+    buyer.weaponManager.setCurWeapIndex(GameConfig.WeaponSlot.Melee);
+    buyer.interactWith(preview);
+    expect(preview.destroyed).toBe(false);
+
+    const replacedSlot = GameConfig.WeaponSlot.Secondary;
+    buyer.weaponManager.setCurWeapIndex(replacedSlot);
+    buyer.interactWith(preview);
+    expect(preview.destroyed).toBe(true);
+    expect(buyer.weapons[replacedSlot].type).toBe(preview.type);
+    expect(buyer.weapons[replacedSlot].ammo).toBeGreaterThan(0);
+    expect(buyer.weapons[GameConfig.WeaponSlot.Primary].type).toBe("m9");
+
+    game.update(0.1);
+    expect(box.button?.onOff).toBe(false);
+    expect(box.button?.canUse).toBe(false);
+    game.step(ZombieMysteryBoxCooldown + 0.1);
+    expect(box.button?.canUse).toBe(true);
+});
+
+test("Mystery Box fills an empty gun slot when the player takes it while holding fists", () => {
+    const game = createGame(TeamMode.Solo, "specops");
+    const buyer = game.playerBarn.addTestPlayer({ name: "Buyer" });
+    game.update(0.1);
+    const box = game.map.obstacles.find((obstacle) => obstacle.type === "zombie_mystery_box")!;
+    v2.set(buyer.pos, box.pos);
+    game.grid.updateObject(buyer);
+    game.specOps!.grantCash(buyer, ZombieMysteryBoxCost);
+    box.interact(buyer);
+    game.step(ZombieMysteryBoxRollDuration + 0.2);
+    const prize = game.lootBarn.loots.find(
+        (loot) => loot.mysteryBoxId === box.__id && !loot.destroyed,
+    )!;
+
+    expect(buyer.weapons[GameConfig.WeaponSlot.Secondary].type).toBe("");
+    buyer.weaponManager.setCurWeapIndex(GameConfig.WeaponSlot.Melee);
+    buyer.interactWith(prize);
+
+    expect(prize.destroyed).toBe(true);
+    expect(buyer.weapons[GameConfig.WeaponSlot.Secondary].type).toBe(prize.type);
+    expect(buyer.curWeapIdx).toBe(GameConfig.WeaponSlot.Secondary);
 });

@@ -700,6 +700,11 @@ export class Obstacle extends BaseGameObject {
     interact(player?: Player, auto = false): void {
         if (this.dead) return;
 
+        if (player && !auto && this.type === "zombie_mystery_box") {
+            this.game.specOps?.tryUseMysteryBox(player, this);
+            return;
+        }
+
         if (player && !auto && this.interactCooldown > 0) {
             return;
         }

@@ -97,6 +97,7 @@ import { Config } from "../config.ts";
 import type { Game } from "./game.ts";
 import type { Team } from "./group.ts";
 import type { Building } from "./objects/building.ts";
+import type { Loot } from "./objects/loot.ts";
 import type { Obstacle } from "./objects/obstacle.ts";
 import type { Player } from "./objects/player.ts";
 import type { Structure } from "./objects/structure.ts";
@@ -117,6 +118,12 @@ import {
     zombieEnemyHealth,
     ZombieKillBounty,
     ZombieLoadouts,
+    ZombieMysteryBoxClaimDuration,
+    ZombieMysteryBoxCooldown,
+    ZombieMysteryBoxCost,
+    ZombieMysteryBoxCycleInterval,
+    ZombieMysteryBoxRollDuration,
+    ZombieMysteryBoxWeapons,
 } from "./zombieMode.ts";
 
 export type SpecOpsKind = "enemy" | "ally" | "sentry";
@@ -5745,6 +5752,15 @@ export const SpecOpsAbandonedTimeout = 90;
 /** Seconds without movement/shoot/interact before a connected operator is treated as idle. */
 export const SpecOpsIdleTimeout = 300;
 
+interface ZombieMysteryBoxState {
+    box: Obstacle;
+    phase: "rolling" | "claim" | "cooldown";
+    ticker: number;
+    cycleTicker: number;
+    weapon: string;
+    loot?: Loot;
+}
+
 export class SpecOpsManager implements PracticeHost {
     static readonly AiTeamId = AiTeamId;
 
@@ -5823,6 +5839,7 @@ export class SpecOpsManager implements PracticeHost {
     private waveSpawnPulseIndex = 0;
     readonly contracts = new SpecOpsContractRunner(this);
     private lastContractHudCode = -1;
+    private mysteryBoxState?: ZombieMysteryBoxState;
 
     /** Practice mode controller; undefined in normal Spec Ops. */
     readonly practice?: PracticeController;
@@ -5845,6 +5862,119 @@ export class SpecOpsManager implements PracticeHost {
         return !!this.game.map.mapDef.gameMode.zombieMode
             && !this.practice
             && !this.game.map.specOpsBotArena;
+    }
+
+    private setMysteryBoxVisual(box: Obstacle, open: boolean, canUse: boolean): void {
+        if (!box.button) return;
+        const changed = box.button.onOff !== open || box.button.canUse !== canUse;
+        box.button.onOff = open;
+        box.button.canUse = canUse;
+        if (!changed) return;
+        box.button.seq++;
+        box.setDirty();
+    }
+
+    private pickMysteryBoxWeapon(previous = ""): string {
+        const pool = ZombieMysteryBoxWeapons;
+        let weapon = previous;
+        while (weapon === previous) {
+            weapon = pool[Math.floor(util.random(0, pool.length))];
+        }
+        return weapon;
+    }
+
+    private replaceMysteryBoxLoot(state: ZombieMysteryBoxState, locked: boolean): void {
+        if (state.loot && !state.loot.destroyed) state.loot.destroy();
+        const loot = this.game.lootBarn.addLoot(
+            state.weapon,
+            v2.copy(state.box.pos),
+            state.box.layer,
+            1,
+            {
+                pushSpeed: 0,
+                noSideAmmo: true,
+                source: "map",
+            },
+        );
+        if (!loot) {
+            state.loot = undefined;
+            return;
+        }
+        loot.isPreloadedGun = true;
+        loot.mysteryBoxLocked = locked;
+        loot.mysteryBoxId = state.box.__id;
+        loot.ignoreObstacleId = state.box.__id;
+        state.loot = loot;
+    }
+
+    private beginMysteryBoxCooldown(state: ZombieMysteryBoxState): void {
+        if (state.loot && !state.loot.destroyed) state.loot.destroy();
+        state.loot = undefined;
+        state.phase = "cooldown";
+        state.ticker = ZombieMysteryBoxCooldown;
+        this.setMysteryBoxVisual(state.box, false, false);
+    }
+
+    private tickMysteryBox(dt: number): void {
+        const state = this.mysteryBoxState;
+        if (!state) return;
+        if (state.box.dead || state.box.destroyed) {
+            if (state.loot && !state.loot.destroyed) state.loot.destroy();
+            this.mysteryBoxState = undefined;
+            return;
+        }
+
+        state.ticker -= dt;
+        if (state.phase === "rolling") {
+            state.cycleTicker -= dt;
+            if (state.cycleTicker <= 0) {
+                state.weapon = this.pickMysteryBoxWeapon(state.weapon);
+                state.cycleTicker = ZombieMysteryBoxCycleInterval;
+                this.replaceMysteryBoxLoot(state, true);
+            }
+            if (state.ticker <= 0) {
+                state.phase = "claim";
+                state.ticker = ZombieMysteryBoxClaimDuration;
+                this.replaceMysteryBoxLoot(state, false);
+            }
+            return;
+        }
+
+        if (state.phase === "claim") {
+            if (!state.loot || state.loot.destroyed || state.ticker <= 0) {
+                this.beginMysteryBoxCooldown(state);
+            }
+            return;
+        }
+
+        if (state.ticker <= 0) {
+            this.setMysteryBoxVisual(state.box, false, true);
+            this.mysteryBoxState = undefined;
+        }
+    }
+
+    /** Starts the shared BO2-style roll; the revealed gun is picked up manually. */
+    tryUseMysteryBox(player: Player, box: Obstacle): boolean {
+        if (!this.zombieMode || box.type !== "zombie_mystery_box" || !box.button) return false;
+        if (player.specOpsAi || player.dead || player.downed || player.disconnected) return false;
+        if (this.mysteryBoxState || !box.button.canUse) return false;
+        if (player.specOpsCash < ZombieMysteryBoxCost) return false;
+        if (!collider.intersectCircle(box.collider, player.pos, box.interactionRad + player.rad)) {
+            return false;
+        }
+
+        this.grantCash(player, -ZombieMysteryBoxCost);
+        this.setMysteryBoxVisual(box, true, false);
+        const state: ZombieMysteryBoxState = {
+            box,
+            phase: "rolling",
+            ticker: ZombieMysteryBoxRollDuration,
+            cycleTicker: 0,
+            weapon: this.pickMysteryBoxWeapon(),
+        };
+        this.mysteryBoxState = state;
+        this.replaceMysteryBoxLoot(state, true);
+        return true;
     }
 
     ensureNavGraph(): MapNavGraph {
@@ -6470,6 +6600,7 @@ export class SpecOpsManager implements PracticeHost {
             if (next <= 0) this.buyCooldown.delete(id);
             else this.buyCooldown.set(id, next);
         }
+        this.tickMysteryBox(dt);
 
         for (let i = this.pendingVestExplosions.length - 1; i >= 0; i--) {
             const fuse = this.pendingVestExplosions[i];

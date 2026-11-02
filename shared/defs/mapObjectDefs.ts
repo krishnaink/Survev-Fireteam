@@ -2045,6 +2045,7 @@ function createZombieIndoorArena<T extends BuildingDef>(e: Partial<T>): T {
     ] as const) {
         add(type, x, y, ori);
     }
+    add("zombie_mystery_box", 0, 33);
 
     const floorRooms = [
         {
@@ -36393,6 +36394,36 @@ export const RawMapObjectDefs: Record<string, MapObjectDef> = {
             autoCloseDelay: 1.25,
         },
     } as unknown as Partial<ObstacleDef>),
+    zombie_mystery_box: createCrate({
+        destructible: false,
+        health: 9999,
+        collidable: true,
+        loot: [],
+        collision: collider.createAabbExtents(v2.create(0, 0), v2.create(3.5, 1.65)),
+        img: {
+            sprite: "map-zombie-mystery-box-closed.img",
+            scale: 0.5,
+            zIdx: 10,
+        },
+        map: { display: true, color: 0x81732e, scale: 1.1 },
+        terrain: { grass: true, beach: true },
+        button: {
+            interactionRad: 2,
+            interactionText: "game-use",
+            useOnce: false,
+            useType: "",
+            useDelay: 0,
+            useDir: v2.create(0, -1),
+            useImg: "map-zombie-mystery-box-open.img",
+            sound: { on: "airdrop_open_01", off: "airdrop_open_01" },
+        },
+        sound: {
+            bullet: "wood_crate_bullet",
+            punch: "wood_crate_bullet",
+            explode: "crate_break_01",
+            enter: "none",
+        },
+    }),
     zombie_indoor_arena_01: createZombieIndoorArena({}),
     specops_station_weapon: createCrate({
         destructible: false,

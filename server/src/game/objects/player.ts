@@ -4178,7 +4178,7 @@ export class Player extends BaseGameObject {
 
     pickupTicker = 0;
     pickupLoot(obj: Loot) {
-        if (obj.destroyed) return;
+        if (obj.destroyed || obj.mysteryBoxLocked) return;
 
         const def = GameObjectDefs.typeToDef(obj.type);
         if (
@@ -4301,6 +4301,9 @@ export class Player extends BaseGameObject {
                         if (shouldDrop) {
                             this.weaponManager.dropGun(newGunIdx);
                         }
+                    }
+                    if (obj.mysteryBoxId) {
+                        newAmmo = this.weaponManager.getAmmoStats(def, gunType).maxClip;
                     }
 
                     this.weaponManager.setWeapon(newGunIdx, gunType, newAmmo);

@@ -54,6 +54,8 @@ export const AtlasResolutions: Record<AtlasRes, number> = {
 
 // sprites that are scaled inside the sheets
 export const scaledSprites: Record<string, number> = {
+    "map/map-zombie-mystery-box-closed.png": 0.09,
+    "map/map-zombie-mystery-box-open.png": 0.115,
     // Smaller ceilings
     "map/map-building-house-ceiling.svg": 0.75,
     "map/map-building-hut-ceiling-01.svg": 0.75,
