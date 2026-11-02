@@ -5936,6 +5936,7 @@ export class SpecOpsManager implements PracticeHost {
                 state.phase = "claim";
                 state.ticker = ZombieMysteryBoxClaimDuration;
                 this.replaceMysteryBoxLoot(state, false);
+                this.setMysteryBoxVisual(state.box, true, true);
             }
             return;
         }
@@ -5957,11 +5958,16 @@ export class SpecOpsManager implements PracticeHost {
     tryUseMysteryBox(player: Player, box: Obstacle): boolean {
         if (!this.zombieMode || box.type !== "zombie_mystery_box" || !box.button) return false;
         if (player.specOpsAi || player.dead || player.downed || player.disconnected) return false;
-        if (this.mysteryBoxState || !box.button.canUse) return false;
-        if (player.specOpsCash < ZombieMysteryBoxCost) return false;
         if (!collider.intersectCircle(box.collider, player.pos, box.interactionRad + player.rad)) {
             return false;
         }
+        const active = this.mysteryBoxState;
+        if (active) {
+            if (active.box !== box || active.phase !== "claim" || !active.loot) return false;
+            player.pickupLoot(active.loot);
+            return active.loot.destroyed;
+        }
+        if (!box.button.canUse || player.specOpsCash < ZombieMysteryBoxCost) return false;
 
         this.grantCash(player, -ZombieMysteryBoxCost);
         this.setMysteryBoxVisual(box, true, false);

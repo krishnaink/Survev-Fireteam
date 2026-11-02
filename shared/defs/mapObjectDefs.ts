@@ -36399,10 +36399,10 @@ export const RawMapObjectDefs: Record<string, MapObjectDef> = {
         health: 9999,
         collidable: true,
         loot: [],
-        collision: collider.createAabbExtents(v2.create(0, 0), v2.create(3.5, 1.65)),
+        collision: collider.createAabbExtents(v2.create(0, 0), v2.create(7, 3.3)),
         img: {
             sprite: "map-zombie-mystery-box-closed.img",
-            scale: 0.5,
+            scale: 1,
             zIdx: 10,
         },
         map: { display: true, color: 0x81732e, scale: 1.1 },

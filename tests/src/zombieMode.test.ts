@@ -191,8 +191,9 @@ test("Mystery Box charges once, synchronizes its roll, and replaces the held gun
     const teammate = game.playerBarn.addTestPlayer({ name: "Teammate" });
     game.update(0.1);
     const box = game.map.obstacles.find((obstacle) => obstacle.type === "zombie_mystery_box")!;
-    v2.set(buyer.pos, box.pos);
-    v2.set(teammate.pos, box.pos);
+    const interactionPos = v2.add(box.pos, v2.create(0, -5));
+    v2.set(buyer.pos, interactionPos);
+    v2.set(teammate.pos, interactionPos);
     game.grid.updateObject(buyer);
     game.grid.updateObject(teammate);
 
@@ -222,15 +223,17 @@ test("Mystery Box charges once, synchronizes its roll, and replaces the held gun
         (loot) => loot.mysteryBoxId === box.__id && !loot.destroyed,
     )!;
     expect(preview.mysteryBoxLocked).toBe(false);
+    expect(box.button?.canUse).toBe(true);
 
     buyer.weaponManager.setWeapon(GameConfig.WeaponSlot.Secondary, "glock", 17);
     buyer.weaponManager.setCurWeapIndex(GameConfig.WeaponSlot.Melee);
-    buyer.interactWith(preview);
+    box.interact(buyer);
     expect(preview.destroyed).toBe(false);
+    expect(box.button?.canUse).toBe(true);
 
     const replacedSlot = GameConfig.WeaponSlot.Secondary;
     buyer.weaponManager.setCurWeapIndex(replacedSlot);
-    buyer.interactWith(preview);
+    box.interact(buyer);
     expect(preview.destroyed).toBe(true);
     expect(buyer.weapons[replacedSlot].type).toBe(preview.type);
     expect(buyer.weapons[replacedSlot].ammo).toBeGreaterThan(0);
@@ -248,7 +251,7 @@ test("Mystery Box fills an empty gun slot when the player takes it while holding
     const buyer = game.playerBarn.addTestPlayer({ name: "Buyer" });
     game.update(0.1);
     const box = game.map.obstacles.find((obstacle) => obstacle.type === "zombie_mystery_box")!;
-    v2.set(buyer.pos, box.pos);
+    v2.set(buyer.pos, v2.add(box.pos, v2.create(0, -5)));
     game.grid.updateObject(buyer);
     game.specOps!.grantCash(buyer, ZombieMysteryBoxCost);
     box.interact(buyer);
@@ -259,7 +262,7 @@ test("Mystery Box fills an empty gun slot when the player takes it while holding
 
     expect(buyer.weapons[GameConfig.WeaponSlot.Secondary].type).toBe("");
     buyer.weaponManager.setCurWeapIndex(GameConfig.WeaponSlot.Melee);
-    buyer.interactWith(prize);
+    box.interact(buyer);
 
     expect(prize.destroyed).toBe(true);
     expect(buyer.weapons[GameConfig.WeaponSlot.Secondary].type).toBe(prize.type);
