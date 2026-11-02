@@ -1,5 +1,4 @@
 import { styleText } from "node:util";
-import { type GrayboxLayout, parseGrayboxLayout } from "../../../shared/debug/grayboxLayout.ts";
 import { type MapDef, MapDefs } from "../../../shared/defs/mapDefs.ts";
 import type { BuildingDef, ObstacleDef, StructureDef } from "../../../shared/defs/mapObjectsTyping.ts";
 import { MapObjectDefs } from "../../../shared/defs/register.ts";
@@ -233,8 +232,6 @@ export class GameMap {
      * Like auto opening doors, regrowing potatos, etc
      */
     dynamicObstacles!: Obstacle[];
-    /** Obstacles placed by the development-only live graybox editor. */
-    debugLayoutObstacles: Obstacle[] = [];
 
     buildings!: Building[];
     dynamicBuildings!: Building[];
@@ -322,7 +319,6 @@ export class GameMap {
 
         this.obstacles = [];
         this.dynamicObstacles = [];
-        this.debugLayoutObstacles = [];
         this.buildings = [];
         this.dynamicBuildings = [];
         this.structures = [];
@@ -1940,43 +1936,6 @@ export class GameMap {
         this.addBounds(obstacle, !!buildingId);
 
         return obstacle;
-    }
-
-    /** Replace the temporary obstacles created by the development live-layout editor. */
-    applyDebugLayout(json: string): GrayboxLayout {
-        const layout = parseGrayboxLayout(json);
-        const obstacleEntries = layout.objects.filter((entry) => entry.kind === "obstacle");
-
-        for (const entry of obstacleEntries) {
-            const def = MapObjectDefs.typeToDefSafe(entry.type);
-            if (!def || def.type !== "obstacle") {
-                throw new Error(`Graybox object '${entry.type}' is not an obstacle`);
-            }
-        }
-
-        const oldObjects = new Set(this.debugLayoutObstacles);
-        for (const obstacle of oldObjects) {
-            if (!obstacle.destroyed) obstacle.destroy();
-        }
-        this.obstacles = this.obstacles.filter((obstacle) => !oldObjects.has(obstacle));
-        this.dynamicObstacles = this.dynamicObstacles.filter((obstacle) => !oldObjects.has(obstacle));
-        this.debugLayoutObstacles = [];
-
-        for (const entry of obstacleEntries) {
-            const obstacle = this.genObstacle(
-                entry.type,
-                v2.create(entry.x, entry.y),
-                entry.layer,
-                entry.ori,
-                1,
-                undefined,
-                undefined,
-                true,
-            );
-            this.debugLayoutObstacles.push(obstacle);
-        }
-
-        return layout;
     }
 
     genOutfitObstacle(type: string, player: Player) {

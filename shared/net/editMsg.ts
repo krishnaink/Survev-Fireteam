@@ -41,8 +41,6 @@ export class EditMsg implements AbstractMsg {
     setWave = 0;
     /** Set player health to this value (0 = no change, >0 valid). */
     setHealth = 0;
-    /** Development-only live graybox layout. Empty means no layout update. */
-    grayboxLayoutJson = "";
     // ─────────────────────────────────────────────────────────────────────────
 
     serialize(s: BitStream) {
@@ -95,8 +93,6 @@ export class EditMsg implements AbstractMsg {
         s.writeUint16(Math.max(0, Math.min(999, this.giveItemCount)));
         s.writeUint8(Math.max(0, Math.min(30, this.setWave)));
         s.writeUint16(Math.max(0, Math.min(65535, this.setHealth)));
-        s.writeBoolean(!!this.grayboxLayoutJson);
-        if (this.grayboxLayoutJson) s.writeString(this.grayboxLayoutJson);
     }
 
     deserialize(s: BitStream) {
@@ -153,6 +149,5 @@ export class EditMsg implements AbstractMsg {
         this.giveItemCount = s.readUint16();
         this.setWave = s.readUint8();
         this.setHealth = s.readUint16();
-        if (s.readBoolean()) this.grayboxLayoutJson = s.readString();
     }
 }

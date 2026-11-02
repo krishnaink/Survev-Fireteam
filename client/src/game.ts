@@ -55,8 +55,8 @@ import type { ResourceManager } from "./resources.ts";
 import { SDK } from "./sdk/sdk.ts";
 import { ThrowableRadial } from "./throwableRadial.ts";
 import type { Localization } from "./ui/localization.ts";
-import { PracticeMenu } from "./ui/practiceMenu.ts";
 import { Scoreboard } from "./ui/scoreboard.ts";
+import { PracticeMenu } from "./ui/practiceMenu.ts";
 import { Touch } from "./ui/touch.ts";
 import { UiManager } from "./ui/ui.ts";
 import { UiManager2 } from "./ui/ui2.ts";
@@ -157,7 +157,7 @@ export class Game {
         ) => void,
     ) {
         if (IS_DEV) {
-            this.editor = new Editor(this.m_config, this);
+            this.editor = new Editor(this.m_config);
         }
     }
 
@@ -703,13 +703,6 @@ export class Game {
                     inputMsg.toMouseLen = toMouseLen;
                 }
             }
-            if (this.editor?.grayboxEditor.capturesGameplay) {
-                inputMsg.moveLeft = false;
-                inputMsg.moveRight = false;
-                inputMsg.moveUp = false;
-                inputMsg.moveDown = false;
-                inputMsg.touchMoveLen = 0;
-            }
             inputMsg.touchMoveDir = v2.normalizeSafe(
                 inputMsg.touchMoveDir,
                 v2.create(1, 0),
@@ -721,9 +714,7 @@ export class Game {
                 0,
                 net.Constants.MouseMaxDist,
             );
-            const shopOpen = this.m_uiManager.specOpsShopOpen
-                || !!this.m_practiceMenu?.open
-                || !!this.editor?.grayboxEditor.capturesGameplay;
+            const shopOpen = this.m_uiManager.specOpsShopOpen || !!this.m_practiceMenu?.open;
             inputMsg.shootStart = !shopOpen && (
                 this.m_inputBinds.isBindPressed(Input.Fire)
                 || this.m_touch.shotDetected
@@ -999,7 +990,7 @@ export class Game {
 
         if (IS_DEV && this.editor?.sendMsg && (this.editor.enabled || this.editor.hasPendingSpawn())) {
             var msg = this.editor.getMsg();
-            this.m_sendMessage(net.MsgType.Edit, msg, msg.grayboxLayoutJson ? 65536 : 128);
+            this.m_sendMessage(net.MsgType.Edit, msg);
             this.editor.postSerialization();
         }
 
