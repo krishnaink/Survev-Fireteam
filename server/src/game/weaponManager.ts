@@ -23,6 +23,7 @@ import type { GameObject } from "../game/objects/gameObject.ts";
 import type { Player } from "../game/objects/player.ts";
 import type { Obstacle } from "./objects/obstacle.ts";
 import type { Projectile } from "./objects/projectile.ts";
+import { ZombieUpgradeDamageMult, ZombieUpgradeMagazineMult } from "./zombieMode.ts";
 
 /**
  * List of throwables to cycle based on the definition `inventoryOrder`
@@ -486,10 +487,15 @@ export class WeaponManager {
                 stats,
                 this.player.hasPerk("firepower"),
             );
+            const upgradeMult = this.player.specOpsUpgradedWeapons.has(gunType)
+                ? ZombieUpgradeMagazineMult
+                : 1;
             return {
-                maxClip: modded.maxClip,
-                maxReload: modded.maxReload,
-                maxReloadAlt: modded.maxReloadAlt,
+                maxClip: Math.ceil(modded.maxClip * upgradeMult),
+                maxReload: Math.ceil(modded.maxReload * upgradeMult),
+                maxReloadAlt: modded.maxReloadAlt === undefined
+                    ? undefined
+                    : Math.ceil(modded.maxReloadAlt * upgradeMult),
             };
         }
 
@@ -997,6 +1003,9 @@ export class WeaponManager {
 
         if (this.player.specOpsAi && this.player.specOpsDamageMult !== 1) {
             damageMult *= this.player.specOpsDamageMult;
+        }
+        if (this.player.specOpsUpgradedWeapons.has(this.activeWeapon)) {
+            damageMult *= ZombieUpgradeDamageMult;
         }
 
         //

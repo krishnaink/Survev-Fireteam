@@ -56,6 +56,10 @@ export const ZombieMysteryBoxRollDuration = 2.4;
 export const ZombieMysteryBoxCycleInterval = 0.16;
 export const ZombieMysteryBoxClaimDuration = 10;
 export const ZombieMysteryBoxCooldown = 1.25;
+export const ZombieMysteryBoxRelocateUses = 3;
+export const ZombieUpgradeCost = 5000;
+export const ZombieUpgradeDamageMult = 1.35;
+export const ZombieUpgradeMagazineMult = 1.5;
 
 export const ZombieBuyGateCosts = {
     zombie_buy_gate_750: 750,

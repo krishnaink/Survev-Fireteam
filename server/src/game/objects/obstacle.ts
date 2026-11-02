@@ -710,6 +710,16 @@ export class Obstacle extends BaseGameObject {
             return;
         }
 
+        if (player && !auto && this.type === "zombie_power_switch") {
+            this.game.specOps?.tryTurnOnZombiePower(player, this);
+            return;
+        }
+
+        if (player && !auto && this.type === "zombie_upgrade_bench") {
+            this.game.specOps?.tryUpgradeZombieWeapon(player, this);
+            return;
+        }
+
         if (player && !auto && this.interactCooldown > 0) {
             return;
         }

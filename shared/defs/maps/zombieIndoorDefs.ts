@@ -80,14 +80,14 @@ export const ZombieIndoor = util.mergeDeep(
     } satisfies PartialMapDef,
 ) as MapDef;
 
-/** The larger, route-driven indoor survival map. */
+/** Last Call's motel, nightclub and parking-garage survival block. */
 export const ZombieBranchingComplex = util.mergeDeep(
     {},
     ZombieIndoor,
     {
         desc: {
             name: "Zombie Survival",
-            buttonText: "Nightfall Complex",
+            buttonText: "Last Call",
             backgroundImg: "img/main_splash.png",
         },
         biome: {
@@ -106,12 +106,12 @@ export const ZombieBranchingComplex = util.mergeDeep(
         },
         mapGen: {
             map: {
-                baseWidth: 224,
-                baseHeight: 144,
+                baseWidth: 176,
+                baseHeight: 136,
             },
             places: [
                 {
-                    name: "Nightfall Complex",
+                    name: "Last Call",
                     pos: v2.create(0.5, 0.5),
                     dontSpawnObjects: true,
                 },

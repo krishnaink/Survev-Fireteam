@@ -5,6 +5,7 @@ export const BuildingSprites = {
         "map/map-zombie-floor-tile.svg",
         "map/map-zombie-floor-carpet.svg",
         "map/map-zombie-floor-concrete.svg",
+        "map/map-zombie-garage-car.svg",
     ],
 
     bank: [

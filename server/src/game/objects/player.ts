@@ -38,8 +38,8 @@ import {
     type InventoryItem,
 } from "../../../../shared/gameConfig.ts";
 import * as net from "../../../../shared/net/net.ts";
-import type { ScoreboardEntry } from "../../../../shared/net/updateMsg.ts";
 import { ObjectType } from "../../../../shared/net/objectSerializeFns.ts";
+import type { ScoreboardEntry } from "../../../../shared/net/updateMsg.ts";
 import { type Circle, coldet } from "../../../../shared/utils/coldet.ts";
 import { collider } from "../../../../shared/utils/collider.ts";
 import { math } from "../../../../shared/utils/math.ts";
@@ -1469,6 +1469,8 @@ export class Player extends BaseGameObject {
     specOpsSpeedMult = 1;
     /** Enemy bullet damage scale; humans / allies stay at 1. */
     specOpsDamageMult = 1;
+    /** Gun definitions upgraded at Last Call's powered workbench. */
+    readonly specOpsUpgradedWeapons = new Set<string>();
     /** Seconds remaining before Spec Ops out-of-combat regen starts. */
     specOpsCombatTimer = 0;
     specOpsKind: "" | "enemy" | "ally" | "sentry" = "";

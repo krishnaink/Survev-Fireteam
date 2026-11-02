@@ -117,8 +117,10 @@ import {
     ZombieMysteryBoxCooldown,
     ZombieMysteryBoxCost,
     ZombieMysteryBoxCycleInterval,
+    ZombieMysteryBoxRelocateUses,
     ZombieMysteryBoxRollDuration,
     ZombieMysteryBoxWeapons,
+    ZombieUpgradeCost,
 } from "./zombieMode.ts";
 
 export type SpecOpsKind = "enemy" | "ally" | "sentry";
@@ -5836,6 +5838,8 @@ export class SpecOpsManager implements PracticeHost {
     readonly contracts = new SpecOpsContractRunner(this);
     private lastContractHudCode = -1;
     private mysteryBoxState?: ZombieMysteryBoxState;
+    private mysteryBoxUses = 0;
+    zombiePowerOn = false;
 
     /** Practice mode controller; undefined in normal Spec Ops. */
     readonly practice?: PracticeController;
@@ -5908,7 +5912,20 @@ export class SpecOpsManager implements PracticeHost {
         state.loot = undefined;
         state.phase = "cooldown";
         state.ticker = ZombieMysteryBoxCooldown;
+        this.mysteryBoxUses++;
         this.setMysteryBoxVisual(state.box, false, false);
+    }
+
+    private relocateMysteryBox(box: Obstacle): void {
+        const spots = this.game.map.obstacles.filter((obstacle) =>
+            obstacle.type === "zombie_mystery_box_spot"
+            && v2.distance(obstacle.pos, box.pos) > 4
+        );
+        if (!spots.length) return;
+        const destination = spots[Math.floor(util.random(0, spots.length))];
+        box.updatePos(destination.pos);
+        box.updateCollider();
+        this.game.playerBarn.addMapPing("ping_unlock", box.pos);
     }
 
     private tickMysteryBox(dt: number): void {
@@ -5945,6 +5962,10 @@ export class SpecOpsManager implements PracticeHost {
         }
 
         if (state.ticker <= 0) {
+            if (this.mysteryBoxUses >= ZombieMysteryBoxRelocateUses) {
+                this.relocateMysteryBox(state.box);
+                this.mysteryBoxUses = 0;
+            }
             this.setMysteryBoxVisual(state.box, false, true);
             this.mysteryBoxState = undefined;
         }
@@ -5994,6 +6015,84 @@ export class SpecOpsManager implements PracticeHost {
         this.paths = undefined;
         this.game.playerBarn.addMapPing("ping_unlock", gate.pos);
         return true;
+    }
+
+    tryTurnOnZombiePower(player: Player, powerSwitch: Obstacle): boolean {
+        if (
+            !this.zombieMode
+            || this.zombiePowerOn
+            || powerSwitch.type !== "zombie_power_switch"
+            || !powerSwitch.button?.canUse
+        ) return false;
+        if (player.specOpsAi || player.dead || player.downed || player.disconnected) return false;
+        if (
+            !collider.intersectCircle(
+                powerSwitch.collider,
+                player.pos,
+                powerSwitch.interactionRad + player.rad,
+            )
+        ) return false;
+
+        this.zombiePowerOn = true;
+        powerSwitch.useButton(player);
+        for (const obstacle of this.game.map.obstacles) {
+            if (obstacle.type === "zombie_power_gate" && !obstacle.destroyed) {
+                obstacle.destroy();
+            }
+            if (obstacle.type === "zombie_upgrade_bench" && obstacle.button) {
+                obstacle.button.canUse = true;
+                obstacle.button.seq++;
+                obstacle.setDirty();
+            }
+        }
+        this.paths = undefined;
+        this.game.playerBarn.addMapPing("ping_unlock", powerSwitch.pos);
+        return true;
+    }
+
+    tryUpgradeZombieWeapon(player: Player, bench: Obstacle): boolean {
+        if (
+            !this.zombieMode
+            || !this.zombiePowerOn
+            || bench.type !== "zombie_upgrade_bench"
+            || !bench.button?.canUse
+        ) return false;
+        if (player.specOpsAi || player.dead || player.downed || player.disconnected) return false;
+        if (!collider.intersectCircle(bench.collider, player.pos, bench.interactionRad + player.rad)) {
+            return false;
+        }
+
+        const slot = player.curWeapIdx;
+        const weapon = player.weapons[slot];
+        const weaponDef = GameObjectDefs.typeToDefSafe(weapon.type);
+        if (!weaponDef || weaponDef.type !== "gun") return false;
+        if (player.specOpsUpgradedWeapons.has(weapon.type)) return false;
+        if (player.specOpsCash < ZombieUpgradeCost) return false;
+
+        this.grantCash(player, -ZombieUpgradeCost);
+        player.specOpsUpgradedWeapons.add(weapon.type);
+        const ammo = player.weaponManager.getAmmoStats(weaponDef, weapon.type);
+        weapon.ammo = ammo.maxClip;
+        player.invManager.give(weaponDef.ammo as InventoryItem, ammo.maxClip * 2);
+        player.weapsDirty = true;
+        bench.button.onOff = !bench.button.onOff;
+        bench.button.seq++;
+        bench.setDirty();
+        this.game.playerBarn.addMapPing("ping_unlock", bench.pos);
+        return true;
+    }
+
+    private configureLastCallSystems(): void {
+        if (!this.zombieMode || this.game.config.mapName !== "specops_complex") return;
+        this.zombiePowerOn = false;
+        for (const obstacle of this.game.map.obstacles) {
+            if (obstacle.type === "zombie_upgrade_bench" && obstacle.button) {
+                obstacle.button.canUse = false;
+                obstacle.button.onOff = false;
+                obstacle.button.seq++;
+                obstacle.setDirty();
+            }
+        }
     }
 
     ensureNavGraph(): MapNavGraph {
@@ -6504,6 +6603,7 @@ export class SpecOpsManager implements PracticeHost {
         this.shopSkipLock = ShopSkipLockTime;
         this.hudDirty = true;
         this.game.gas.setSpecOpsCountdown(this.phaseTimer, this.phaseDuration);
+        this.configureLastCallSystems();
         this.placeStations();
     }
 
@@ -6520,7 +6620,7 @@ export class SpecOpsManager implements PracticeHost {
         if (!this.operatorSpawn) {
             if (this.zombieMode && this.game.map.mapDef.gameMode.indoorMode) {
                 const spawnAnchor = this.game.config.mapName === "specops_complex"
-                    ? v2.add(this.game.map.center, v2.create(-60, 0))
+                    ? v2.add(this.game.map.center, v2.create(-10, -45))
                     : this.game.map.center;
                 const indoorSpawn = this.pickSpawnNear(spawnAnchor, 0, 5);
                 v2.set(player.pos, indoorSpawn);
@@ -7422,6 +7522,22 @@ export class SpecOpsManager implements PracticeHost {
         indexInSquad = 0,
         squadSize = 1,
     ): Vec2 | undefined {
+        if (this.zombieMode && this.game.config.mapName === "specops_complex") {
+            const entries = this.game.map.obstacles.filter((obstacle) => obstacle.type === "zombie_spawn_point");
+            const start = entries.length
+                ? (indexInSquad + this.waveSpawnPulseIndex * 3) % entries.length
+                : 0;
+            for (let e = 0; e < entries.length; e++) {
+                const entry = entries[(start + e) % entries.length];
+                for (let attempt = 0; attempt < 10; attempt++) {
+                    const pos = attempt === 0
+                        ? v2.copy(entry.pos)
+                        : v2.add(entry.pos, util.randomPointInCircle(5.5));
+                    if (this.enemySpawnOk(pos, origin, 8, host, humans)) return pos;
+                }
+            }
+        }
+
         const map = this.game.map;
         const tryPos = (angle: number, radius: number): Vec2 | undefined => {
             const pos = v2.add(
@@ -7860,6 +7976,12 @@ export class SpecOpsManager implements PracticeHost {
     private placeStations(): void {
         if (this.practice) return;
         if (this.stationsPlaced || !this.operatorSpawn) return;
+        if (this.zombieMode && this.game.config.mapName === "specops_complex") {
+            // Last Call has authored wall buys and stations from the layout PDF.
+            this.stationsPlaced = true;
+            this.game.map.serializeMapMsg();
+            return;
+        }
         this.stationsPlaced = true;
 
         const origin = this.operatorSpawn;

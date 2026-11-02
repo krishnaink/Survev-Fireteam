@@ -4,10 +4,13 @@ import { ZombieWaveIntermissionTime } from "../../server/src/game/specOpsManager
 import {
     composeZombieWave,
     zombieEnemyHealth,
+    ZombieMysteryBoxClaimDuration,
     ZombieMysteryBoxCooldown,
     ZombieMysteryBoxCost,
+    ZombieMysteryBoxRelocateUses,
     ZombieMysteryBoxRollDuration,
     ZombieMysteryBoxWeapons,
+    ZombieUpgradeCost,
     zombieWaveCount,
 } from "../../server/src/game/zombieMode.ts";
 import { MapDefs } from "../../shared/defs/mapDefs.ts";
@@ -85,7 +88,7 @@ test("Zombie Survival generates an enclosed nine-room arena with working doors",
     expect(Math.abs(operator.pos.y - game.map.center.y)).toBeLessThan(8);
 });
 
-test("Nightfall Complex generates furnished branching routes and a laboratory loop", () => {
+test("Last Call generates its furnished motel, club, courtyard and garage routes", () => {
     const game = createGame(TeamMode.Solo, "specops_complex");
     const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
     game.update(0.1);
@@ -94,19 +97,32 @@ test("Nightfall Complex generates furnished branching routes and a laboratory lo
         (building) => building.type === "zombie_branching_complex_01",
     );
     expect(complex).toBeDefined();
-    expect(complex?.surfaces).toHaveLength(11);
-    expect(game.map.width).toBe(224);
-    expect(game.map.height).toBe(144);
+    expect(complex?.surfaces).toHaveLength(9);
+    expect(game.map.width).toBe(176);
+    expect(game.map.height).toBe(136);
 
     const props = new Set(game.map.obstacles.map((obstacle) => obstacle.type));
     expect(props.has("bed_sm_01")).toBe(true);
-    expect(props.has("power_box_01")).toBe(true);
     expect(props.has("club_bar_large")).toBe(true);
-    expect(props.has("lab_window_01")).toBe(true);
+    expect(props.has("zombie_power_switch")).toBe(true);
+    expect(props.has("zombie_upgrade_bench")).toBe(true);
+    expect(props.has("zombie_garage_car")).toBe(true);
     expect(props.has("zombie_mystery_box")).toBe(true);
+    expect(game.map.obstacles.filter((obstacle) => obstacle.type === "specops_station_weapon"))
+        .toHaveLength(4);
+    expect(game.map.obstacles.filter((obstacle) => obstacle.type === "specops_station_perk"))
+        .toHaveLength(2);
+    expect(game.map.obstacles.filter((obstacle) => obstacle.type === "specops_station_gear"))
+        .toHaveLength(1);
+    expect(game.map.obstacles.filter((obstacle) => obstacle.type === "specops_station_armor"))
+        .toHaveLength(1);
+    expect(game.map.obstacles.filter((obstacle) => obstacle.type === "specops_station_support"))
+        .toHaveLength(1);
+    expect(game.map.obstacles.filter((obstacle) => obstacle.type === "zombie_spawn_point"))
+        .toHaveLength(19);
 
     const gates = game.map.obstacles.filter((obstacle) => obstacle.type.startsWith("zombie_buy_gate_"));
-    expect(gates).toHaveLength(8);
+    expect(gates).toHaveLength(9);
     expect(gates.every((gate) => gate.isButton && gate.collidable)).toBe(true);
     expect(
         game.map.obstacles
@@ -123,11 +139,12 @@ test("Nightfall Complex generates furnished branching routes and a laboratory lo
         definition.floor.imgs.every((image) => image.sprite.startsWith("map-zombie-floor-")),
     ).toBe(true);
     expect(definition.mapGroundPatches.some((patch) => patch.order === 0)).toBe(true);
-    expect(operator.pos.x).toBeLessThan(game.map.center.x - 50);
+    expect(Math.abs(operator.pos.x - (game.map.center.x - 10))).toBeLessThan(8);
+    expect(operator.pos.y).toBeLessThan(game.map.center.y - 35);
     expect(
         game.specOps!.ensureNavGraph().hasPath(
             operator,
-            v2.add(game.map.center, v2.create(-90, 0)),
+            v2.add(game.map.center, v2.create(-80, 0)),
         ),
     ).toBe(false);
 });
@@ -160,18 +177,19 @@ test("Zombie Survival automatically starts the next wave after an eight-second b
     expect(game.specOps!.phase).toBe("combat");
 });
 
-test("Nightfall route gates charge cash and permanently open navigation", () => {
+test("Last Call lobby gates charge cash and permanently open the selected route", () => {
     const game = createGame(TeamMode.Solo, "specops_complex");
     const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
     game.update(0.1);
     const gate = game.map.obstacles.find(
         (obstacle) =>
             obstacle.type === "zombie_buy_gate_750"
-            && obstacle.pos.y > game.map.center.y,
+            && obstacle.pos.y < game.map.center.y
+            && obstacle.pos.x < game.map.center.x,
     )!;
-    const apartment = v2.add(game.map.center, v2.create(-21, 24));
+    const courtyard = v2.add(game.map.center, v2.create(-20, -15));
 
-    expect(game.specOps!.ensureNavGraph().hasPath(operator, apartment)).toBe(false);
+    expect(game.specOps!.ensureNavGraph().hasPath(operator, courtyard)).toBe(false);
 
     operator.specOpsCash = 1000;
     v2.set(operator.pos, gate.pos);
@@ -180,10 +198,10 @@ test("Nightfall route gates charge cash and permanently open navigation", () => 
 
     expect(operator.specOpsCash).toBe(250);
     expect(gate.destroyed).toBe(true);
-    expect(game.specOps!.ensureNavGraph().hasPath(operator, apartment)).toBe(true);
+    expect(game.specOps!.ensureNavGraph().hasPath(operator, courtyard)).toBe(true);
 });
 
-test("Nightfall only spawns zombies with a route through unlocked rooms", () => {
+test("Last Call spawns zombies at fixed entries in currently reachable zones", () => {
     const game = createGame(TeamMode.Solo, "specops_complex");
     const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
     game.update(0.1);
@@ -193,10 +211,77 @@ test("Nightfall only spawns zombies with a route through unlocked rooms", () => 
     game.update(0.05);
 
     const zombies = game.playerBarn.livingPlayers.filter((player) => player.specOpsAi);
+    const entries = game.map.obstacles.filter((obstacle) => obstacle.type === "zombie_spawn_point");
     expect(zombies.length).toBeGreaterThan(0);
     expect(
         zombies.every((zombie) => game.specOps!.ensureNavGraph().hasPath(zombie, operator.pos)),
     ).toBe(true);
+    expect(
+        zombies.every((zombie) => entries.some((entry) => v2.distance(zombie.pos, entry.pos) <= 6)),
+    ).toBe(true);
+});
+
+test("Last Call power opens the garage and enables weapon upgrades", () => {
+    const game = createGame(TeamMode.Solo, "specops_complex");
+    const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+    const powerSwitch = game.map.obstacles.find((obstacle) => obstacle.type === "zombie_power_switch")!;
+    const powerGate = game.map.obstacles.find((obstacle) => obstacle.type === "zombie_power_gate")!;
+    const bench = game.map.obstacles.find((obstacle) => obstacle.type === "zombie_upgrade_bench")!;
+
+    expect(game.specOps!.zombiePowerOn).toBe(false);
+    expect(bench.button?.canUse).toBe(false);
+    v2.set(operator.pos, powerSwitch.pos);
+    game.grid.updateObject(operator);
+    powerSwitch.interact(operator);
+
+    expect(game.specOps!.zombiePowerOn).toBe(true);
+    expect(powerGate.destroyed).toBe(true);
+    expect(bench.button?.canUse).toBe(true);
+
+    const gun = operator.weapons[GameConfig.WeaponSlot.Primary];
+    const beforeClip = operator.weaponManager.getAmmoStats(
+        GameObjectDefs.typeToDef(gun.type, "gun"),
+        gun.type,
+    ).maxClip;
+    game.specOps!.grantCash(operator, ZombieUpgradeCost);
+    const paidCash = operator.specOpsCash;
+    v2.set(operator.pos, bench.pos);
+    game.grid.updateObject(operator);
+    bench.interact(operator);
+
+    expect(operator.specOpsCash).toBe(paidCash - ZombieUpgradeCost);
+    expect(operator.specOpsUpgradedWeapons.has(gun.type)).toBe(true);
+    expect(
+        operator.weaponManager.getAmmoStats(
+            GameObjectDefs.typeToDef(gun.type, "gun"),
+            gun.type,
+        ).maxClip,
+    ).toBeGreaterThan(beforeClip);
+});
+
+test("Last Call relocates the Mystery Box after repeated uses", () => {
+    const game = createGame(TeamMode.Solo, "specops_complex");
+    const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+    const box = game.map.obstacles.find((obstacle) => obstacle.type === "zombie_mystery_box")!;
+    const startingPos = v2.copy(box.pos);
+
+    for (let use = 0; use < ZombieMysteryBoxRelocateUses; use++) {
+        v2.set(operator.pos, v2.add(box.pos, v2.create(0, -3)));
+        game.grid.updateObject(operator);
+        game.specOps!.grantCash(operator, ZombieMysteryBoxCost);
+        box.interact(operator);
+        game.step(
+            ZombieMysteryBoxRollDuration
+                + ZombieMysteryBoxClaimDuration
+                + ZombieMysteryBoxCooldown
+                + 0.5,
+        );
+    }
+
+    expect(v2.distance(box.pos, startingPos)).toBeGreaterThan(4);
+    expect(box.button?.canUse).toBe(true);
 });
 
 test("Zombie wave one spawns unarmed melee walkers with cash bounties", () => {
