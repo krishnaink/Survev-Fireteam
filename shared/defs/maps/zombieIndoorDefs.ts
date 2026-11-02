@@ -112,9 +112,10 @@ export const ZombieBranchingComplex = util.mergeDeep(
             valueAdjust: 1,
         },
         mapGen: {
+            // Block is 217.5 × 172.5 plus a 10-unit street (lastCallLayout.ts, LastCallScale 1.5).
             map: {
-                baseWidth: 176,
-                baseHeight: 136,
+                baseWidth: 256,
+                baseHeight: 208,
             },
             places: [
                 {

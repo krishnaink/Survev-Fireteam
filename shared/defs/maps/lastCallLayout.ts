@@ -6,18 +6,24 @@ import { v2, type Vec2 } from "../../utils/v2.ts";
  * mystery box and an upgrade bench. The rules live in SpecOpsManager's zombie
  * systems; this file is only the layout.
  *
- * Everything here is in "plan" units: x to the right, y DOWN, origin at the
- * top-left corner of the block. 1 plan unit = 1 game unit. The building def and
- * the floor art generator both read this one file, so walls and art can't
- * drift apart.
+ * The tables below are authored in "base" plan units: x to the right, y DOWN,
+ * origin at the top-left corner of the block. Everything exported is scaled by
+ * LastCallScale into game units (rooms grow; furniture keeps its real size and
+ * stays against its wall; doorways and windows keep their width). The building
+ * def and the floor art generator both read the exported, scaled data, so walls
+ * and art can't drift apart.
  */
 
 export const LastCallMapName = "specops_complex";
 export const LastCallBuildingType = "zombie_branching_complex_01";
 
-/** Size of the walled block. */
-export const LastCallWidth = 145;
-export const LastCallHeight = 115;
+/** How much bigger the rooms are than the base plan (1 = original 145 × 115 block). */
+export const LastCallScale = 1.5;
+const S = LastCallScale;
+
+/** Size of the walled block, in game units. */
+export const LastCallWidth = 145 * S;
+export const LastCallHeight = 115 * S;
 /** Wall thickness. */
 export const LastCallWallThickness = 1;
 /** Extra floor art drawn around the block (street + sidewalk). */
@@ -58,7 +64,8 @@ export interface LastCallZone {
     rect: LastCallRect;
 }
 
-export const LastCallZones: LastCallZone[] = [
+/** Base-plan zones (scaled copies are exported as LastCallZones). */
+export const LastCallBaseZones: LastCallZone[] = [
     { id: "lobby", name: "Motel Lobby", rect: { x0: 55, y0: 90, x1: 85, y1: 115 } },
     { id: "storage", name: "Storage", rect: { x0: 85, y0: 90, x1: 100, y1: 115 } },
     { id: "courtyard", name: "Courtyard", rect: { x0: 40, y0: 50, x1: 100, y1: 90 } },
@@ -72,7 +79,7 @@ export const LastCallZones: LastCallZone[] = [
 
 
 /** Motel rooms 101–104 inside the wing (walls only, same zone). */
-export const LastCallMotelRooms: LastCallRect[] = [
+const BaseMotelRooms: LastCallRect[] = [
     { x0: 0, y0: 30, x1: 22.5, y1: 45 },
     { x0: 0, y0: 45, x1: 22.5, y1: 60 },
     { x0: 0, y0: 60, x1: 22.5, y1: 75 },
@@ -110,7 +117,7 @@ function vOpen(x: number, cy: number, w: number): LastCallOpening {
     return { axis: "v", at: x, a0: cy - w / 2, a1: cy + w / 2 };
 }
 
-export const LastCallDoors: LastCallDoor[] = [
+const BaseDoors: LastCallDoor[] = [
     // Lobby exits
     { id: "lobby_courtyard", kind: "shutter", cost: 750, zones: ["lobby", "courtyard"], opening: hOpen(90, 70, SW) },
     { id: "lobby_diner", kind: "shutter", cost: 1000, zones: ["lobby", "diner"], opening: vOpen(55, 102, SW) },
@@ -149,7 +156,7 @@ export interface LastCallEntry {
 }
 
 const WIN = 5;
-export const LastCallEntries: LastCallEntry[] = [
+const BaseEntries: LastCallEntry[] = [
     { zone: "lobby", pos: v2.create(62.5, 112), window: hOpen(115, 62.5, WIN) },
     { zone: "lobby", pos: v2.create(77.5, 112), window: hOpen(115, 77.5, WIN) },
     { zone: "diner", pos: v2.create(19.5, 112), window: hOpen(115, 19.5, WIN) },
@@ -172,7 +179,7 @@ export const LastCallEntries: LastCallEntry[] = [
 ];
 
 /** Where the squad spawns. */
-export const LastCallPlayerSpawns: Vec2[] = [
+const BasePlayerSpawns: Vec2[] = [
     v2.create(64, 106),
     v2.create(68, 106),
     v2.create(72, 106),
@@ -181,7 +188,7 @@ export const LastCallPlayerSpawns: Vec2[] = [
 
 export type LastCallStationType = "weapon" | "gear" | "armor" | "support" | "perk";
 
-export const LastCallStations: Array<{ type: LastCallStationType; pos: Vec2; zone: LastCallZoneId }> = [
+const BaseStations: Array<{ type: LastCallStationType; pos: Vec2; zone: LastCallZoneId }> = [
     { type: "weapon", pos: v2.create(81, 110), zone: "lobby" },
     { type: "gear", pos: v2.create(92.5, 110.5), zone: "storage" },
     { type: "weapon", pos: v2.create(46, 95), zone: "diner" },
@@ -197,15 +204,15 @@ export const LastCallStations: Array<{ type: LastCallStationType; pos: Vec2; zon
  * Mystery box spots (zombie_mystery_box is 8.8 × 3.7). The box starts on the
  * first one; every spot, including the first, is a place it can move back to.
  */
-export const LastCallBoxSpots: Array<{ pos: Vec2; zone: LastCallZoneId }> = [
+const BaseBoxSpots: Array<{ pos: Vec2; zone: LastCallZoneId }> = [
     { pos: v2.create(82, 55), zone: "courtyard" },
     { pos: v2.create(100, 44.5), zone: "club" },
     { pos: v2.create(43, 103.5), zone: "diner" },
     { pos: v2.create(121, 47), zone: "garage" },
 ];
 
-export const LastCallPowerSwitchPos = v2.create(139, 20.5);
-export const LastCallBenchPos = v2.create(129, 110);
+const BasePowerSwitchPos = v2.create(139, 20.5);
+const BaseBenchPos = v2.create(129, 110);
 
 /**
  * Collidable props that aren't walls. `type` is a map object type; plan pos is
@@ -220,7 +227,8 @@ export interface LastCallProp {
     ori?: number;
 }
 
-export const LastCallProps: LastCallProp[] = [
+/** Base-plan props (scaled copies are exported as LastCallProps). */
+export const LastCallBaseProps: LastCallProp[] = [
     // Lobby: reception desk + waiting chairs
     { type: "lastcall_reception", pos: v2.create(63, 96) },
     { type: "chair_01", pos: v2.create(58, 108), ori: 1 },
@@ -273,6 +281,79 @@ export const LastCallProps: LastCallProp[] = [
     { type: "zombie_garage_car", pos: v2.create(139.5, 90) },
     { type: "zombie_garage_car", pos: v2.create(120.5, 32), ori: 2 },
 ];
+
+// ---------------------------------------------------------------------------
+// Scaling from the base plan into game units
+// ---------------------------------------------------------------------------
+
+/**
+ * Built-in fixtures that are part of the room (pool, bar, DJ booth, counters,
+ * desks): they scale with the room, size included. Everything else is
+ * furniture and keeps its real size.
+ */
+export const LastCallScaledPropTypes = new Set([
+    "lastcall_pool",
+    "lastcall_bar_club",
+    "lastcall_dj_booth",
+    "lastcall_counter_diner",
+    "lastcall_reception",
+    "lastcall_office_table",
+]);
+
+/** Anything this close to a wall in the base plan keeps the same gap after scaling. */
+const HugDist = 4.5;
+
+function scaleRect(r: LastCallRect): LastCallRect {
+    return { x0: r.x0 * S, y0: r.y0 * S, x1: r.x1 * S, y1: r.y1 * S };
+}
+
+/** Base-plan point → game-unit point with every coordinate scaled. */
+export function lastCallScalePoint(p: Vec2): Vec2 {
+    return v2.create(p.x * S, p.y * S);
+}
+
+/**
+ * Base-plan point → game-unit point for furniture: positions scale with the
+ * room, but anything within HugDist of a wall keeps its gap to that wall.
+ */
+export function lastCallPlace(p: Vec2): Vec2 {
+    const contains = (r: LastCallRect) => p.x >= r.x0 && p.x <= r.x1 && p.y >= r.y0 && p.y <= r.y1;
+    const area = (r: LastCallRect) => (r.x1 - r.x0) * (r.y1 - r.y0);
+    const rect = [...BaseMotelRooms, ...LastCallBaseZones.map((z) => z.rect)]
+        .filter(contains)
+        .sort((a, b) => area(a) - area(b))[0];
+    if (!rect) return lastCallScalePoint(p);
+    const axis = (v: number, lo: number, hi: number) => {
+        if (v - lo <= HugDist) return lo * S + (v - lo);
+        if (hi - v <= HugDist) return hi * S - (hi - v);
+        return v * S;
+    };
+    return v2.create(axis(p.x, rect.x0, rect.x1), axis(p.y, rect.y0, rect.y1));
+}
+
+function scaleOpening(o: LastCallOpening): LastCallOpening {
+    const half = (o.a1 - o.a0) / 2;
+    const mid = ((o.a0 + o.a1) / 2) * S;
+    return { axis: o.axis, at: o.at * S, a0: mid - half, a1: mid + half };
+}
+
+export const LastCallZones: LastCallZone[] = LastCallBaseZones.map((z) => ({ ...z, rect: scaleRect(z.rect) }));
+export const LastCallMotelRooms: LastCallRect[] = BaseMotelRooms.map(scaleRect);
+export const LastCallDoors: LastCallDoor[] = BaseDoors.map((d) => ({ ...d, opening: scaleOpening(d.opening) }));
+export const LastCallEntries: LastCallEntry[] = BaseEntries.map((e) => ({
+    ...e,
+    pos: e.manhole ? lastCallScalePoint(e.pos) : lastCallPlace(e.pos),
+    window: e.window && scaleOpening(e.window),
+}));
+export const LastCallPlayerSpawns: Vec2[] = BasePlayerSpawns.map(lastCallPlace);
+export const LastCallStations = BaseStations.map((s) => ({ ...s, pos: lastCallPlace(s.pos) }));
+export const LastCallBoxSpots = BaseBoxSpots.map((b) => ({ ...b, pos: lastCallPlace(b.pos) }));
+export const LastCallPowerSwitchPos = lastCallPlace(BasePowerSwitchPos);
+export const LastCallBenchPos = lastCallPlace(BaseBenchPos);
+export const LastCallProps: LastCallProp[] = LastCallBaseProps.map((p) => ({
+    ...p,
+    pos: LastCallScaledPropTypes.has(p.type) ? lastCallScalePoint(p.pos) : lastCallPlace(p.pos),
+}));
 
 /** Axis-aligned wall segment in plan units, centered on the line. */
 export interface LastCallWall {
@@ -364,15 +445,15 @@ export function lastCallWalls(): LastCallWall[] {
     return walls;
 }
 
-/** Map object type for a wall of the given length (lengths are rounded to 0.5). */
+/** Map object type for a wall of the given length (lengths are rounded to 0.25; name is in hundredths). */
 export function lastCallWallType(len: number): string {
-    return `lastcall_wall_${Math.round(len * 2) * 5}`;
+    return `lastcall_wall_${Math.round(len * 4) * 25}`;
 }
 
 /** All distinct wall lengths, for generating wall defs. */
 export function lastCallWallLengths(): number[] {
     const set = new Set<number>();
-    for (const w of lastCallWalls()) set.add(Math.round((w.a1 - w.a0) * 2) / 2);
+    for (const w of lastCallWalls()) set.add(Math.round((w.a1 - w.a0) * 4) / 4);
     return [...set].sort((a, b) => a - b);
 }
 

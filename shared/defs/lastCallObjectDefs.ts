@@ -9,6 +9,7 @@ import {
     LastCallEntries,
     LastCallPowerSwitchPos,
     LastCallProps,
+    LastCallScale,
     lastCallShutterType,
     LastCallStations,
     lastCallToLocal,
@@ -229,7 +230,8 @@ function complexDef(): BuildingDef {
                 {
                     sprite: "map-lastcall-floor.img",
                     pos: v2.create(0, 0),
-                    scale: 1,
+                    // drawn at 16 / LastCallScale px per unit to keep the texture size down
+                    scale: LastCallScale,
                     alpha: 1,
                     tint: 0xffffff,
                 },
@@ -259,12 +261,15 @@ function lastCallDefs(): Record<string, MapObjectDef> {
     // Invisible collision for furniture painted into the floor art.
     // (Names avoid "desk", "crate" etc.: Spec Ops strips props matching those from buildings.)
     // Counters and desks are waist-high cover; the pool rail stops feet, not bullets.
-    defs.lastcall_reception = lastCallSolidBlock({ extents: v2.create(4, 1.25), height: 0.5 });
-    defs.lastcall_counter_diner = lastCallSolidBlock({ extents: v2.create(7, 1), height: 0.5 });
-    defs.lastcall_bar_club = lastCallSolidBlock({ extents: v2.create(1.5, 15), height: 0.5 });
-    defs.lastcall_dj_booth = lastCallSolidBlock({ extents: v2.create(8, 2), height: 0.5 });
-    defs.lastcall_office_table = lastCallSolidBlock({ extents: v2.create(6, 1.75), height: 0.5 });
-    defs.lastcall_pool = lastCallSolidBlock({ extents: v2.create(14, 7.5), height: 0.2 });
+    // Built-in fixtures scale with the rooms (LastCallScaledPropTypes); sizes below are base-plan sizes.
+    const fixture = (w: number, h: number, height: number) =>
+        lastCallSolidBlock({ extents: v2.create((w / 2) * LastCallScale, (h / 2) * LastCallScale), height });
+    defs.lastcall_reception = fixture(8, 2.5, 0.5);
+    defs.lastcall_counter_diner = fixture(14, 2, 0.5);
+    defs.lastcall_bar_club = fixture(3, 30, 0.5);
+    defs.lastcall_dj_booth = fixture(16, 4, 0.5);
+    defs.lastcall_office_table = fixture(12, 3.5, 0.5);
+    defs.lastcall_pool = fixture(28, 15, 0.2);
     defs.lastcall_planter = lastCallSolidBlock({ extents: v2.create(1.5, 1.5), height: 1 });
     defs.lastcall_pallet = lastCallSolidBlock({ extents: v2.create(2.25, 2.25) });
     defs.lastcall_ice_machine = lastCallSolidBlock({ extents: v2.create(1.5, 1.25), metal: true, height: 1 });

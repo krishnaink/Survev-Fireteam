@@ -98,8 +98,8 @@ test("Last Call generates its furnished motel, club, courtyard and garage routes
     );
     expect(complex).toBeDefined();
     expect(complex?.surfaces).toHaveLength(9);
-    expect(game.map.width).toBe(176);
-    expect(game.map.height).toBe(136);
+    expect(game.map.width).toBe(256);
+    expect(game.map.height).toBe(208);
 
     const props = new Set(game.map.obstacles.map((obstacle) => obstacle.type));
     expect(props.has("bed_sm_01")).toBe(true);

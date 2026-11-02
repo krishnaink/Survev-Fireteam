@@ -13,9 +13,9 @@ positions, not captured from the game client.*
 
 ## What changed
 
-- **Layout:** nine rooms in a 145 × 115 block: lobby, storage, courtyard,
-  neon diner, alley, motel wing, Club Paradiso, the manager's office and the
-  parking garage.
+- **Layout:** nine rooms in a 217.5 × 172.5 block (the 145 × 115 plan scaled
+  1.5×): lobby, storage, courtyard, neon diner, alley, motel wing, Club
+  Paradiso, the manager's office and the parking garage. The map is 256 × 208.
   - Doorways are 6 units wide.
   - Motel room doorways are open. Hinged doors used to snag zombies.
   - Furniture and cover are placed for close fights in the style of Hotline
@@ -59,9 +59,29 @@ SVGs (these were in the shared atlas, which every map loads).
 | `client/atlas-builder/defs/lastcall.ts` | The `lastcall` atlas. |
 | `tests/src/lastCall.test.ts` | Layout, open-room and pathing tests. |
 
+## Changing the size
+
+`LastCallScale` in `lastCallLayout.ts` sets how big the rooms are (1 = the
+original 145 × 115 plan, 1.5 now).
+- **Rooms** grow, and so do built-in fixtures (pool, bar, DJ booth, counters,
+  desks).
+- **Furniture, stations, cars and the box** keep their real size and move with
+  the room. Anything within 4.5 units of a wall stays the same distance from
+  that wall.
+- **Doorways and windows** keep their width, so shutters stay chokepoints.
+
+After changing it:
+1. Set `baseWidth`/`baseHeight` of `ZombieBranchingComplex` in
+   `zombieIndoorDefs.ts` to at least the block size plus about 40.
+2. Run `bun scripts/lastcall/buildArt.ts`.
+3. Update the map-size line in `zombieMode.test.ts`.
+
+The floor image is drawn at 16 / LastCallScale px per unit, so its texture size
+doesn't grow with the map.
+
 ## Changing the map
 
-1. Edit `lastCallLayout.ts`. Coordinates are plan units: x to the right, y down,
-   origin at the block's top-left corner.
+1. Edit the base tables in `lastCallLayout.ts`. Coordinates are base-plan
+   units: x to the right, y down, origin at the block's top-left corner.
 2. Run `bun scripts/lastcall/buildArt.ts` so the floor art matches the new walls.
 3. Run `bun run lint`, then the tests: `cd tests && bun run test lastCall zombieMode`.

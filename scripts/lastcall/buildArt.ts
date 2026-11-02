@@ -5,14 +5,18 @@
  *
  *   bun scripts/lastcall/buildArt.ts
  *
- * Writes SVGs into client/public/img/map/. The floor is drawn in plan units
- * (1 unit = 16 px, floor img scale 1) so walls, doorways and props land exactly
- * on their collision boxes. Re-run after moving anything in the layout.
+ * Writes SVGs into client/public/img/map/. The floor's viewBox is in game units
+ * so walls, doorways and props land exactly on their collision boxes. Room
+ * decor (floors, rugs, the pool, bar, DJ booth...) is drawn in base-plan units
+ * inside a scale(LastCallScale) group, the same way the layout scales it.
+ * Re-run after moving anything in the layout.
  */
 import fs from "node:fs";
 import path from "node:path";
 import {
     LastCallApron,
+    LastCallBaseProps,
+    LastCallBaseZones,
     LastCallBoxSpots,
     LastCallDoors,
     LastCallEntries,
@@ -22,6 +26,7 @@ import {
     type LastCallProp,
     LastCallProps,
     type LastCallRect,
+    LastCallScale,
     lastCallWalls,
     LastCallWallThickness,
     LastCallWidth,
@@ -30,7 +35,8 @@ import {
 } from "../../shared/defs/maps/lastCallLayout.ts";
 
 const outDir = path.join(import.meta.dirname, "../../client/public/img/map");
-const PX = 16; // px per unit on the floor (floor img scale 1)
+const S = LastCallScale;
+const PX = 16 / S; // px per unit on the floor (floor img scale = LastCallScale)
 const SPX = 32; // px per unit on prop sprites (obstacle img scale 0.5)
 
 const C = {
@@ -49,7 +55,9 @@ const C = {
     woodLight: "#7a5232",
 };
 
-const zone = (id: LastCallZoneId) => LastCallZones.find((z) => z.id === id)!.rect;
+/** Base-plan rect of a zone (for decor drawn inside the scale group). */
+const bzone = (id: LastCallZoneId) => LastCallBaseZones.find((z) => z.id === id)!.rect;
+const baseMotelRooms = LastCallMotelRooms.map((r) => ({ x0: r.x0 / S, y0: r.y0 / S, x1: r.x1 / S, y1: r.y1 / S }));
 const r2 = (n: number) => Math.round(n * 1000) / 1000;
 
 function rect(x: number, y: number, w: number, h: number, fill: string, extra = ""): string {
@@ -61,8 +69,13 @@ function rr(r: LastCallRect, fill: string, extra = ""): string {
 function text(x: number, y: number, s: string, size: number, fill: string, extra = ""): string {
     return `<text x="${r2(x)}" y="${r2(y)}" font-family="Arial, Helvetica, sans-serif" font-weight="bold" font-size="${size}" fill="${fill}" ${extra}>${s}</text>`;
 }
+/** Props in game units (furniture keeps its size). */
 function propsOf(type: string): LastCallProp[] {
     return LastCallProps.filter((p) => p.type === type);
+}
+/** Built-in fixtures in base-plan units, for drawing inside the scale group. */
+function basePropsOf(type: string): LastCallProp[] {
+    return LastCallBaseProps.filter((p) => p.type === type);
 }
 
 /** Checkerboard clipped to a rect. */
@@ -111,22 +124,25 @@ function floorSvg(): string {
     const dash = `stroke="${C.yellow}" stroke-width="0.35" stroke-dasharray="3 3" opacity="0.55" fill="none"`;
     parts.push(`<rect x="${-A / 2 - 1.75}" y="${-A / 2 - 1.75}" width="${W + A + 3.5}" height="${H + A + 3.5}" ${dash}/>`);
 
-    // --- zones --------------------------------------------------------------------
+    const under = parts.splice(0);
+    const room: string[] = [];
+
+    // --- zones (base-plan units, drawn inside scale(S)) --------------------------------------------------------------------
     // Lobby: teal checker + entry rug
-    parts.push(checker(zone("lobby"), "#173a43", "#1f4a55", 2, "pLobby"));
-    parts.push(rect(59, 100, 22, 9, "#3b1426", `opacity="0.85"`));
-    parts.push(rect(59.6, 100.6, 20.8, 7.8, "none", `stroke="${C.pink}" stroke-width="0.25" opacity="0.7"`));
+    room.push(checker(bzone("lobby"), "#173a43", "#1f4a55", 2, "pLobby"));
+    room.push(rect(59, 100, 22, 9, "#3b1426", `opacity="0.85"`));
+    room.push(rect(59.6, 100.6, 20.8, 7.8, "none", `stroke="${C.pink}" stroke-width="0.25" opacity="0.7"`));
     // reception desk (lastcall_reception)
-    for (const p of propsOf("lastcall_reception")) {
-        parts.push(rect(p.pos.x - 4, p.pos.y - 1.25, 8, 2.5, C.wood, `stroke="${C.wall}" stroke-width="0.25"`));
-        parts.push(rect(p.pos.x - 3.6, p.pos.y - 0.85, 2.2, 1.4, "#cfe9f2", `opacity="0.8"`));
-        parts.push(`<circle cx="${p.pos.x + 2.5}" cy="${p.pos.y}" r="0.45" fill="${C.yellow}"/>`);
+    for (const p of basePropsOf("lastcall_reception")) {
+        room.push(rect(p.pos.x - 4, p.pos.y - 1.25, 8, 2.5, C.wood, `stroke="${C.wall}" stroke-width="0.25"`));
+        room.push(rect(p.pos.x - 3.6, p.pos.y - 0.85, 2.2, 1.4, "#cfe9f2", `opacity="0.8"`));
+        room.push(`<circle cx="${p.pos.x + 2.5}" cy="${p.pos.y}" r="0.45" fill="${C.yellow}"/>`);
     }
-    parts.push(text(57, 93.5, "LAST CALL MOTEL", 1.6, C.cyan, `opacity="0.75"`));
+    room.push(text(57, 93.5, "LAST CALL MOTEL", 1.6, C.cyan, `opacity="0.75"`));
 
     // Storage: concrete + pallets of boxes
-    parts.push(rr(zone("storage"), "#2a2d33"));
-    parts.push(grid(zone("storage"), 5, "#31353c", 0.12));
+    room.push(rr(bzone("storage"), "#2a2d33"));
+    room.push(grid(bzone("storage"), 5, "#31353c", 0.12));
     for (const p of propsOf("lastcall_pallet")) {
         parts.push(rect(p.pos.x - 2.25, p.pos.y - 2.25, 4.5, 4.5, "#6b4a26", `stroke="#3a2812" stroke-width="0.3"`));
         parts.push(rect(p.pos.x - 2, p.pos.y - 2, 2, 2, "#8a6236"));
@@ -135,20 +151,20 @@ function floorSvg(): string {
     }
 
     // Courtyard: pavers, drained pool, palms
-    parts.push(rr(zone("courtyard"), "#26232f"));
-    parts.push(grid(zone("courtyard"), 4, "#302c3b", 0.15));
-    for (const p of propsOf("lastcall_pool")) {
+    room.push(rr(bzone("courtyard"), "#26232f"));
+    room.push(grid(bzone("courtyard"), 4, "#302c3b", 0.15));
+    for (const p of basePropsOf("lastcall_pool")) {
         const x = p.pos.x - 14;
         const y = p.pos.y - 7.5;
-        parts.push(`<rect x="${x}" y="${y}" width="28" height="15" rx="4" fill="#e9a8c8"/>`);
+        room.push(`<rect x="${x}" y="${y}" width="28" height="15" rx="4" fill="#e9a8c8"/>`);
         defs.push(`<pattern id="pPool" x="${x}" y="${y}" width="2" height="2" patternUnits="userSpaceOnUse">${rect(0, 0, 2, 2, "#0f4f61")}${rect(0, 0, 2, 0.12, "#17687d")}${rect(0, 0, 0.12, 2, "#17687d")}</pattern>`);
-        parts.push(`<rect x="${x + 0.9}" y="${y + 0.9}" width="26.2" height="13.2" rx="3.2" fill="url(#pPool)"/>`);
-        parts.push(`<rect x="${x + 16}" y="${y + 0.9}" width="11.1" height="13.2" rx="3" fill="#0a3442" opacity="0.6"/>`);
-        parts.push(text(x + 3, y + 8.6, "SHALLOW", 1.4, "#9fe7f5", `opacity="0.55"`));
-        parts.push(text(x + 18.5, y + 8.6, "DEEP", 1.4, "#9fe7f5", `opacity="0.55"`));
+        room.push(`<rect x="${x + 0.9}" y="${y + 0.9}" width="26.2" height="13.2" rx="3.2" fill="url(#pPool)"/>`);
+        room.push(`<rect x="${x + 16}" y="${y + 0.9}" width="11.1" height="13.2" rx="3" fill="#0a3442" opacity="0.6"/>`);
+        room.push(text(x + 3, y + 8.6, "SHALLOW", 1.4, "#9fe7f5", `opacity="0.55"`));
+        room.push(text(x + 18.5, y + 8.6, "DEEP", 1.4, "#9fe7f5", `opacity="0.55"`));
         // ladder
-        parts.push(rect(x + 25, y + 5.5, 0.3, 4, "#c9d2d9"));
-        parts.push(rect(x + 26.4, y + 5.5, 0.3, 4, "#c9d2d9"));
+        room.push(rect(x + 25, y + 5.5, 0.3, 4, "#c9d2d9"));
+        room.push(rect(x + 26.4, y + 5.5, 0.3, 4, "#c9d2d9"));
     }
     for (const p of propsOf("lastcall_planter")) {
         const z = LastCallZones.find((zz) => {
@@ -161,105 +177,105 @@ function floorSvg(): string {
             parts.push(`<circle cx="${p.pos.x}" cy="${p.pos.y}" r="1.15" fill="#2f9e63"/>`);
         }
     }
-    parts.push(text(41.5, 89, "COURTYARD", 1.6, C.wall, `opacity="0.25"`));
+    room.push(text(41.5, 89, "COURTYARD", 1.6, C.wall, `opacity="0.25"`));
 
     // Diner: red checker, kitchen tiles, counter, booths
-    parts.push(checker(zone("diner"), "#24121a", "#3d1a26", 2, "pDiner"));
-    parts.push(rect(10.5, 90.5, 15.5, 7.5, "#34383f"));
-    parts.push(grid({ x0: 10.5, y0: 90.5, x1: 26, y1: 98 }, 1.5, "#3d424a", 0.1));
-    for (const p of propsOf("lastcall_counter_diner")) {
-        parts.push(rect(p.pos.x - 7, p.pos.y - 1, 14, 2, "#c23a5e", `stroke="#e7e7ee" stroke-width="0.3"`));
+    room.push(checker(bzone("diner"), "#24121a", "#3d1a26", 2, "pDiner"));
+    room.push(rect(10.5, 90.5, 15.5, 7.5, "#34383f"));
+    room.push(grid({ x0: 10.5, y0: 90.5, x1: 26, y1: 98 }, 1.5, "#3d424a", 0.1));
+    for (const p of basePropsOf("lastcall_counter_diner")) {
+        room.push(rect(p.pos.x - 7, p.pos.y - 1, 14, 2, "#c23a5e", `stroke="#e7e7ee" stroke-width="0.3"`));
         for (let i = 0; i < 5; i++) {
-            parts.push(`<circle cx="${p.pos.x - 5.5 + i * 2.75}" cy="${p.pos.y + 2.2}" r="0.7" fill="#e7e7ee" stroke="#c23a5e" stroke-width="0.2"/>`);
+            room.push(`<circle cx="${p.pos.x - 5.5 + i * 2.75}" cy="${p.pos.y + 2.2}" r="0.7" fill="#e7e7ee" stroke="#c23a5e" stroke-width="0.2"/>`);
         }
     }
     for (const p of propsOf("table_01")) {
         parts.push(rect(p.pos.x - 3.4, p.pos.y - 4, 6.8, 1.4, "#8a1f3a", `rx="0.5"`));
         parts.push(rect(p.pos.x - 3.4, p.pos.y + 2.2, 6.8, 1.4, "#8a1f3a", `rx="0.5"`));
     }
-    parts.push(text(35, 113.6, "NEON DINER", 1.8, C.pink, `opacity="0.7"`));
+    room.push(text(35, 113.6, "NEON DINER", 1.8, C.pink, `opacity="0.7"`));
 
     // Alley: asphalt, puddles, edge stripes
-    parts.push(rr(zone("alley"), "#18171d"));
-    parts.push(`<ellipse cx="106" cy="88" rx="2.6" ry="1.4" fill="#22304a" opacity="0.8"/>`);
-    parts.push(`<ellipse cx="103.5" cy="55" rx="1.8" ry="1" fill="#22304a" opacity="0.8"/>`);
-    parts.push(`<path d="M101 70 L104 73 L103 76 L106 80" stroke="#0e0d12" stroke-width="0.25" fill="none"/>`);
-    parts.push(rect(100.6, 50.5, 0.35, 64, C.yellow, `opacity="0.35"`));
-    parts.push(rect(114.05, 50.5, 0.35, 64, C.yellow, `opacity="0.35"`));
-    parts.push(text(101.2, 108, "ALLEY", 1.5, C.wall, `opacity="0.3"`));
+    room.push(rr(bzone("alley"), "#18171d"));
+    room.push(`<ellipse cx="106" cy="88" rx="2.6" ry="1.4" fill="#22304a" opacity="0.8"/>`);
+    room.push(`<ellipse cx="103.5" cy="55" rx="1.8" ry="1" fill="#22304a" opacity="0.8"/>`);
+    room.push(`<path d="M101 70 L104 73 L103 76 L106 80" stroke="#0e0d12" stroke-width="0.25" fill="none"/>`);
+    room.push(rect(100.6, 50.5, 0.35, 64, C.yellow, `opacity="0.35"`));
+    room.push(rect(114.05, 50.5, 0.35, 64, C.yellow, `opacity="0.35"`));
+    room.push(text(101.2, 108, "ALLEY", 1.5, C.wall, `opacity="0.3"`));
 
     // Motel wing: hall carpet, room carpets, ice machines, room numbers
     defs.push(`<pattern id="pCarpet" x="0" y="0" width="3" height="3" patternUnits="userSpaceOnUse">${rect(0, 0, 3, 3, "#33224a")}<path d="M1.5 0 L3 1.5 L1.5 3 L0 1.5 Z" fill="#3d2a57"/></pattern>`);
-    parts.push(rr(zone("wing"), "url(#pCarpet)"));
-    LastCallMotelRooms.forEach((r, i) => {
-        parts.push(rr(r, "#2a1f35"));
-        parts.push(rect(r.x0 + 1.5, r.y0 + 1.5, r.x1 - r.x0 - 3, r.y1 - r.y0 - 3, "none", `stroke="#3a2b4a" stroke-width="0.3"`));
-        parts.push(text(r.x1 - 5, r.y1 - 1.5, `10${i + 1}`, 1.3, "#bfb3d6", `opacity="0.7"`));
+    room.push(rr(bzone("wing"), "url(#pCarpet)"));
+    baseMotelRooms.forEach((r, i) => {
+        room.push(rr(r, "#2a1f35"));
+        room.push(rect(r.x0 + 1.5, r.y0 + 1.5, r.x1 - r.x0 - 3, r.y1 - r.y0 - 3, "none", `stroke="#3a2b4a" stroke-width="0.3"`));
+        room.push(text(r.x1 - 5, r.y1 - 1.5, `10${i + 1}`, 1.3, "#bfb3d6", `opacity="0.7"`));
         // bathroom tiles in the corner
-        parts.push(rect(r.x0 + 0.5, r.y1 - 5, 4.5, 4.5, "#3a3f47"));
+        room.push(rect(r.x0 + 0.5, r.y1 - 5, 4.5, 4.5, "#3a3f47"));
     });
     for (const p of propsOf("lastcall_ice_machine")) {
         parts.push(rect(p.pos.x - 1.5, p.pos.y - 1.25, 3, 2.5, "#cfe9f2", `stroke="#7fb3c4" stroke-width="0.25"`));
         parts.push(text(p.pos.x - 1.1, p.pos.y + 0.45, "ICE", 0.9, "#2a6f86"));
     }
-    parts.push(text(24, 46, "MOTEL WING", 1.5, C.wall, `opacity="0.3"`));
+    room.push(text(24, 46, "MOTEL WING", 1.5, C.wall, `opacity="0.3"`));
 
     // Club Paradiso
-    parts.push(rr(zone("club"), "#1a0f24"));
+    room.push(rr(bzone("club"), "#1a0f24"));
     defs.push(`<pattern id="pDance" x="58" y="12" width="8" height="8" patternUnits="userSpaceOnUse">`
         + rect(0, 0, 4, 4, "#7a1f5e") + rect(4, 0, 4, 4, "#1f5a6e") + rect(0, 4, 4, 4, "#3a2a78") + rect(4, 4, 4, 4, "#7a1f5e")
         + rect(0, 0, 8, 8, "none", `stroke="#0c0812" stroke-width="0.3"`) + `</pattern>`);
-    parts.push(rect(58, 12, 32, 24, "url(#pDance)"));
-    parts.push(rect(58, 12, 32, 24, "none", `stroke="${C.pink}" stroke-width="0.4"`));
-    for (const p of propsOf("lastcall_dj_booth")) {
-        parts.push(rect(p.pos.x - 8, p.pos.y - 2, 16, 4, "#241a33", `stroke="${C.pink}" stroke-width="0.35"`));
-        parts.push(`<circle cx="${p.pos.x - 4}" cy="${p.pos.y}" r="1.3" fill="#0c0812" stroke="${C.cyan}" stroke-width="0.25"/>`);
-        parts.push(`<circle cx="${p.pos.x + 4}" cy="${p.pos.y}" r="1.3" fill="#0c0812" stroke="${C.cyan}" stroke-width="0.25"/>`);
-        parts.push(rect(p.pos.x - 1.5, p.pos.y - 0.8, 3, 1.6, "#3a2a50"));
+    room.push(rect(58, 12, 32, 24, "url(#pDance)"));
+    room.push(rect(58, 12, 32, 24, "none", `stroke="${C.pink}" stroke-width="0.4"`));
+    for (const p of basePropsOf("lastcall_dj_booth")) {
+        room.push(rect(p.pos.x - 8, p.pos.y - 2, 16, 4, "#241a33", `stroke="${C.pink}" stroke-width="0.35"`));
+        room.push(`<circle cx="${p.pos.x - 4}" cy="${p.pos.y}" r="1.3" fill="#0c0812" stroke="${C.cyan}" stroke-width="0.25"/>`);
+        room.push(`<circle cx="${p.pos.x + 4}" cy="${p.pos.y}" r="1.3" fill="#0c0812" stroke="${C.cyan}" stroke-width="0.25"/>`);
+        room.push(rect(p.pos.x - 1.5, p.pos.y - 0.8, 3, 1.6, "#3a2a50"));
     }
-    for (const p of propsOf("lastcall_bar_club")) {
-        parts.push(rect(40.5, p.pos.y - 15, 2.4, 30, "#2a1a30"));
+    for (const p of basePropsOf("lastcall_bar_club")) {
+        room.push(rect(40.5, p.pos.y - 15, 2.4, 30, "#2a1a30"));
         for (let y = p.pos.y - 14; y < p.pos.y + 14; y += 1.6) {
             const col = [C.cyan, C.pink, C.yellow, "#9be36b"][Math.floor(y) % 4];
-            parts.push(`<circle cx="41.7" cy="${r2(y)}" r="0.35" fill="${col}" opacity="0.8"/>`);
+            room.push(`<circle cx="41.7" cy="${r2(y)}" r="0.35" fill="${col}" opacity="0.8"/>`);
         }
-        parts.push(rect(p.pos.x - 1.5, p.pos.y - 15, 3, 30, C.wood, `stroke="${C.woodLight}" stroke-width="0.3"`));
+        room.push(rect(p.pos.x - 1.5, p.pos.y - 15, 3, 30, C.wood, `stroke="${C.woodLight}" stroke-width="0.3"`));
     }
-    parts.push(rect(96, 29, 13.5, 20.5, "#3b1530", `opacity="0.9"`));
-    parts.push(rect(96, 29, 13.5, 20.5, "none", `stroke="${C.pink}" stroke-width="0.3" stroke-dasharray="1 0.6"`));
-    parts.push(text(97, 28, "VIP", 1.4, C.pink));
-    parts.push(text(61, 40.5, "CLUB PARADISO", 2.6, C.pink, `opacity="0.85"`));
+    room.push(rect(96, 29, 13.5, 20.5, "#3b1530", `opacity="0.9"`));
+    room.push(rect(96, 29, 13.5, 20.5, "none", `stroke="${C.pink}" stroke-width="0.3" stroke-dasharray="1 0.6"`));
+    room.push(text(97, 28, "VIP", 1.4, C.pink));
+    room.push(text(61, 40.5, "CLUB PARADISO", 2.6, C.pink, `opacity="0.85"`));
 
     // Manager's office: wood planks, rug, desk, safe
     defs.push(`<pattern id="pWood" x="0" y="0" width="1.2" height="6" patternUnits="userSpaceOnUse">${rect(0, 0, 1.2, 6, "#3a2618")}${rect(1.1, 0, 0.1, 6, "#2a1b10")}${rect(0, 2.9, 1.2, 0.1, "#2a1b10")}</pattern>`);
-    parts.push(rr(zone("office"), "url(#pWood)"));
-    parts.push(rect(117, 4, 22, 14, "#4a1d2c"));
-    parts.push(rect(117.6, 4.6, 20.8, 12.8, "none", `stroke="#c9a25a" stroke-width="0.25"`));
-    for (const p of propsOf("lastcall_office_table")) {
-        parts.push(rect(p.pos.x - 6, p.pos.y - 1.75, 12, 3.5, "#6b3a1f", `stroke="#c9a25a" stroke-width="0.25"`));
-        parts.push(rect(p.pos.x - 4.5, p.pos.y - 1.1, 2.6, 2, "#efe3cf", `opacity="0.85"`));
-        parts.push(`<circle cx="${p.pos.x + 3.5}" cy="${p.pos.y}" r="0.7" fill="#1b1b22"/>`);
+    room.push(rr(bzone("office"), "url(#pWood)"));
+    room.push(rect(117, 4, 22, 14, "#4a1d2c"));
+    room.push(rect(117.6, 4.6, 20.8, 12.8, "none", `stroke="#c9a25a" stroke-width="0.25"`));
+    for (const p of basePropsOf("lastcall_office_table")) {
+        room.push(rect(p.pos.x - 6, p.pos.y - 1.75, 12, 3.5, "#6b3a1f", `stroke="#c9a25a" stroke-width="0.25"`));
+        room.push(rect(p.pos.x - 4.5, p.pos.y - 1.1, 2.6, 2, "#efe3cf", `opacity="0.85"`));
+        room.push(`<circle cx="${p.pos.x + 3.5}" cy="${p.pos.y}" r="0.7" fill="#1b1b22"/>`);
     }
-    parts.push(rect(140.5, 1, 4, 3.5, "#3a3d45", `stroke="#6e727c" stroke-width="0.25"`));
+    room.push(rect(140.5, 1, 4, 3.5, "#3a3d45", `stroke="#6e727c" stroke-width="0.25"`));
     // freight ramp under the gate
-    parts.push(rect(127, 20, 6, 5, "#2a2a31"));
-    for (let y = 20.5; y < 25; y += 1) parts.push(rect(127.3, y, 5.4, 0.2, "#3c3c45"));
-    parts.push(text(111.5, 24, "OFFICE", 1.3, C.wall, `opacity="0.35"`));
+    room.push(rect(127, 20, 6, 5, "#2a2a31"));
+    for (let y = 20.5; y < 25; y += 1) room.push(rect(127.3, y, 5.4, 0.2, "#3c3c45"));
+    room.push(text(111.5, 24, "OFFICE", 1.3, C.wall, `opacity="0.35"`));
     // glow under the power switch so it reads from across the room
     parts.push(`<circle cx="${LastCallPowerSwitchPos.x}" cy="${LastCallPowerSwitchPos.y}" r="2.6" fill="${C.yellow}" opacity="0.14"/>`);
     parts.push(text(LastCallPowerSwitchPos.x - 2.3, LastCallPowerSwitchPos.y - 1.6, "POWER", 0.9, C.yellow, `opacity="0.8"`));
 
     // Garage: concrete, parking stalls, arrows, oil
-    parts.push(rr(zone("garage"), "#1c1c22"));
-    parts.push(grid(zone("garage"), 10, "#23232a", 0.15));
-    for (let y = 30; y <= 110; y += 9) parts.push(rect(135.5, y, 9, 0.3, C.yellow, `opacity="0.55"`));
+    room.push(rr(bzone("garage"), "#1c1c22"));
+    room.push(grid(bzone("garage"), 10, "#23232a", 0.15));
+    for (let y = 30; y <= 110; y += 9) room.push(rect(135.5, y, 9, 0.3, C.yellow, `opacity="0.55"`));
     for (let y = 26; y < 112; y += 18) {
-        parts.push(`<path d="M122 ${y + 4} l1.5 -2.5 l1.5 2.5 m-1.5 -2.5 v6" stroke="#e7e7ee" stroke-width="0.35" fill="none" opacity="0.35"/>`);
+        room.push(`<path d="M122 ${y + 4} l1.5 -2.5 l1.5 2.5 m-1.5 -2.5 v6" stroke="#e7e7ee" stroke-width="0.35" fill="none" opacity="0.35"/>`);
     }
     for (const [x, y] of [[133, 50], [120, 92], [137, 72]]) {
-        parts.push(`<ellipse cx="${x}" cy="${y}" rx="1.8" ry="1.1" fill="#0b0b0f" opacity="0.7"/>`);
+        room.push(`<ellipse cx="${x}" cy="${y}" rx="1.8" ry="1.1" fill="#0b0b0f" opacity="0.7"/>`);
     }
-    parts.push(text(116, 113.5, "P2  PARKING", 1.4, C.wall, `opacity="0.3"`));
+    room.push(text(116, 113.5, "P2  PARKING", 1.4, C.wall, `opacity="0.3"`));
 
     // --- mystery box spots, manholes, spawn chevrons ------------------------------
     for (const b of LastCallBoxSpots) {
@@ -334,10 +350,11 @@ function floorSvg(): string {
         parts.push(`<circle cx="${e.pos.x}" cy="${e.pos.y}" r="1.3" fill="${C.red}" opacity="0.18"/>`);
     }
 
-    const w = (W + 2 * A) * PX;
-    const h = (H + 2 * A) * PX;
+    const w = Math.round((W + 2 * A) * PX);
+    const h = Math.round((H + 2 * A) * PX);
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${-A} ${-A} ${W + 2 * A} ${H + 2 * A}">`
-        + `<defs>${defs.join("")}</defs>${parts.join("")}</svg>\n`;
+        + `<defs>${defs.join("")}</defs>${under.join("")}`
+        + `<g transform="scale(${S})">${room.join("")}</g>${parts.join("")}</svg>\n`;
 }
 
 /** A prop sprite drawn in units, w×h units at 32 px/unit. */
