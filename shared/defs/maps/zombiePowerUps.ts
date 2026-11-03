@@ -15,6 +15,16 @@ export const ZombiePowerUpMaxActive = 2;
 export const ZombieNukeHealthFraction = 0.35;
 export const ZombieNukeCash = 400;
 
+/**
+ * How dropped power-ups spin on the ground (client only).
+ * "coin": turns around its vertical axis like a coin; "flat": spins in place.
+ * Period is seconds per full turn; 0 turns the spin off.
+ */
+export const ZombiePowerUpSpin: { style: "coin" | "flat"; period: number } = {
+    style: "coin",
+    period: 1.6,
+};
+
 export interface ZombiePowerUpTimers {
     instaKill: number;
     doublePoints: number;

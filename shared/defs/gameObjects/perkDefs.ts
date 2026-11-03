@@ -141,6 +141,8 @@ export interface PerkDef {
         border: string;
         borderTint: number;
         scale: number;
+        /** Icon size inside the border (client default 0.8). */
+        innerScale?: number;
     };
     sound: {
         pickup: string;
@@ -155,9 +157,11 @@ export const PerkDefs: Record<string, PerkDef> = {
         lootImg: {
             sprite: "loot-zombie-insta-kill.img",
             tint: 0xffffff,
-            border: "loot-circle-outer-03.img",
-            borderTint: 0xe84135,
+            // Soft glow behind a spinning coin (see ZombiePowerUpSpin).
+            border: "loot-zombie-powerup-glow.img",
+            borderTint: 0xff4d40,
             scale: 0.38,
+            innerScale: 1,
         },
         sound: { pickup: "perk_pickup_01" },
     },
@@ -167,9 +171,11 @@ export const PerkDefs: Record<string, PerkDef> = {
         lootImg: {
             sprite: "loot-zombie-double-points.img",
             tint: 0xffffff,
-            border: "loot-circle-outer-03.img",
-            borderTint: 0xf1c232,
+            // Soft glow behind a spinning coin (see ZombiePowerUpSpin).
+            border: "loot-zombie-powerup-glow.img",
+            borderTint: 0xffcc33,
             scale: 0.38,
+            innerScale: 1,
         },
         sound: { pickup: "perk_pickup_01" },
     },
@@ -179,9 +185,11 @@ export const PerkDefs: Record<string, PerkDef> = {
         lootImg: {
             sprite: "loot-zombie-max-ammo.img",
             tint: 0xffffff,
-            border: "loot-circle-outer-03.img",
-            borderTint: 0x4aa3df,
+            // Soft glow behind a spinning coin (see ZombiePowerUpSpin).
+            border: "loot-zombie-powerup-glow.img",
+            borderTint: 0x4aa8ff,
             scale: 0.38,
+            innerScale: 1,
         },
         sound: { pickup: "perk_pickup_01" },
     },
@@ -191,9 +199,11 @@ export const PerkDefs: Record<string, PerkDef> = {
         lootImg: {
             sprite: "loot-zombie-nuke.img",
             tint: 0xffffff,
-            border: "loot-circle-outer-03.img",
-            borderTint: 0x82d445,
+            // Soft glow behind a spinning coin (see ZombiePowerUpSpin).
+            border: "loot-zombie-powerup-glow.img",
+            borderTint: 0x8ce84a,
             scale: 0.38,
+            innerScale: 1,
         },
         sound: { pickup: "perk_pickup_01" },
     },
