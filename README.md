@@ -1,10 +1,24 @@
-# Survev Fireteam
+# Zurvev
 
-Open-source Spec Ops wave survival fork of Survev (surviv.io-style battle royale).
+**Zurvev** is an open-source multiplayer top-down shooter for the browser. It expands the Survev engine with cooperative Fireteam survival, round-based Zombies, and a configurable bot Practice mode.
+
+[Play Zurvev](https://52-162-233-43.sslip.io/)
 
 - Fireteam release: **1.7** (final official release)
 - Built on Survev **0.3.12**
-- Discord: https://discord.gg/w2MDPCpYqC
+- Discord: TBD
+
+
+## Game modes
+
+| Mode | Description |
+|------|-------------|
+| **Fireteam** | Fight escalating waves of enemy soldiers across outdoor maps. Revive teammates, purchase equipment, and compete for the highest round. |
+| **Zombies** | Survive **Last Call**, an indoor map with unlockable rooms, wall weapons, perk machines, a mystery box, power-ups, and increasingly dangerous zombie waves. |
+| **Practice** | Train against configurable bots with selectable maps, weapons, equipment, and combat settings. |
+
+Fireteam and Zombies support solo and team play. Each mode has separate leaderboard records.
+
 
 ## Requirements
 
