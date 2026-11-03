@@ -166,6 +166,8 @@ export class LoadoutDisplay {
             specOpsContractHud: 0,
             specOpsScoreboardDirty: false,
             specOpsScoreboard: [],
+            zombiePowerUpsDirty: false,
+            zombiePowerUps: { instaKill: 0, doublePoints: 0 },
             zoomDirty: false,
             zoom: 0,
             scope: "1xscope",

@@ -1,3 +1,4 @@
+import type { ZombiePowerUpTimers } from "../defs/maps/zombiePowerUps.ts";
 import { GameConfig, type Plane as PlaneType } from "../gameConfig.ts";
 import { v2, type Vec2 } from "./../utils/v2.ts";
 import { type AbstractMsg, BitSizes, type BitStream, Constants } from "./net.ts";
@@ -68,6 +69,12 @@ function serializeActivePlayer(s: BitStream, data: LocalDataWithDirty) {
             s.writeUint16(Math.min(entry.revives, 0xffff));
             s.writeUint32(Math.min(entry.cashEarned, 0xffffffff));
         });
+    }
+
+    s.writeBoolean(data.zombiePowerUpsDirty);
+    if (data.zombiePowerUpsDirty) {
+        s.writeUint8(data.zombiePowerUps.instaKill);
+        s.writeUint8(data.zombiePowerUps.doublePoints);
     }
 
     s.writeAlignToNextByte();
@@ -147,6 +154,12 @@ function deserializeActivePlayer(s: BitStream, data: LocalDataWithDirty) {
             revives: s.readUint16(),
             cashEarned: s.readUint32(),
         }));
+    }
+    data.zombiePowerUpsDirty = s.readBoolean();
+    data.zombiePowerUps = { instaKill: 0, doublePoints: 0 };
+    if (data.zombiePowerUpsDirty) {
+        data.zombiePowerUps.instaKill = s.readUint8();
+        data.zombiePowerUps.doublePoints = s.readUint8();
     }
     s.readAlignToNextByte();
 }
@@ -880,6 +893,7 @@ export interface LocalData {
     specOpsContractHud: number;
     /** Hold-Tab scoreboard rows (Spec Ops only; empty otherwise). */
     specOpsScoreboard: ScoreboardEntry[];
+    zombiePowerUps: ZombiePowerUpTimers;
 }
 
 /** One squad member's row on the hold-Tab scoreboard. */
@@ -909,6 +923,7 @@ export interface LocalDataWithDirty extends LocalData {
     specOpsArmorDirty: boolean;
     specOpsContractDirty: boolean;
     specOpsScoreboardDirty: boolean;
+    zombiePowerUpsDirty: boolean;
 }
 
 // the non-optional properties are used by both server and client

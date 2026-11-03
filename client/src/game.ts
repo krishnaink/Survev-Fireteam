@@ -22,6 +22,7 @@ import {
 import { Editor } from "./debug/editor.ts";
 /* STRIP_FROM_PROD_CLIENT:END */
 
+import { isZombiePowerUpType } from "../../shared/defs/maps/zombiePowerUps.ts";
 import { GameObjectDefs } from "../../shared/defs/register.ts";
 import { SpectateAction } from "../../shared/net/spectateMsg.ts";
 import type { GameWsDisconnectReason } from "../../shared/types/api.ts";
@@ -1862,6 +1863,12 @@ export class Game {
                     const itemDef = GameObjectDefs.typeToDefSafe(msg.item);
                     if (itemDef && itemDef.type == "xp") {
                         this.m_ui2Manager.addRareLootMessage(msg.item, true);
+                    }
+                    if (isZombiePowerUpType(msg.item)) {
+                        this.m_uiManager.displayZombiePowerUpPickup(msg.item);
+                        this.m_uiManager.displayAnnouncement(
+                            this.m_localization.translate(`game-${msg.item}`),
+                        );
                     }
                 } else {
                     this.m_ui2Manager.displayPickupMessage(msg.type);

@@ -5,6 +5,11 @@ import type { AmmoDef } from "../../../shared/defs/gameObjects/gearDefs.ts";
 import type { GunDef } from "../../../shared/defs/gameObjects/gunDefs.ts";
 import type { MeleeDef } from "../../../shared/defs/gameObjects/meleeDefs.ts";
 import type { XPDef } from "../../../shared/defs/gameObjects/xpDefs.ts";
+import {
+    isZombiePowerUpType,
+    zombiePowerUpFlashVisible,
+    ZombiePowerUpSpin,
+} from "../../../shared/defs/maps/zombiePowerUps.ts";
 import { GameObjectDefs } from "../../../shared/defs/register.ts";
 import { GameConfig } from "../../../shared/gameConfig.ts";
 import type { ObjectData, ObjectType } from "../../../shared/net/objectSerializeFns.ts";
@@ -31,6 +36,8 @@ export class Loot implements AbstractObject {
     playDropSfx = false;
     container = new PIXI.Sprite();
     sprite = new PIXI.Sprite();
+    /** Icon scale inside the border, kept so spinning can squash it. */
+    innerScale = 0.8;
     emitter: Emitter | null = null;
 
     updatedData!: boolean;
@@ -117,6 +124,7 @@ export class Loot implements AbstractObject {
 
             const innerScale = (itemDef as { lootImg: { innerScale?: number } }).lootImg.innerScale
                 || 0.8;
+            this.innerScale = innerScale;
             this.sprite.scale.set(innerScale, innerScale);
             this.sprite.texture = PIXI.Texture.from(itemDef.lootImg?.sprite);
             this.sprite.tint = itemDef.lootImg?.tint;
@@ -218,7 +226,21 @@ export class LootBarn {
                 }
 
                 const scaleIn = math.delerp(loot.ticker, 0, 1);
-                const scale = math.easeOutElastic(scaleIn, 0.75);
+                let scale = math.easeOutElastic(scaleIn, 0.75);
+                if (isZombiePowerUpType(loot.type)) {
+                    scale *= 1 + Math.sin(loot.ticker * 5) * 0.08;
+                    loot.container.visible = zombiePowerUpFlashVisible(loot.ticker);
+                    if (ZombiePowerUpSpin.period > 0) {
+                        const angle = (loot.ticker / ZombiePowerUpSpin.period) * Math.PI * 2;
+                        if (ZombiePowerUpSpin.style === "coin") {
+                            // Squash horizontally; abs() keeps the face from mirroring.
+                            const turn = Math.max(0.06, Math.abs(Math.cos(angle)));
+                            loot.sprite.scale.set(loot.innerScale * turn, loot.innerScale);
+                        } else {
+                            loot.sprite.rotation = angle;
+                        }
+                    }
+                }
                 let pos = loot.pos;
                 if (camera.m_interpEnabled) {
                     loot.posInterpTicker += dt;

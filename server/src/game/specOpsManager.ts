@@ -74,9 +74,21 @@ import {
     specOpsWaveBonus,
 } from "../../../shared/defs/maps/specOpsShop.ts";
 import { zombiePerkMachine } from "../../../shared/defs/maps/zombiePerks.ts";
+import {
+    isZombiePowerUpType,
+    ZombieNukeCash,
+    ZombieNukeHealthFraction,
+    zombiePowerUpBudget,
+    ZombiePowerUpMaxActive,
+    ZombiePowerUpMinInterval,
+    type ZombiePowerUpTimers,
+    type ZombiePowerUpType,
+    ZombieTimedPowerUpDuration,
+} from "../../../shared/defs/maps/zombiePowerUps.ts";
 import { GameObjectDefs, MapObjectDefs } from "../../../shared/defs/register.ts";
 import type { ObstacleDef } from "../../../shared/defs/types/obstacle.ts";
 import { GameConfig, type InventoryItem, TeamMode } from "../../../shared/gameConfig.ts";
+import * as net from "../../../shared/net/net.ts";
 import { ObjectType } from "../../../shared/net/objectSerializeFns.ts";
 import {
     practiceAimErrorDeg,
@@ -5761,6 +5773,15 @@ export class SpecOpsManager implements PracticeHost {
     private mysteryBoxState?: ZombieMysteryBoxState;
     private mysteryBoxUses = 0;
     zombiePowerOn = false;
+    readonly zombiePowerUps: ZombiePowerUpTimers = {
+        instaKill: 0,
+        doublePoints: 0,
+    };
+    zombieDropsRemaining = 0;
+    private zombieDropCooldown = 0;
+    private zombieKillsUntilDrop = 3;
+    private lastZombiePowerUp?: ZombiePowerUpType;
+    private lastZombiePowerUpHud = "";
 
     /** Practice mode controller; undefined in normal Spec Ops. */
     readonly practice?: PracticeController;
@@ -5783,6 +5804,189 @@ export class SpecOpsManager implements PracticeHost {
         return !!this.game.map.mapDef.gameMode.zombieMode
             && !this.practice
             && !this.game.map.specOpsBotArena;
+    }
+
+    isZombiePowerUpActive(type: "instaKill" | "doublePoints"): boolean {
+        return this.zombieMode && this.zombiePowerUps[type] > 0;
+    }
+
+    private zombiePowerUpHudState(): ZombiePowerUpTimers {
+        return {
+            instaKill: Math.ceil(this.zombiePowerUps.instaKill),
+            doublePoints: Math.ceil(this.zombiePowerUps.doublePoints),
+        };
+    }
+
+    private syncZombiePowerUpHud(force = false): void {
+        const state = this.zombiePowerUpHudState();
+        const key = `${state.instaKill}:${state.doublePoints}`;
+        if (!force && key === this.lastZombiePowerUpHud) return;
+        this.lastZombiePowerUpHud = key;
+        for (const player of this.game.playerBarn.players) {
+            if (player.specOpsAi) continue;
+            player.zombiePowerUps = { ...state };
+            player.zombiePowerUpsDirty = true;
+        }
+    }
+
+    private tickZombiePowerUps(dt: number): void {
+        this.zombieDropCooldown = math.max(0, this.zombieDropCooldown - dt);
+        this.zombiePowerUps.instaKill = math.max(0, this.zombiePowerUps.instaKill - dt);
+        this.zombiePowerUps.doublePoints = math.max(0, this.zombiePowerUps.doublePoints - dt);
+        this.syncZombiePowerUpHud();
+    }
+
+    private isOrdinaryZombie(player: Player): boolean {
+        return this.brains.get(player)?.enemyClass === "zombie_walker";
+    }
+
+    modifyZombieDamage(victim: Player, attacker: Player, amount: number): number {
+        if (
+            !this.isZombiePowerUpActive("instaKill")
+            || attacker.specOpsAi
+            || victim.specOpsKind !== "enemy"
+        ) return amount;
+        if (this.isOrdinaryZombie(victim)) {
+            return math.max(amount, victim.health + victim.specOpsArmor + 1);
+        }
+        return amount * 2;
+    }
+
+    modifyZombieKillCash(amount: number): number {
+        return this.isZombiePowerUpActive("doublePoints") ? amount * 2 : amount;
+    }
+
+    private refillZombieTeamAmmo(): void {
+        for (const player of this.livingHumans()) {
+            for (const item of Object.keys(player.invManager.items) as InventoryItem[]) {
+                const def = GameObjectDefs.typeToDef(item);
+                if (def.type !== "ammo" && def.type !== "throwable") continue;
+                player.invManager.set(item, player.invManager.getMaxCapacity(item));
+            }
+        }
+    }
+
+    private detonateZombieNuke(): void {
+        const enemies = [...this.livingEnemies()];
+        for (const enemy of enemies) {
+            if (this.isOrdinaryZombie(enemy)) {
+                enemy.damage({
+                    amount: enemy.health + enemy.specOpsArmor + 1,
+                    damageType: GameConfig.DamageType.Airstrike,
+                    dir: v2.create(1, 0),
+                    gameSourceType: "zombie_powerup_nuke",
+                });
+            } else {
+                enemy.health = math.max(1, enemy.health * (1 - ZombieNukeHealthFraction));
+            }
+        }
+        const cash = this.modifyZombieKillCash(ZombieNukeCash);
+        for (const player of this.livingHumans()) this.grantCash(player, cash);
+    }
+
+    private broadcastZombiePowerUp(type: ZombiePowerUpType): void {
+        for (const player of this.game.playerBarn.players) {
+            if (player.specOpsAi || player.disconnected) continue;
+            const msg = new net.PickupMsg();
+            msg.type = net.PickupMsgType.Success;
+            msg.item = type;
+            msg.count = 1;
+            player.client.sendMsg(net.MsgType.Pickup, msg);
+        }
+    }
+
+    activateZombiePowerUp(type: ZombiePowerUpType): void {
+        if (!this.zombieMode) return;
+        switch (type) {
+            case "zombie_powerup_insta_kill":
+                this.zombiePowerUps.instaKill = ZombieTimedPowerUpDuration;
+                break;
+            case "zombie_powerup_double_points":
+                this.zombiePowerUps.doublePoints = ZombieTimedPowerUpDuration;
+                break;
+            case "zombie_powerup_max_ammo":
+                this.refillZombieTeamAmmo();
+                break;
+            case "zombie_powerup_nuke":
+                this.detonateZombieNuke();
+                break;
+        }
+        this.syncZombiePowerUpHud(true);
+        this.broadcastZombiePowerUp(type);
+    }
+
+    tryPickupZombiePowerUp(player: Player, loot: Loot): boolean {
+        if (
+            !this.zombieMode
+            || !isZombiePowerUpType(loot.type)
+            || loot.destroyed
+            || player.specOpsAi
+            || player.dead
+            || player.downed
+            || player.disconnected
+            || player.pickupTicker > 0
+        ) return false;
+        player.pickupTicker = 0.1;
+        loot.destroy();
+        this.activateZombiePowerUp(loot.type);
+        return true;
+    }
+
+    private zombieTeamAmmoRatio(): number {
+        let current = 0;
+        let capacity = 0;
+        for (const player of this.livingHumans()) {
+            for (const item of Object.keys(player.invManager.items) as InventoryItem[]) {
+                if (GameObjectDefs.typeToDef(item).type !== "ammo") continue;
+                current += player.invManager.get(item);
+                capacity += player.invManager.getMaxCapacity(item);
+            }
+        }
+        return capacity > 0 ? current / capacity : 1;
+    }
+
+    private pickZombiePowerUp(): ZombiePowerUpType {
+        const lowAmmo = this.zombieTeamAmmoRatio() < 0.35;
+        const weights: Array<{ type: ZombiePowerUpType; weight: number }> = [
+            { type: "zombie_powerup_insta_kill", weight: 1 },
+            { type: "zombie_powerup_double_points", weight: 1 },
+            { type: "zombie_powerup_max_ammo", weight: lowAmmo ? 1.8 : 0.85 },
+            { type: "zombie_powerup_nuke", weight: 0.8 },
+        ];
+        for (const option of weights) {
+            if (option.type === this.lastZombiePowerUp) option.weight *= 0.15;
+        }
+        return util.weightedRandom(weights).type;
+    }
+
+    spawnZombiePowerUp(type: ZombiePowerUpType, pos: Vec2, layer: number): Loot | undefined {
+        return this.game.lootBarn.addLoot(type, pos, layer, 1, {
+            pushSpeed: 1.5,
+            noSideAmmo: true,
+            source: "map",
+        });
+    }
+
+    private tryDropZombiePowerUp(victim: Player): void {
+        if (
+            !this.zombieMode
+            || this.phase !== "combat"
+            || this.zombieDropsRemaining <= 0
+            || !lastCallPosReachable(this.game, victim.pos)
+        ) return;
+        this.zombieKillsUntilDrop--;
+        if (this.zombieKillsUntilDrop > 0 || this.zombieDropCooldown > 0) return;
+        const active = this.game.lootBarn.loots.filter(
+            (loot) => !loot.destroyed && isZombiePowerUpType(loot.type),
+        ).length;
+        if (active >= ZombiePowerUpMaxActive) return;
+
+        const type = this.pickZombiePowerUp();
+        if (!this.spawnZombiePowerUp(type, v2.copy(victim.pos), victim.layer)) return;
+        this.lastZombiePowerUp = type;
+        this.zombieDropsRemaining--;
+        this.zombieDropCooldown = ZombiePowerUpMinInterval;
+        this.zombieKillsUntilDrop = util.randomInt(3, 6);
     }
 
     private setMysteryBoxVisual(box: Obstacle, open: boolean, canUse: boolean): void {
@@ -6172,6 +6376,7 @@ export class SpecOpsManager implements PracticeHost {
         if (victim.specOpsKind !== "enemy") return;
 
         this.contracts.onEnemyKilled(killer, victim);
+        this.tryDropZombiePowerUp(victim);
 
         const brain = this.brains.get(victim);
         if (brain?.loadout.castIronWipe || brain?.enemyClass === "cast_iron") {
@@ -6605,6 +6810,8 @@ export class SpecOpsManager implements PracticeHost {
         player.specOpsArmor = specOpsStartingArmor(this.difficulty);
         player.specOpsContractHud = this.phase === "combat" ? this.contracts.hudCode : 0;
         player.specOpsContractDirty = true;
+        player.zombiePowerUps = this.zombiePowerUpHudState();
+        player.zombiePowerUpsDirty = true;
         if (!player.chest) player.chest = "chest01";
         if (!player.helmet) player.helmet = "helmet01";
         player.invManager.give("bandage", 10);
@@ -6737,6 +6944,8 @@ export class SpecOpsManager implements PracticeHost {
 
         if (this.game.over) return;
         if (!this.game.started) return;
+
+        if (this.zombieMode) this.tickZombiePowerUps(dt);
 
         this.tickAbandonedLobby(dt);
         if (this.game.over) return;
@@ -6980,6 +7189,11 @@ export class SpecOpsManager implements PracticeHost {
         this.lastBreakVoteCode = -1;
         this.wave++;
         this.phase = "combat";
+        if (this.zombieMode) {
+            this.zombieDropsRemaining = zombiePowerUpBudget(this.wave);
+            this.zombieDropCooldown = 0;
+            this.zombieKillsUntilDrop = util.randomInt(3, 5);
+        }
         this.phaseTimer = 0;
         this.spawnedThisWave = false;
         this.ironcladsThisWave = 0;

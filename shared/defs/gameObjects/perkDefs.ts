@@ -141,6 +141,8 @@ export interface PerkDef {
         border: string;
         borderTint: number;
         scale: number;
+        /** Icon size inside the border (client default 0.8). */
+        innerScale?: number;
     };
     sound: {
         pickup: string;
@@ -149,6 +151,62 @@ export interface PerkDef {
 }
 
 export const PerkDefs: Record<string, PerkDef> = {
+    zombie_powerup_insta_kill: {
+        name: "Insta-Kill",
+        type: "perk",
+        lootImg: {
+            sprite: "loot-zombie-insta-kill.img",
+            tint: 0xffffff,
+            // Soft glow behind a spinning coin (see ZombiePowerUpSpin).
+            border: "loot-zombie-powerup-glow.img",
+            borderTint: 0xff4d40,
+            scale: 0.38,
+            innerScale: 1,
+        },
+        sound: { pickup: "perk_pickup_01" },
+    },
+    zombie_powerup_double_points: {
+        name: "Double Points",
+        type: "perk",
+        lootImg: {
+            sprite: "loot-zombie-double-points.img",
+            tint: 0xffffff,
+            // Soft glow behind a spinning coin (see ZombiePowerUpSpin).
+            border: "loot-zombie-powerup-glow.img",
+            borderTint: 0xffcc33,
+            scale: 0.38,
+            innerScale: 1,
+        },
+        sound: { pickup: "perk_pickup_01" },
+    },
+    zombie_powerup_max_ammo: {
+        name: "Max Ammo",
+        type: "perk",
+        lootImg: {
+            sprite: "loot-zombie-max-ammo.img",
+            tint: 0xffffff,
+            // Soft glow behind a spinning coin (see ZombiePowerUpSpin).
+            border: "loot-zombie-powerup-glow.img",
+            borderTint: 0x4aa8ff,
+            scale: 0.38,
+            innerScale: 1,
+        },
+        sound: { pickup: "perk_pickup_01" },
+    },
+    zombie_powerup_nuke: {
+        name: "Nuke",
+        type: "perk",
+        lootImg: {
+            sprite: "loot-zombie-nuke.img",
+            tint: 0xffffff,
+            // Soft glow behind a spinning coin (see ZombiePowerUpSpin).
+            border: "loot-zombie-powerup-glow.img",
+            borderTint: 0x8ce84a,
+            scale: 0.38,
+            innerScale: 1,
+        },
+        sound: { pickup: "perk_pickup_01" },
+    },
     zombie_juggernog: {
         name: "Juggernog",
         type: "perk",
