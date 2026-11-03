@@ -1,6 +1,7 @@
 import $ from "jquery";
 import { EmotesDefs } from "../../../../shared/defs/gameObjects/emoteDefs.ts";
-import { GameConfig, MapId, type TeamMode } from "../../../../shared/gameConfig.ts";
+import { GameConfig, type TeamMode } from "../../../../shared/gameConfig.ts";
+import { leaderboardMode, LeaderboardModes } from "../../../../shared/utils/leaderboard.ts";
 import {
     ALL_TEAM_MODES,
     type LeaderboardRequest,
@@ -131,7 +132,8 @@ function getPlayerCardData(
         teamModes[i].name = GameConfig.TeamModeToString[teamMode];
     }
 
-    const gameModes = helpers.getGameModes().filter((m) => m.mapId === MapId.SpecOps);
+    const modeIds: number[] = LeaderboardModes.map((m) => m.mapId);
+    const gameModes = helpers.getGameModes().filter((m) => modeIds.includes(m.mapId));
 
     return {
         profile: profile,
@@ -139,6 +141,7 @@ function getPlayerCardData(
         teamModes: teamModes,
         teamModeFilter: teamModeFilter,
         gameModes: gameModes,
+        leaderboardModes: LeaderboardModes,
     };
 }
 
@@ -217,7 +220,7 @@ export class PlayerView {
         const params = new URLSearchParams(window.location.search);
         const slug = params.get("slug") || "";
         const interval = params.get("time") || "alltime";
-        const mapId = params.get("mapId") || String(MapId.SpecOps);
+        const mapId = String(leaderboardMode(params.get("mapId")).mapId);
         const gameId = params.get("gameId") || "";
 
         return {

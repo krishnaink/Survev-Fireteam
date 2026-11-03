@@ -3,24 +3,24 @@
 <head>
     <!-- Meta Properties -->
     <meta charset='UTF-8'>
-    <title>Survev Fireteam Stats — Spec Ops Leaderboards</title>
+    <title>Zurvev — Leaderboards</title>
     <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, viewport-fit=auto, user-scalable=no">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Survev Fireteam Stats">
+    <meta name="apple-mobile-web-app-title" content="Zurvev Stats">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="application-name" content="Survev Fireteam">
-    <meta name="description" content="Official Survev Fireteam Spec Ops leaderboards — highest rounds survived, match history, and operator stats.">
-    <meta property="og:description" content="Official Survev Fireteam Spec Ops leaderboards — highest rounds survived, match history, and operator stats.">
+    <meta name="application-name" content="Zurvev">
+    <meta name="description" content="Zurvev leaderboards — highest rounds survived in Fireteam and Zombies.">
+    <meta property="og:description" content="Zurvev leaderboards — highest rounds survived in Fireteam and Zombies.">
     <meta name="keywords" content="survev fireteam, spec ops, leaderboard, rounds survived, statistics, fireteam stats">
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Survev Fireteam Stats — Spec Ops Leaderboards">
+    <meta property="og:title" content="Zurvev — Leaderboards">
     <meta property="og:url" content="https://fireteam.bbyte.app/stats/">
-    <meta property="og:site_name" content="Survev Fireteam">
+    <meta property="og:site_name" content="Zurvev">
     <meta content="https://fireteam.bbyte.app/img/title.png" property="og:image">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Survev Fireteam Stats">
-    <meta name="twitter:description" content="Spec Ops leaderboards — highest rounds survived.">
+    <meta name="twitter:title" content="Zurvev — Leaderboards">
+    <meta name="twitter:description" content="Highest rounds survived in Fireteam and Zombies.">
     <link rel="canonical" href="https://fireteam.bbyte.app/stats/" />
     <link rel="apple-touch-icon-precomposed" href="img/icon_app.png">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
@@ -38,7 +38,7 @@
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Roboto+Condensed:400,700" rel="stylesheet">
 </head>
 <body class="specops-stats">
   <div id='wrapper'>
@@ -46,11 +46,10 @@
     <!-- Navigation -->
     <nav class="navbar navbar-expand-md navbar-dark stats-navbar">
       <div class='container'>
-        <a class="stats-brand navbar-brand" href="/">
-          <span class="stats-brand-survev">SURVEV</span>
-          <span class="stats-brand-fireteam" data-l10n="index-fireteam-version">Fireteam 1.7</span>
+        <a class="stats-brand navbar-brand zv-brand" href="/" aria-label="Zurvev home">
+          <span class="zv-brand-box">ZURVEV</span>
         </a>
-        <button class="btn btn-outline-success my-2 my-sm-0 stats-play-btn" type="button"><a class="nav-link-bright" href="/" data-l10n='index-play-survevio'>Play Survev Fireteam</a></button>
+        <a class="zv-play-link" href="/" data-l10n="stats-play-now">Play now</a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
           <span class="navbar-toggler-icon"></span>
         </button>
@@ -139,13 +138,6 @@
           </div>
           <div id='stats-copyright-notice' class='footer-copyright-legal' hidden data-l10n='index-copyright-banabyte'>Banabyte LLC holds the rights to Survev Fireteam under limited rights approved by the original license. Banabyte LLC holds all rights to branding of their own brands and projects, excluding the rights to the Survev project. Survev still holds rights to the original codebase, brands, and logos.</div>
         </div>
-          <div class='col-lg-4 col-12'>
-            <div id='footer-social-links'>
-              <a href="https://discord.gg/w2MDPCpYqC" target="_blank" rel="noopener" class="btn-social btn-darken btn-discord" aria-label="Discord"></a>
-              <a href="https://github.com/ZEROPOINTBRUH" target="_blank" rel="noopener" class="footer-text-link" data-l10n="index-github">GitHub</a>
-              <a href="https://ko-fi.com/zeropointbruh" target="_blank" rel="noopener" class="btn-social btn-darken btn-kofi" aria-label="Ko-fi"></a>
-            </div>
-          </div>
         </div>
       </div>
     </div>

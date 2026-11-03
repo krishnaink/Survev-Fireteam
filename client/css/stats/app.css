@@ -2175,3 +2175,431 @@ body.specops-stats .lb-kicker {
 .lb-clean-board #leaderboard-table .lb-member-table th:first-child {
   width: 40%;
 }
+
+/* ═══ Zurvev theme: matches the home page (dark green panels, night map, Roboto Condensed) ═══ */
+:root {
+  --lb-bg: #0b140b;
+  --lb-panel: rgba(6, 10, 6, 0.86);
+  --lb-ink: #eef6d4;
+  --lb-muted: rgba(180, 200, 160, 0.72);
+  --lb-line: rgba(107, 143, 60, 0.45);
+  --lb-accent: #9be06a;
+  --lb-font: "Roboto Condensed", arial, sans-serif;
+  --lb-display: "Roboto Condensed", arial, sans-serif;
+  --zv-green: #6fae3e;
+  --zv-green-dark: #3f6b22;
+  --zv-red: #c6362c;
+  --zv-red-dark: #7a1c15;
+  --zv-teal: #3a8d84;
+}
+
+body.specops-stats {
+  background:
+    linear-gradient(180deg, rgba(4, 8, 4, 0.55) 0%, rgba(3, 6, 3, 0.86) 55%, rgba(2, 4, 2, 0.95) 100%),
+    #142813 url(/img/gui/zurvev-menu-bg.svg) center top / 960px 720px repeat;
+  background-attachment: fixed;
+  color: var(--lb-ink);
+  font-family: var(--lb-font);
+}
+
+body.specops-stats #leaderboard-bg {
+  display: none !important;
+}
+
+/* Navbar */
+body.specops-stats .stats-navbar {
+  background: rgba(4, 8, 4, 0.9) !important;
+  border-bottom: 1px solid var(--lb-line);
+  padding: 10px 0;
+}
+
+body.specops-stats .stats-navbar .container {
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+body.specops-stats .zv-brand {
+  margin: 0;
+  padding: 0;
+}
+
+.zv-brand-box {
+  background: rgba(6, 12, 6, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 3px;
+  color: #fff;
+  display: inline-block;
+  font-family: var(--lb-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  padding: 6px 14px 7px;
+}
+
+.zv-play-link,
+.zv-play-link:visited {
+  background: var(--zv-green);
+  border-bottom: 3px solid var(--zv-green-dark);
+  border-radius: 7px;
+  color: #0f2108 !important;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  padding: 9px 16px 7px;
+  text-decoration: none !important;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zv-play-link:hover {
+  background: #82c64d;
+}
+
+body.specops-stats .nav-link-bright {
+  color: rgba(200, 220, 170, 0.85) !important;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+body.specops-stats .nav-link-bright:hover {
+  color: #fff !important;
+  text-decoration: none;
+}
+
+body.specops-stats #search-players {
+  align-items: center;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+body.specops-stats #search-players .form-control {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(107, 143, 60, 0.35);
+  border-radius: 6px;
+  color: var(--lb-ink);
+  height: 36px;
+  margin: 0 !important;
+  min-width: 0;
+}
+
+body.specops-stats #search-players .form-control::placeholder {
+  color: rgba(180, 200, 160, 0.55);
+}
+
+body.specops-stats #search-players .btn {
+  background: var(--zv-teal);
+  border: 0;
+  border-bottom: 3px solid #245852;
+  border-radius: 7px;
+  color: #e9fffb;
+  font-weight: 700;
+  height: 36px;
+  margin: 0 !important;
+}
+
+/* Hero */
+.zv-lb-hero {
+  padding: 34px 0 6px;
+  text-align: center;
+}
+
+.zv-lb-title {
+  color: #fff;
+  font-family: var(--lb-display);
+  font-size: clamp(30px, 5vw, 46px);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  margin: 0;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.65);
+  text-transform: uppercase;
+}
+
+.zv-lb-lede {
+  color: var(--lb-muted);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  margin: 6px 0 0;
+}
+
+/* Mode cards */
+.zv-lb-controls {
+  padding: 18px 0 6px;
+}
+
+.zv-lb-modes {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0 auto;
+  max-width: 720px;
+}
+
+.zv-lb-mode {
+  align-items: flex-start;
+  background: var(--lb-panel);
+  border: 1px solid var(--lb-line);
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  color: var(--lb-ink);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 14px 18px 13px;
+  position: relative;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.zv-lb-mode::before {
+  border-radius: 10px 0 0 10px;
+  bottom: -1px;
+  content: "";
+  left: -1px;
+  position: absolute;
+  top: -1px;
+  width: 5px;
+}
+
+.zv-lb-mode--fireteam::before { background: var(--zv-green); }
+.zv-lb-mode--zombies::before { background: var(--zv-red); }
+
+.zv-lb-mode:hover {
+  border-color: rgba(157, 255, 157, 0.45);
+}
+
+.zv-lb-mode:focus {
+  outline: none;
+}
+
+.zv-lb-mode:focus-visible {
+  box-shadow: 0 0 0 2px #9dff9d;
+}
+
+.zv-lb-mode-name {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.zv-lb-mode-desc {
+  color: var(--lb-muted);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.zv-lb-mode--fireteam.is-active {
+  background: rgba(30, 52, 18, 0.92);
+  border-color: var(--zv-green);
+}
+
+.zv-lb-mode--zombies.is-active {
+  background: rgba(58, 16, 14, 0.92);
+  border-color: var(--zv-red);
+}
+
+.zv-lb-mode--fireteam.is-active .zv-lb-mode-name { color: #b8f08a; }
+.zv-lb-mode--zombies.is-active .zv-lb-mode-name { color: #ff8a7a; }
+
+/* Team / window switches */
+.zv-lb-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  justify-content: center;
+  margin: 16px auto 0;
+  max-width: 720px;
+}
+
+.zv-lb-filter {
+  display: flex;
+  flex: 1 1 260px;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.zv-lb-filter-label {
+  color: #8faa6e;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.zv-seg {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(107, 143, 60, 0.35);
+  border-radius: 8px;
+  display: flex;
+  overflow: hidden;
+}
+
+.zv-seg button {
+  background: transparent;
+  border: 0;
+  color: rgba(200, 220, 170, 0.7);
+  cursor: pointer;
+  flex: 1 1 0;
+  font-family: var(--lb-font);
+  font-size: 13px;
+  font-weight: 700;
+  height: 36px;
+  letter-spacing: 0.05em;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 6px;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.zv-seg button + button {
+  border-left: 1px solid rgba(107, 143, 60, 0.25);
+}
+
+.zv-seg button:hover {
+  color: #eef6d4;
+}
+
+.zv-seg button:focus {
+  outline: none;
+}
+
+.zv-seg button:focus-visible {
+  box-shadow: inset 0 0 0 2px #9dff9d;
+}
+
+.zv-seg button.is-active {
+  background: rgba(107, 143, 60, 0.4);
+  color: #f0ffd8;
+}
+
+/* Board */
+body.specops-stats .lb-board {
+  padding: 18px 0 48px;
+}
+
+body.specops-stats .lb-board-inner {
+  max-width: 960px;
+}
+
+.zv-lb-board-head {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  margin: 0 0 8px;
+}
+
+.zv-lb-board-mode {
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 4px 12px;
+  text-transform: uppercase;
+}
+
+.zv-lb-board-mode--fireteam {
+  background: rgba(111, 174, 62, 0.2);
+  border: 1px solid var(--zv-green);
+  color: #b8f08a;
+}
+
+.zv-lb-board-mode--zombies {
+  background: rgba(198, 54, 44, 0.2);
+  border: 1px solid var(--zv-red);
+  color: #ff9d90;
+}
+
+.zv-lb-board-count {
+  color: var(--lb-muted);
+  font-size: 13px;
+}
+
+body.specops-stats .lb-table-shell {
+  background: var(--lb-panel) !important;
+  border: 1px solid var(--lb-line) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55) !important;
+  overflow: hidden;
+}
+
+body.specops-stats #leaderboard-table thead th {
+  background: rgba(0, 0, 0, 0.35);
+  color: #8faa6e;
+  font-family: var(--lb-display);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+body.specops-stats #leaderboard-table tbody > tr.main:hover {
+  background: rgba(107, 143, 60, 0.12);
+}
+
+body.specops-stats .lb-team-name {
+  color: #fff;
+  font-weight: 700;
+}
+
+body.specops-stats .data-rounds {
+  color: #b8f08a;
+  font-weight: 700;
+}
+
+body.specops-stats .lb-empty {
+  color: var(--lb-muted);
+  padding: 28px 12px !important;
+  text-align: center !important;
+}
+
+body.specops-stats .lb-board-footnote {
+  color: rgba(180, 200, 160, 0.55);
+}
+
+/* Footer */
+body.specops-stats #footer {
+  background: rgba(2, 5, 2, 0.8);
+  border-top: 1px solid rgba(107, 143, 60, 0.18);
+  color: rgba(180, 200, 160, 0.6);
+}
+
+@media (max-width: 575px) {
+  .zv-lb-hero {
+    padding-top: 22px;
+  }
+
+  .zv-lb-modes {
+    gap: 8px;
+  }
+
+  .zv-lb-mode {
+    padding: 11px 12px 10px;
+  }
+
+  .zv-lb-mode-name {
+    font-size: 18px;
+  }
+
+  .zv-lb-mode-desc {
+    font-size: 12px;
+  }
+
+  .zv-lb-filters {
+    gap: 10px;
+  }
+
+  .zv-brand-box {
+    font-size: 18px;
+    padding: 5px 10px 6px;
+  }
+}

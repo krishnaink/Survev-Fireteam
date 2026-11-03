@@ -1,7 +1,11 @@
 import $ from "jquery";
-import { MapId } from "../../../../shared/gameConfig.ts";
 import type { LeaderboardRequest, LeaderboardResponse } from "../../../../shared/types/stats.ts";
-import { leaderboardName, leaderboardStat } from "../../../../shared/utils/leaderboard.ts";
+import {
+    leaderboardMode,
+    LeaderboardModes,
+    leaderboardName,
+    leaderboardStat,
+} from "../../../../shared/utils/leaderboard.ts";
 import { api } from "../../api.ts";
 import { device } from "../../device.ts";
 import { helpers } from "../../helpers.ts";
@@ -32,13 +36,46 @@ export class MainView {
     el = $(
         templates.main({
             phoneDetected: device.mobile && !device.tablet,
-            gameModes: helpers.getGameModes().filter((m) => m.mapId === MapId.SpecOps),
+            modes: LeaderboardModes,
         }),
     );
 
     constructor(readonly app: App) {
-        this.el.find(".leaderboard-opt").change(() => {
-            this.onChangedParams();
+        // Game mode cards (Fireteam / Zombies) and the Team / Window switches.
+        this.el.on("click", ".zv-lb-mode", (e) => {
+            const mode = leaderboardMode($(e.currentTarget).attr("data-mode"));
+            this.onChangedParams({ mapId: String(mode.mapId) });
+        });
+        this.el.on("click", ".zv-seg button", (e) => {
+            const btn = $(e.currentTarget);
+            const param = btn.closest(".zv-seg").attr("data-param")!;
+            this.onChangedParams({ [param]: btn.attr("data-value")! });
+        });
+    }
+
+    /** Current filters from the URL, with defaults. */
+    params() {
+        return {
+            mode: leaderboardMode(helpers.getParameterByName("mapId") || helpers.getParameterByName("mode")),
+            interval: (helpers.getParameterByName<LeaderboardRequest["interval"]>("t") || "alltime"),
+            teamMode: helpers.getParameterByName("team") || "solo",
+        };
+    }
+
+    /** Highlight the selected mode, team size and window. */
+    syncControls() {
+        const p = this.params();
+        this.el.find(".zv-lb-mode").each((_i, el) => {
+            const on = $(el).attr("data-mode") === p.mode.key;
+            $(el).toggleClass("is-active", on).attr("aria-selected", String(on));
+        });
+        const values: Record<string, string> = { team: p.teamMode, t: p.interval };
+        this.el.find(".zv-seg").each((_i, seg) => {
+            const value = values[$(seg).attr("data-param")!];
+            $(seg).find("button").each((_j, b) => {
+                const on = $(b).attr("data-value") === value;
+                $(b).toggleClass("is-active", on).attr("aria-selected", String(on));
+            });
         });
     }
     load() {
@@ -56,9 +93,8 @@ export class MainView {
         if (type !== "waves_survived") {
             type = "waves_survived";
         }
-        const interval = helpers.getParameterByName<LeaderboardRequest["interval"]>("t") || "alltime";
-        const teamMode = helpers.getParameterByName("team") || "solo";
-        const mapId = String(MapId.SpecOps);
+        const { interval, teamMode } = this.params();
+        const mapId = String(this.params().mode.mapId);
 
         const args: LeaderboardRequest = {
             type: type,
@@ -94,15 +130,16 @@ export class MainView {
 
         this.render();
     }
-    onChangedParams() {
-        const type = $("#leaderboard-type").val() || "waves_survived";
-        const time = $("#leaderboard-time").val();
-        const teamMode = $("#leaderboard-team-mode").val();
-        window.history.pushState(
-            "",
-            "",
-            `?type=${type}&team=${teamMode}&t=${time}&mapId=${MapId.SpecOps}`,
-        );
+    onChangedParams(change: Record<string, string>) {
+        const p = this.params();
+        const next = {
+            type: "waves_survived",
+            team: p.teamMode,
+            t: p.interval,
+            mapId: String(p.mode.mapId),
+            ...change,
+        };
+        window.history.pushState("", "", `?${new URLSearchParams(next).toString()}`);
         this.load();
     }
     render() {
@@ -128,6 +165,7 @@ export class MainView {
 
             content = templates.leaderboard({
                 ...this.data,
+                mode: this.params().mode,
                 statName: statName,
                 leaderboardName,
                 leaderboardStat,
@@ -136,11 +174,8 @@ export class MainView {
                 formatDifficulty: helpers.formatDifficulty,
             });
 
-            // Set the select options
-            $("#leaderboard-team-mode").val(this.data.teamMode!);
-            $("#leaderboard-type").val(this.data.type!);
-            $("#leaderboard-time").val(this.data.interval!);
         }
+        this.syncControls();
 
         this.el.find(".content").html(content);
         this.app.localization.localizeIndex();

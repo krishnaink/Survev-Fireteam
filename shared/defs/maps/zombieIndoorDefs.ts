@@ -1,3 +1,4 @@
+import { GameConfig } from "../../gameConfig.ts";
 import { util } from "../../utils/util.ts";
 import { v2 } from "../../utils/v2.ts";
 import type { MapDef } from "../mapDefs.ts";
@@ -64,6 +65,8 @@ export const ZombieBranchingComplex = util.mergeDeep(
     {},
     zombieIndoorBase,
     {
+        // Saved runs go to the Zombies leaderboard, not Fireteam's.
+        mapId: GameConfig.MapId.Zombies,
         desc: {
             name: "Zombie Survival",
             buttonText: "Last Call",
