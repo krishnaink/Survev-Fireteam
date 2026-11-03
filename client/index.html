@@ -592,6 +592,17 @@
           <div id="ui-specops-phase"></div>
           <div id="ui-specops-contract"></div>
         </div>
+        <div id="ui-zombie-powerups" class="js-ui-map-hidden js-ui-hud-show" aria-live="polite">
+          <div id="ui-zombie-insta-kill" class="ui-zombie-powerup" title="Insta-Kill">
+            <img src="img/loot/loot-zombie-insta-kill.svg" alt="Insta-Kill" />
+          </div>
+          <div id="ui-zombie-double-points" class="ui-zombie-powerup" title="Double Points">
+            <img src="img/loot/loot-zombie-double-points.svg" alt="Double Points" />
+          </div>
+          <div id="ui-zombie-powerup-notice" class="ui-zombie-powerup ui-zombie-powerup--notice">
+            <img id="ui-zombie-powerup-notice-img" alt="" />
+          </div>
+        </div>
         <div id="ui-killfeed-wrapper">
           <div id="ui-killfeed" class="js-ui-map-hidden js-ui-hud-show">
             <div id="ui-killfeed-contents"></div>
@@ -1079,7 +1090,7 @@
                 <div class="zv-field-pair">
                   <div class="specops-field">
                     <label class="specops-field-label" for="game-mode-select" data-l10n="index-home-mode">Mode</label>
-                    <select id="game-mode-select" class="menu-option specops-select">
+                    <select id="game-mode-select" class="server-select menu-option specops-select">
                       <option value="fireteam" data-l10n="index-mode-fireteam">Fireteam</option>
                       <option value="zombies" data-l10n="index-mode-zombies">Zombies</option>
                       <option value="practice" data-l10n="index-mode-practice">Practice (bots)</option>
@@ -1087,7 +1098,7 @@
                   </div>
                   <div class="specops-field">
                     <label class="specops-field-label" for="game-map-select" data-l10n="index-specops-map">Map</label>
-                    <select id="game-map-select" class="menu-option specops-select"></select>
+                    <select id="game-map-select" class="server-select menu-option specops-select"></select>
                   </div>
                 </div>
                 <div class="specops-field">

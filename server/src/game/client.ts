@@ -774,6 +774,8 @@ export class Client {
                 specOpsScoreboard: game.map.specOpsMode
                     ? playerBarn.getScoreboard()
                     : [],
+                zombiePowerUpsDirty: true,
+                zombiePowerUps: player.zombiePowerUps,
             };
             this.startedSpectating = false;
         } else {
