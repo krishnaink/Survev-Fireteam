@@ -1,7 +1,11 @@
 import $ from "jquery";
-import { MapId } from "../../../shared/gameConfig.ts";
 import { LEADERBOARD_DEFAULT_COUNT, type LeaderboardResponse } from "../../../shared/types/stats.ts";
-import { leaderboardName, leaderboardStat } from "../../../shared/utils/leaderboard.ts";
+import {
+    leaderboardMode,
+    type LeaderboardModeKey,
+    leaderboardName,
+    leaderboardStat,
+} from "../../../shared/utils/leaderboard.ts";
 import { api } from "../api.ts";
 import { helpers } from "../helpers.ts";
 import type { Localization } from "./localization.ts";
@@ -15,6 +19,7 @@ const TOP_COUNT = LEADERBOARD_DEFAULT_COUNT;
 
 export class MenuLeaderboard {
     private team: TeamKey = "solo";
+    private mode: LeaderboardModeKey = "fireteam";
     private pollTimer: ReturnType<typeof setInterval> | null = null;
     private fetchAbort: AbortController | null = null;
     private fetchGen = 0;
@@ -29,9 +34,14 @@ export class MenuLeaderboard {
             }
             return false;
         });
+        sidebar.on("click", ".specops-lb-mode", (e) => {
+            e.preventDefault();
+            this.setMode($(e.currentTarget).data("mode") as LeaderboardModeKey);
+            return false;
+        });
         sidebar.on("click", ".specops-lb-view-all", (e) => {
             e.preventDefault();
-            window.open(leaderboardUrl(this.team), "_blank");
+            window.open(leaderboardUrl(this.team, this.mode), "_blank");
             return false;
         });
     }
@@ -51,11 +61,22 @@ export class MenuLeaderboard {
         this.fetchAbort = null;
     }
 
+    /** Fireteam or Zombies board; the home page calls this when its Mode changes. */
+    setMode(mode: LeaderboardModeKey) {
+        const next = leaderboardMode(mode).key;
+        if (next === this.mode && this.pollTimer) return;
+        this.mode = next;
+        $(".specops-lb-mode").removeClass("is-active");
+        $(`.specops-lb-mode[data-mode="${next}"]`).addClass("is-active");
+        $(".specops-lb-view-all").attr("href", leaderboardUrl(this.team, next));
+        void this.refresh();
+    }
+
     setTeam(team: TeamKey) {
         this.team = team;
         $(".specops-lb-tab").removeClass("is-active");
         $(`.specops-lb-tab[data-team="${team}"]`).addClass("is-active");
-        $(".specops-lb-view-all").attr("href", leaderboardUrl(team));
+        $(".specops-lb-view-all").attr("href", leaderboardUrl(team, this.mode));
         const nameCol = $(".specops-lb-score-head span").eq(1);
         if (team === "solo") {
             nameCol.attr("data-l10n", "stats-player");
@@ -171,7 +192,7 @@ export class MenuLeaderboard {
             type: "waves_survived" as const,
             interval: "alltime" as const,
             teamMode: this.team,
-            mapId: String(MapId.SpecOps),
+            mapId: String(leaderboardMode(this.mode).mapId),
             maxCount: TOP_COUNT,
         };
 

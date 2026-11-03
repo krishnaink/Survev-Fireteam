@@ -258,6 +258,7 @@ export class Application {
             this.gameModeSelect.on("change", () => {
                 this.config.set("homeMode", this.homeMode());
                 this.updateHomeModeFields();
+                this.menuLeaderboard?.setMode(this.homeMode() === "zombies" ? "zombies" : "fireteam");
             });
             this.gameMapSelect.on("change", () => {
                 const mode = this.homeMode();
@@ -290,6 +291,8 @@ export class Application {
 
             this.menuLeaderboard = new MenuLeaderboard(this.localization);
             this.menuLeaderboard.start();
+            // The scores shown follow the Mode picked above (Practice shows Fireteam).
+            this.menuLeaderboard.setMode(this.homeMode() === "zombies" ? "zombies" : "fireteam");
 
             this.serverSelect.on("change", () => {
                 const t = resolveServerId(this.serverSelect.find(":selected").val() as string);

@@ -17,6 +17,7 @@ import { MapDefs } from "../../shared/defs/mapDefs.ts";
 import {
     FireteamMapPool,
     isSpecOpsMapName,
+    isZombieMapName,
     pickSpecOpsMapName,
     SpecOpsMapPool,
     specOpsMapMatches,
@@ -155,7 +156,9 @@ test("Random picks a Fireteam map; specific Fireteam and Zombies maps are kept",
     for (const key of SpecOpsMapPool) {
         const def = MapDefs[key];
         expect(def.gameMode.specOpsMode).toBe(true);
-        expect(def.mapId).toBe(GameConfig.MapId.SpecOps);
+        expect(def.mapId).toBe(
+            isZombieMapName(key) ? GameConfig.MapId.Zombies : GameConfig.MapId.SpecOps,
+        );
         expect(def.gameMode.maxPlayers).toBe(4);
     }
 

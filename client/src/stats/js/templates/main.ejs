@@ -1,32 +1,38 @@
-<section class="lb-hero">
-  <div class="lb-hero-glow" aria-hidden="true"></div>
-  <div class="container lb-hero-inner">
-    <p class="lb-kicker">Survev Fireteam</p>
-    <h1 class="lb-title" data-l10n="index-leaderboards" data-caps="true">Leaderboards</h1>
-    <p class="lb-lede" data-l10n="lb-best-runs">Highest rounds survived</p>
+<section class="zv-lb-hero">
+  <div class="container zv-lb-hero-inner">
+    <h1 class="zv-lb-title" data-l10n="index-leaderboards">Leaderboards</h1>
+    <p class="zv-lb-lede" data-l10n="lb-best-runs">Highest rounds survived</p>
   </div>
 </section>
 
-<section class="lb-controls">
+<section class="zv-lb-controls">
   <div class="container">
-    <div class="lb-filters">
-      <label class="lb-filter">
-        <span class="lb-filter-label" data-l10n="lb-mode">Mode</span>
-        <select id="leaderboard-team-mode" class="leaderboard-opt lb-select">
-          <option value="solo" data-l10n="stats-solo">Solo</option>
-          <option value="duo" data-l10n="stats-duo">Duo</option>
-          <option value="squad" data-l10n="stats-squad">Squad</option>
-        </select>
-      </label>
-      <input type="hidden" id="leaderboard-type" value="waves_survived">
-      <label class="lb-filter">
-        <span class="lb-filter-label" data-l10n="lb-window">Window</span>
-        <select id="leaderboard-time" class="leaderboard-opt lb-select">
-          <option value="daily" data-l10n="stats-today">Today</option>
-          <option value="weekly" data-l10n="stats-this-week">This week</option>
-          <option value="alltime" data-l10n="stats-all-time">All time</option>
-        </select>
-      </label>
+    <div class="zv-lb-modes" role="tablist" aria-label="Game mode">
+      <% for (var i = 0; i < env.modes.length; i++) { %>
+        <% var m = env.modes[i]; %>
+        <button type="button" class="zv-lb-mode zv-lb-mode--<%= m.key %>" data-mode="<%= m.key %>" role="tab">
+          <span class="zv-lb-mode-name" data-l10n="index-mode-<%= m.key %>"><%= m.label %></span>
+          <span class="zv-lb-mode-desc" data-l10n="lb-mode-desc-<%= m.key %>"><%= m.desc %></span>
+        </button>
+      <% } %>
+    </div>
+    <div class="zv-lb-filters">
+      <div class="zv-lb-filter">
+        <span class="zv-lb-filter-label" data-l10n="lb-team">Team</span>
+        <div class="zv-seg" data-param="team" role="tablist" aria-label="Team size">
+          <button type="button" data-value="solo" data-l10n="stats-solo">Solo</button>
+          <button type="button" data-value="duo" data-l10n="stats-duo">Duo</button>
+          <button type="button" data-value="squad" data-l10n="stats-squad">Squad</button>
+        </div>
+      </div>
+      <div class="zv-lb-filter">
+        <span class="zv-lb-filter-label" data-l10n="lb-window">Window</span>
+        <div class="zv-seg" data-param="t" role="tablist" aria-label="Time window">
+          <button type="button" data-value="daily" data-l10n="stats-today">Today</button>
+          <button type="button" data-value="weekly" data-l10n="stats-this-week">This week</button>
+          <button type="button" data-value="alltime" data-l10n="stats-all-time">All time</button>
+        </div>
+      </div>
     </div>
   </div>
 </section>

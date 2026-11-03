@@ -5,7 +5,7 @@ const FOCUS_CLASS = "menu-gamepad-focus";
 
 function visibleMenuItems(root: JQuery<HTMLElement>): JQuery<HTMLElement> {
     return root
-        .find(".menu-option:visible, .specops-input:visible, select.specops-select:visible, .specops-lb-tab:visible")
+        .find(".menu-option:visible, .specops-input:visible, select.specops-select:visible, .specops-lb-tab:visible, .specops-lb-mode:visible")
         .filter((_i, el) => {
             const $el = $(el);
             if ($el.css("pointer-events") === "none" || $el.css("opacity") === "0") {
@@ -36,6 +36,9 @@ function horizontalGroup(el: JQuery<HTMLElement>): JQuery<HTMLElement> | null {
 
     const lbTabs = el.closest(".specops-lb-tabs");
     if (lbTabs.length) return lbTabs.find(".specops-lb-tab:visible");
+
+    const lbModes = el.closest(".specops-lb-modes");
+    if (lbModes.length) return lbModes.find(".specops-lb-mode:visible");
 
     return null;
 }

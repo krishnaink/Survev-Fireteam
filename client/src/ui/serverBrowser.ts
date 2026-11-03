@@ -1,7 +1,8 @@
 import $ from "jquery";
 import { type MapDefKey, MapDefs } from "../../../shared/defs/mapDefs.ts";
-import { GameConfig, MapId, TeamMode } from "../../../shared/gameConfig.ts";
+import { GameConfig, TeamMode } from "../../../shared/gameConfig.ts";
 import type { PublicGameInfo, PublicGamesResponse } from "../../../shared/types/api.ts";
+import { leaderboardMode, type LeaderboardModeKey } from "../../../shared/utils/leaderboard.ts";
 import { api } from "../api.ts";
 import type { Localization } from "./localization.ts";
 import { MenuModal } from "./menuModal.ts";
@@ -110,6 +111,9 @@ export class ServerBrowser {
     }
 }
 
-export function leaderboardUrl(team: "solo" | "duo" | "squad"): string {
-    return `/stats?type=waves_survived&team=${team}&t=alltime&mapId=${MapId.SpecOps}`;
+export function leaderboardUrl(
+    team: "solo" | "duo" | "squad",
+    mode: LeaderboardModeKey = "fireteam",
+): string {
+    return `/stats?type=waves_survived&team=${team}&t=alltime&mapId=${leaderboardMode(mode).mapId}`;
 }

@@ -61,11 +61,13 @@
     </div>
     <div class='col-lg-2 col-6 pl-0'>
       <select id="player-map-id" class="player-opt custom-select">
-        <option value="<%= env.gameModes[0] ? env.gameModes[0].mapId : 0 %>" data-l10n='index-slogan'>Spec Ops Survival</option>
+        <% for (var gm = 0; gm < env.leaderboardModes.length; gm++) { %>
+          <option value="<%= env.leaderboardModes[gm].mapId %>" data-l10n="index-mode-<%= env.leaderboardModes[gm].key %>"><%= env.leaderboardModes[gm].label %></option>
+        <% } %>
       </select>
     </div>
     <div class='offset-6 col-2 col-rating-help'>
-      <div class='rating-help'>Spec Ops stats<div class='rating-help-desc'>Rounds survived and fight stats from Survev Fireteam Spec Ops missions.</div></div>
+      <div class='rating-help'>Mode stats<div class='rating-help-desc'>Rounds survived and fight stats for the selected mode: Fireteam or Zombies.</div></div>
     </div>
   </div>
 </div>

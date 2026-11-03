@@ -103,6 +103,8 @@ export enum MapId {
     Birthday = 8,
     Beach = 9,
     SpecOps = 10,
+    /** Zombies maps (Last Call). Own id so runs get their own leaderboard. */
+    Zombies = 11,
 }
 
 export enum Plane {
