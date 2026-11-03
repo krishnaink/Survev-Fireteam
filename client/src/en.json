@@ -1176,5 +1176,10 @@
   "lb-mode": "Mode",
   "lb-window": "Window",
   "lb-best-runs": "Highest rounds survived",
-  "lb-run-metrics": "Stats shown are from the ranked run. Downs = times downed."
+  "lb-run-metrics": "Stats shown are from the ranked run. Downs = times downed.",
+  "lb-team": "Team",
+  "lb-mode-desc-fireteam": "Soldier waves on outdoor maps",
+  "lb-mode-desc-zombies": "Zombie waves in Last Call",
+  "lb-run": "run",
+  "lb-runs": "runs"
 }

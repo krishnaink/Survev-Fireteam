@@ -1,3 +1,7 @@
+<div class="zv-lb-board-head">
+  <span class="zv-lb-board-mode zv-lb-board-mode--<%= env.mode.key %>" data-l10n="index-mode-<%= env.mode.key %>"><%= env.mode.label %></span>
+  <span class="zv-lb-board-count"><%= env.data.length %> <span data-l10n="<%= env.data.length === 1 ? 'lb-run' : 'lb-runs' %>"><%= env.data.length === 1 ? 'run' : 'runs' %></span></span>
+</div>
 <div class="lb-table-shell lb-clean-board">
   <table id="leaderboard-table" class="lb-table leaderboard-waves">
     <thead>
