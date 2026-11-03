@@ -22,7 +22,7 @@ export const ZombieNukeCash = 400;
  */
 export const ZombiePowerUpSpin: { style: "coin" | "flat"; period: number } = {
     style: "coin",
-    period: 1.6,
+    period: 2.6,
 };
 
 export interface ZombiePowerUpTimers {
