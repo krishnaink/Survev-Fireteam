@@ -204,6 +204,9 @@ export class UiManager {
     specOpsHostilesElem = $("#ui-specops-hostiles");
     specOpsPhaseElem = $("#ui-specops-phase");
     specOpsContractElem = $("#ui-specops-contract");
+    zombiePowerUpsElem = $("#ui-zombie-powerups");
+    zombieInstaKillElem = $("#ui-zombie-insta-kill");
+    zombieDoublePointsElem = $("#ui-zombie-double-points");
     specOpsShopElem = $("#ui-specops-shop");
     specOpsShopTitle = $("#ui-specops-shop-title");
     specOpsShopItems = $("#ui-specops-shop-items");
@@ -900,6 +903,9 @@ export class UiManager {
         this.specOpsHudElem.css("display", "none");
         this.specOpsPhaseElem.css("display", "none").text("");
         this.specOpsContractElem.css("display", "none").text("");
+        this.zombiePowerUpsElem.css("display", "none");
+        this.zombieInstaKillElem.text("");
+        this.zombieDoublePointsElem.text("");
         this.specOpsShopElem.css("display", "none");
         this.specOpsCashElem.text("$0");
         this.specOpsBuybackElem.css("display", "none");
@@ -2230,6 +2236,22 @@ export class UiManager {
         this.lastSpecOpsContractCode = code;
     }
 
+    updateZombiePowerUps(player: Player) {
+        const timers = player.m_localData.m_zombiePowerUps;
+        const insta = timers?.instaKill ?? 0;
+        const double = timers?.doublePoints ?? 0;
+        const instaName = this.localization.translate("game-zombie_powerup_insta_kill");
+        const doubleName = this.localization.translate("game-zombie_powerup_double_points");
+
+        this.zombieInstaKillElem
+            .text(insta > 0 ? `${instaName} ${insta}s` : "")
+            .css("display", insta > 0 ? "block" : "none");
+        this.zombieDoublePointsElem
+            .text(double > 0 ? `${doubleName} ${double}s` : "")
+            .css("display", double > 0 ? "block" : "none");
+        this.zombiePowerUpsElem.css("display", insta > 0 || double > 0 ? "flex" : "none");
+    }
+
     updateSpecOpsWaitUi() {
         const waiting = this.game.m_map.specOpsMode
             && this.spectating
@@ -2323,6 +2345,7 @@ export class UiManager {
         this.specOpsCashElem.text(`$${cash}`);
         this.updateSpecOpsPhase();
         this.updateSpecOpsContractHud(player);
+        this.updateZombiePowerUps(player);
         this.updateSpecOpsSupportHud(player, playerBarn);
 
         const buybackCost = specOpsBuybackCost(

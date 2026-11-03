@@ -149,6 +149,54 @@ export interface PerkDef {
 }
 
 export const PerkDefs: Record<string, PerkDef> = {
+    zombie_powerup_insta_kill: {
+        name: "Insta-Kill",
+        type: "perk",
+        lootImg: {
+            sprite: "loot-zombie-insta-kill.img",
+            tint: 0xffffff,
+            border: "loot-circle-outer-03.img",
+            borderTint: 0xe84135,
+            scale: 0.38,
+        },
+        sound: { pickup: "perk_pickup_01" },
+    },
+    zombie_powerup_double_points: {
+        name: "Double Points",
+        type: "perk",
+        lootImg: {
+            sprite: "loot-zombie-double-points.img",
+            tint: 0xffffff,
+            border: "loot-circle-outer-03.img",
+            borderTint: 0xf1c232,
+            scale: 0.38,
+        },
+        sound: { pickup: "perk_pickup_01" },
+    },
+    zombie_powerup_max_ammo: {
+        name: "Max Ammo",
+        type: "perk",
+        lootImg: {
+            sprite: "loot-zombie-max-ammo.img",
+            tint: 0xffffff,
+            border: "loot-circle-outer-03.img",
+            borderTint: 0x4aa3df,
+            scale: 0.38,
+        },
+        sound: { pickup: "perk_pickup_01" },
+    },
+    zombie_powerup_nuke: {
+        name: "Nuke",
+        type: "perk",
+        lootImg: {
+            sprite: "loot-zombie-nuke.img",
+            tint: 0xffffff,
+            border: "loot-circle-outer-03.img",
+            borderTint: 0x82d445,
+            scale: 0.38,
+        },
+        sound: { pickup: "perk_pickup_01" },
+    },
     zombie_juggernog: {
         name: "Juggernog",
         type: "perk",

@@ -217,6 +217,11 @@ test("Update Msg", () => {
             },
             { playerId: 2, kills: 0, downs: 0, revives: 0, cashEarned: 0 },
         ],
+        zombiePowerUpsDirty: true,
+        zombiePowerUps: {
+            instaKill: util.randomInt(0, 30),
+            doublePoints: util.randomInt(0, 30),
+        },
     };
 
     inMsg.gasDirty = true;
@@ -307,6 +312,8 @@ test("Update Msg weapon ammo above uint8 max", () => {
         specOpsContractHud: 0,
         specOpsScoreboardDirty: false,
         specOpsScoreboard: [],
+        zombiePowerUpsDirty: false,
+        zombiePowerUps: { instaKill: 0, doublePoints: 0 },
     };
 
     stream.serializeMsg(net.MsgType.Update, inMsg);
@@ -416,6 +423,8 @@ test("UpdateMsg serializes max map indicators", () => {
         specOpsContractHud: 0,
         specOpsScoreboardDirty: false,
         specOpsScoreboard: [],
+        zombiePowerUpsDirty: false,
+        zombiePowerUps: { instaKill: 0, doublePoints: 0 },
     };
     inMsg.mapIndicators = Array.from({ length: net.Constants.MaxMapIndicators }, (_v, i) => ({
         id: i,

@@ -1,5 +1,6 @@
 import { type LootDef } from "../../../../shared/defs/gameObjectDefs.ts";
 import type { MapDef } from "../../../../shared/defs/mapDefs.ts";
+import { isZombiePowerUpType, ZombiePowerUpLifetime } from "../../../../shared/defs/maps/zombiePowerUps.ts";
 import { GameObjectDefs } from "../../../../shared/defs/register.ts";
 import { GameConfig } from "../../../../shared/gameConfig.ts";
 import { ObjectType } from "../../../../shared/net/objectSerializeFns.ts";
@@ -94,6 +95,7 @@ export class LootBarn {
     private shouldExpire(loot: Loot): boolean {
         if (loot.mapIndicator) return false;
         if (!this.game.map.specOpsMode) return false;
+        if (isZombiePowerUpType(loot.type)) return loot.age >= ZombiePowerUpLifetime;
         return loot.age >= SpecOpsLootLifetime;
     }
 

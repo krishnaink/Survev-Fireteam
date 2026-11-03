@@ -9,6 +9,7 @@ import type { RoleDef } from "../../../shared/defs/gameObjects/roleDefs.ts";
 import type { ThrowableDef } from "../../../shared/defs/gameObjects/throwableDefs.ts";
 import type { ObstacleDef } from "../../../shared/defs/mapObjectsTyping.ts";
 import { SpecOpsMaxArmor, SpecOpsMaxHealth } from "../../../shared/defs/maps/specOpsShop.ts";
+import type { ZombiePowerUpTimers } from "../../../shared/defs/maps/zombiePowerUps.ts";
 import { GameObjectDefs, MapObjectDefs } from "../../../shared/defs/register.ts";
 import { Action, Anim, GameConfig, HasteType, Input, WeaponSlot } from "../../../shared/gameConfig.ts";
 import type { ObjectData, ObjectType } from "../../../shared/net/objectSerializeFns.ts";
@@ -368,6 +369,7 @@ export class Player implements AbstractObject {
         m_specOpsArmor: number;
         m_specOpsContractHud: number;
         m_specOpsScoreboard: ScoreboardEntry[];
+        m_zombiePowerUps: ZombiePowerUpTimers;
     };
 
     throwableStatePrev!: string;
@@ -520,6 +522,7 @@ export class Player implements AbstractObject {
             m_specOpsArmor: 0,
             m_specOpsContractHud: 0,
             m_specOpsScoreboard: [],
+            m_zombiePowerUps: { instaKill: 0, doublePoints: 0 },
         };
 
         this.playAnim(Anim.None, -1);
@@ -672,6 +675,9 @@ export class Player implements AbstractObject {
         }
         if (data.specOpsScoreboardDirty) {
             this.m_localData.m_specOpsScoreboard = data.specOpsScoreboard;
+        }
+        if (data.zombiePowerUpsDirty) {
+            this.m_localData.m_zombiePowerUps = data.zombiePowerUps;
         }
 
         // Zoom more quickly when changing scopes

@@ -16,6 +16,13 @@ import {
 import { MapDefs } from "../../shared/defs/mapDefs.ts";
 import { FireteamMapPool, ZombieMapPool } from "../../shared/defs/maps/specOpsDefs.ts";
 import { ZombiePerkMachines, ZombiePerkMachineTypes } from "../../shared/defs/maps/zombiePerks.ts";
+import {
+    isZombiePowerUpType,
+    ZombieNukeCash,
+    zombiePowerUpBudget,
+    ZombiePowerUpLifetime,
+    ZombieTimedPowerUpDuration,
+} from "../../shared/defs/maps/zombiePowerUps.ts";
 import { GameObjectDefs, MapObjectDefs } from "../../shared/defs/register.ts";
 import { GameConfig, TeamMode } from "../../shared/gameConfig.ts";
 import { collider } from "../../shared/utils/collider.ts";
@@ -34,6 +41,148 @@ test("Zombie Survival uses a dedicated, scaling zombie wave profile", () => {
             (weapon) => GameObjectDefs.typeToDefSafe(weapon)?.type === "gun",
         ),
     ).toBe(true);
+    expect(zombiePowerUpBudget(1)).toBe(2);
+    expect(zombiePowerUpBudget(11)).toBe(4);
+    expect(zombiePowerUpBudget(100)).toBe(5);
+});
+
+test("Max Ammo refills every living operator without changing loaded magazines", () => {
+    const game = createGame(TeamMode.Duo, "specops_complex");
+    const first = game.playerBarn.addTestPlayer({ name: "First" });
+    const second = game.playerBarn.addTestPlayer({ name: "Second" });
+    game.update(0.1);
+
+    first.weapons[GameConfig.WeaponSlot.Primary].ammo = 3;
+    second.weapons[GameConfig.WeaponSlot.Primary].ammo = 5;
+    first.invManager.set("9mm", 0);
+    second.invManager.set("9mm", 1);
+    first.invManager.set("frag", 0);
+    second.invManager.set("frag", 1);
+
+    game.specOps!.activateZombiePowerUp("zombie_powerup_max_ammo");
+
+    expect(first.weapons[GameConfig.WeaponSlot.Primary].ammo).toBe(3);
+    expect(second.weapons[GameConfig.WeaponSlot.Primary].ammo).toBe(5);
+    for (const player of [first, second]) {
+        expect(player.invManager.get("9mm")).toBe(player.invManager.getMaxCapacity("9mm"));
+        expect(player.invManager.get("frag")).toBe(player.invManager.getMaxCapacity("frag"));
+    }
+});
+
+test("Insta-Kill one-shots walkers, doubles elite damage, and expires for the team", () => {
+    const game = createGame(TeamMode.Solo, "specops_complex");
+    const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+    game.specOps!.startNextWave();
+    game.specOps!.drainWaveSpawnQueuePublic();
+    const walker = game.specOps!.livingEnemies()[0];
+    const elite = game.specOps!.spawnEnemyPublic("juggernaut")!;
+
+    game.specOps!.activateZombiePowerUp("zombie_powerup_insta_kill");
+    game.specOps!.setNpcIgnoreOperators(true);
+    expect(game.specOps!.modifyZombieDamage(elite, operator, 11)).toBe(22);
+    walker.damage({
+        amount: 1,
+        damageType: GameConfig.DamageType.Player,
+        dir: v2.create(1, 0),
+        source: operator,
+    });
+    expect(walker.dead).toBe(true);
+    expect(operator.zombiePowerUps.instaKill).toBe(ZombieTimedPowerUpDuration);
+
+    game.step(ZombieTimedPowerUpDuration + 0.1);
+    expect(game.specOps!.isZombiePowerUpActive("instaKill")).toBe(false);
+    expect(operator.zombiePowerUps.instaKill).toBe(0);
+});
+
+test("Double Points affects zombie kills and Nuke team cash only", () => {
+    const game = createGame(TeamMode.Duo, "specops_complex");
+    const first = game.playerBarn.addTestPlayer({ name: "First" });
+    const second = game.playerBarn.addTestPlayer({ name: "Second" });
+    game.update(0.1);
+    game.specOps!.startNextWave();
+    game.specOps!.drainWaveSpawnQueuePublic();
+    const [target] = game.specOps!.livingEnemies();
+
+    game.specOps!.activateZombiePowerUp("zombie_powerup_double_points");
+    const firstCash = first.specOpsCash;
+    target.damage({
+        amount: 9999,
+        damageType: GameConfig.DamageType.Player,
+        dir: v2.create(1, 0),
+        source: first,
+    });
+    expect(first.specOpsCash - firstCash).toBe(200);
+
+    const beforeNuke = [first.specOpsCash, second.specOpsCash];
+    game.specOps!.activateZombiePowerUp("zombie_powerup_nuke");
+    expect(first.specOpsCash - beforeNuke[0]).toBe(ZombieNukeCash * 2);
+    expect(second.specOpsCash - beforeNuke[1]).toBe(ZombieNukeCash * 2);
+    expect(game.specOps!.livingEnemies()).toHaveLength(0);
+});
+
+test("Nuke removes ordinary zombies and takes 35% of an elite's current health", () => {
+    const game = createGame(TeamMode.Solo, "specops_complex");
+    game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+    game.specOps!.startNextWave();
+    game.specOps!.drainWaveSpawnQueuePublic();
+    const walkers = [...game.specOps!.livingEnemies()];
+    const elite = game.specOps!.spawnEnemyPublic("juggernaut")!;
+    const eliteHealth = elite.health;
+
+    game.specOps!.activateZombiePowerUp("zombie_powerup_nuke");
+
+    expect(walkers.every((walker) => walker.dead)).toBe(true);
+    expect(elite.dead).toBe(false);
+    expect(elite.health).toBeCloseTo(eliteHealth * 0.65, 5);
+    expect(game.lootBarn.loots.some((loot) => isZombiePowerUpType(loot.type))).toBe(false);
+});
+
+test("Zombie power-up loot activates on touch and expires when ignored", () => {
+    const game = createGame(TeamMode.Solo, "specops_complex");
+    const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+    const pickup = game.specOps!.spawnZombiePowerUp(
+        "zombie_powerup_double_points",
+        v2.copy(operator.pos),
+        operator.layer,
+    )!;
+
+    game.update(0.2);
+    expect(pickup.destroyed).toBe(true);
+    expect(game.specOps!.isZombiePowerUpActive("doublePoints")).toBe(true);
+
+    const ignored = game.specOps!.spawnZombiePowerUp(
+        "zombie_powerup_max_ammo",
+        v2.add(operator.pos, v2.create(10, 0)),
+        operator.layer,
+    )!;
+    game.step(ZombiePowerUpLifetime + 0.1);
+    expect(ignored.destroyed).toBe(true);
+});
+
+test("Zombie kills create at most one early-wave drop during the minimum interval", () => {
+    const game = createGame(TeamMode.Solo, "specops_complex");
+    const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+    game.specOps!.startNextWave();
+    game.specOps!.drainWaveSpawnQueuePublic();
+
+    for (const zombie of [...game.specOps!.livingEnemies()]) {
+        zombie.damage({
+            amount: 9999,
+            damageType: GameConfig.DamageType.Player,
+            dir: v2.create(1, 0),
+            source: operator,
+        });
+    }
+
+    const drops = game.lootBarn.loots.filter(
+        (loot) => !loot.destroyed && isZombiePowerUpType(loot.type),
+    );
+    expect(drops).toHaveLength(1);
+    expect(game.specOps!.zombieDropsRemaining).toBe(1);
 });
 
 test("Fireteam maps run classic Spec Ops and Zombies maps run zombie rules", () => {

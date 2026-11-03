@@ -27,6 +27,7 @@ import {
     SpecOpsReviveHealth,
     SpecOpsReviveImmunity,
 } from "../../../../shared/defs/maps/specOpsShop.ts";
+import { isZombiePowerUpType, type ZombiePowerUpTimers } from "../../../../shared/defs/maps/zombiePowerUps.ts";
 import { GameObjectDefs, MapObjectDefs } from "../../../../shared/defs/register.ts";
 import {
     type Action,
@@ -520,6 +521,7 @@ export class PlayerBarn {
             player.specOpsArmorDirty = false;
             player.specOpsContractDirty = false;
             player.specOpsScoreboardDirty = false;
+            player.zombiePowerUpsDirty = false;
             player.groupStatusDirty = false;
             if (flushPlayerStatus) {
                 player.playerStatusDirty = false;
@@ -1491,6 +1493,8 @@ export class Player extends BaseGameObject {
     /** Hold-Tab scoreboard payload; rebuilt by the net layer when it is sent. */
     specOpsScoreboard: ScoreboardEntry[] = [];
     specOpsScoreboardDirty = true;
+    zombiePowerUps: ZombiePowerUpTimers = { instaKill: 0, doublePoints: 0 };
+    zombiePowerUpsDirty = true;
     /** Teammates successfully revived by this player. */
     revives = 0;
     /** Seconds of post-revive / buyback damage immunity. */
@@ -2285,6 +2289,9 @@ export class Player extends BaseGameObject {
         if (this.mobileDropTicker <= 0 && !this.downed && !this.dead) {
             const closestLoot = this.getClosestLoot();
             if (closestLoot) {
+                if (isZombiePowerUpType(closestLoot.type)) {
+                    this.pickupLoot(closestLoot);
+                }
                 const itemDef = GameObjectDefs.typeToDef(closestLoot.type);
                 if (
                     itemDef.type === "ammo"
@@ -2743,6 +2750,16 @@ export class Player extends BaseGameObject {
 
         let finalDamage = params.amount!;
 
+        const zombiePowerUpAttacker = params.killCreditSource
+            ?? (playerSource && !playerSource.specOpsAi ? playerSource : undefined);
+        if (zombiePowerUpAttacker && this.game.specOps) {
+            finalDamage = this.game.specOps.modifyZombieDamage(
+                this,
+                zombiePowerUpAttacker,
+                finalDamage,
+            );
+        }
+
         // Ironclads shrug bullets less, grenades/airstrikes more.
         if (
             this.specOpsStrobeTank
@@ -3155,6 +3172,7 @@ export class Player extends BaseGameObject {
                     if (killCreditSource.hasPerk("turkey_shoot")) {
                         bounty = Math.round(bounty * PerkProperties.turkey_shoot.bountyMult);
                     }
+                    bounty = this.game.specOps.modifyZombieKillCash(bounty);
                     this.game.specOps.grantCash(killCreditSource, bounty);
                     this.game.specOps.onEnemyKilled(killCreditSource, this);
                 }
@@ -4187,6 +4205,8 @@ export class Player extends BaseGameObject {
     pickupTicker = 0;
     pickupLoot(obj: Loot) {
         if (obj.destroyed || obj.mysteryBoxLocked) return;
+
+        if (this.game.specOps?.tryPickupZombiePowerUp(this, obj)) return;
 
         const def = GameObjectDefs.typeToDef(obj.type);
         if (

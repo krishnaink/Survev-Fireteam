@@ -5,6 +5,11 @@ import type { AmmoDef } from "../../../shared/defs/gameObjects/gearDefs.ts";
 import type { GunDef } from "../../../shared/defs/gameObjects/gunDefs.ts";
 import type { MeleeDef } from "../../../shared/defs/gameObjects/meleeDefs.ts";
 import type { XPDef } from "../../../shared/defs/gameObjects/xpDefs.ts";
+import {
+    isZombiePowerUpType,
+    ZombiePowerUpLifetime,
+    ZombiePowerUpWarningTime,
+} from "../../../shared/defs/maps/zombiePowerUps.ts";
 import { GameObjectDefs } from "../../../shared/defs/register.ts";
 import { GameConfig } from "../../../shared/gameConfig.ts";
 import type { ObjectData, ObjectType } from "../../../shared/net/objectSerializeFns.ts";
@@ -218,7 +223,13 @@ export class LootBarn {
                 }
 
                 const scaleIn = math.delerp(loot.ticker, 0, 1);
-                const scale = math.easeOutElastic(scaleIn, 0.75);
+                let scale = math.easeOutElastic(scaleIn, 0.75);
+                if (isZombiePowerUpType(loot.type)) {
+                    scale *= 1 + Math.sin(loot.ticker * 5) * 0.08;
+                    const warningStarts = ZombiePowerUpLifetime - ZombiePowerUpWarningTime;
+                    loot.container.visible = loot.ticker < warningStarts
+                        || Math.floor((loot.ticker - warningStarts) * 7) % 2 === 0;
+                }
                 let pos = loot.pos;
                 if (camera.m_interpEnabled) {
                     loot.posInterpTicker += dt;
