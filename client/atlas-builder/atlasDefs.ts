@@ -58,11 +58,12 @@ export const AtlasResolutions: Record<AtlasRes, number> = {
 export const scaledSprites: Record<string, number> = {
     "map/map-zombie-mystery-box-closed.png": 0.09,
     "map/map-zombie-mystery-box-open.png": 0.115,
-    "map/map-zombie-perk-juggernog.png": 0.11,
-    "map/map-zombie-perk-speed-cola.png": 0.11,
-    "map/map-zombie-perk-quick-revive.png": 0.11,
-    "map/map-zombie-perk-stamin-up.png": 0.11,
-    "map/map-zombie-perk-double-tap.png": 0.11,
+    // Perk machines: 0.22 keeps them sharp at PerkMachineScale 1.25 (lastCallObjectDefs.ts).
+    "map/map-zombie-perk-juggernog.png": 0.15,
+    "map/map-zombie-perk-speed-cola.png": 0.15,
+    "map/map-zombie-perk-quick-revive.png": 0.15,
+    "map/map-zombie-perk-stamin-up.png": 0.15,
+    "map/map-zombie-perk-double-tap.png": 0.15,
     // Smaller ceilings
     "map/map-building-house-ceiling.svg": 0.75,
     "map/map-building-hut-ceiling-01.svg": 0.75,

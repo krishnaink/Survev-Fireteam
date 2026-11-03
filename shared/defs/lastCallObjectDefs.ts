@@ -21,6 +21,7 @@ import {
     type LastCallZoneId,
     LastCallZones,
 } from "./maps/lastCallLayout.ts";
+import { type ZombiePerkMachineType, ZombiePerkMachineTypes } from "./maps/zombiePerks.ts";
 
 /**
  * Map objects for Last Call (see maps/lastCallLayout.ts).
@@ -162,6 +163,24 @@ const ZoneMapColor: Record<LastCallZoneId, number> = {
     garage: 0x2f3038,
 };
 
+/** Perk machine size (1 = original). Collision and use range grow with it. */
+const PerkMachineScale = 1.05;
+
+/** Glow under perk machines: `scale` 1 ≈ 9 units across; `alpha` 0–1 is brightness. */
+const PerkGlow = { scale: .1, alpha: 0.6 };
+
+const PerkGlowColor: Record<ZombiePerkMachineType, number> = {
+    zombie_perk_machine_juggernog: 0xff4d57,
+    zombie_perk_machine_speed_cola: 0x4f9dff,
+    zombie_perk_machine_quick_revive: 0x6ff5ff,
+    zombie_perk_machine_stamin_up: 0xb6f04a,
+    zombie_perk_machine_double_tap: 0xff9a3c,
+};
+
+function perkGlowType(machine: ZombiePerkMachineType): string {
+    return machine.replace("zombie_perk_machine_", "zombie_perk_glow_");
+}
+
 function at(p: Vec2): Vec2 {
     return lastCallToLocal(p.x, p.y);
 }
@@ -189,7 +208,10 @@ function buildingMapObjects(): BuildingDef["mapObjects"] {
     }
 
     for (const p of LastCallProps) add(p.type, at(p.pos), p.ori ?? 0);
-    for (const machine of LastCallPerkMachines) add(machine.type, at(machine.pos));
+    for (const machine of LastCallPerkMachines) {
+        add(perkGlowType(machine.type), at(machine.pos));
+        add(machine.type, at(machine.pos));
+    }
     // Zombies climb in at these (boarded windows are painted on the walls).
     for (const e of LastCallEntries) add("zombie_spawn_point", at(e.pos));
 
@@ -288,16 +310,16 @@ function lastCallDefs(): Record<string, MapObjectDef> {
 
     const perkMachine = (sprite: string, mapColor: number): ObstacleDef => ({
         ...lastCallSolidBlock({
-            extents: v2.create(2.15, 1.35),
+            extents: v2.create(2.15 * PerkMachineScale, 1.35 * PerkMachineScale),
             height: 1,
             sprite,
-            spriteScale: 1,
+            spriteScale: PerkMachineScale,
             metal: true,
             zIdx: 10,
         }),
         map: { display: true, color: mapColor, scale: 1.15 },
         button: {
-            interactionRad: 2.5,
+            interactionRad: 2.5 * PerkMachineScale,
             interactionText: "game-use",
             useOnce: false,
             useType: "",
@@ -312,6 +334,29 @@ function lastCallDefs(): Record<string, MapObjectDef> {
     defs.zombie_perk_machine_quick_revive = perkMachine("map-zombie-perk-quick-revive.img", 0x55c8d0);
     defs.zombie_perk_machine_stamin_up = perkMachine("map-zombie-perk-stamin-up.img", 0x72932e);
     defs.zombie_perk_machine_double_tap = perkMachine("map-zombie-perk-double-tap.img", 0xcf6a24);
+
+    // Soft colored light under each machine (same light sprite as lab lamps).
+    for (const type of ZombiePerkMachineTypes) {
+        defs[perkGlowType(type)] = {
+            type: "decal",
+            collision: collider.createAabbExtents(v2.create(0, 0), v2.create(3.5, 3.5)),
+            height: 1,
+            lifetime: 1e10,
+            img: {
+                sprite: "map-light-01.img",
+                scale: PerkGlow.scale,
+                alpha: PerkGlow.alpha,
+                tint: PerkGlowColor[type],
+                // Above the floor, below the machine and players.
+                zIdx: 5,
+                flicker: true,
+                flickerMin: 0.94,
+                flickerMax: 1.06,
+                flickerRate: 0.6,
+                ignoreAdjust: true,
+            },
+        };
+    }
 
     defs[LastCallBuildingType] = complexDef();
     return defs;
