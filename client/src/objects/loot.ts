@@ -7,9 +7,8 @@ import type { MeleeDef } from "../../../shared/defs/gameObjects/meleeDefs.ts";
 import type { XPDef } from "../../../shared/defs/gameObjects/xpDefs.ts";
 import {
     isZombiePowerUpType,
-    ZombiePowerUpLifetime,
+    zombiePowerUpFlashVisible,
     ZombiePowerUpSpin,
-    ZombiePowerUpWarningTime,
 } from "../../../shared/defs/maps/zombiePowerUps.ts";
 import { GameObjectDefs } from "../../../shared/defs/register.ts";
 import { GameConfig } from "../../../shared/gameConfig.ts";
@@ -230,9 +229,7 @@ export class LootBarn {
                 let scale = math.easeOutElastic(scaleIn, 0.75);
                 if (isZombiePowerUpType(loot.type)) {
                     scale *= 1 + Math.sin(loot.ticker * 5) * 0.08;
-                    const warningStarts = ZombiePowerUpLifetime - ZombiePowerUpWarningTime;
-                    loot.container.visible = loot.ticker < warningStarts
-                        || Math.floor((loot.ticker - warningStarts) * 7) % 2 === 0;
+                    loot.container.visible = zombiePowerUpFlashVisible(loot.ticker);
                     if (ZombiePowerUpSpin.period > 0) {
                         const angle = (loot.ticker / ZombiePowerUpSpin.period) * Math.PI * 2;
                         if (ZombiePowerUpSpin.style === "coin") {

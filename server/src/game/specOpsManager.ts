@@ -5885,7 +5885,8 @@ export class SpecOpsManager implements PracticeHost {
     }
 
     private broadcastZombiePowerUp(type: ZombiePowerUpType): void {
-        for (const player of this.livingHumans()) {
+        for (const player of this.game.playerBarn.players) {
+            if (player.specOpsAi || player.disconnected) continue;
             const msg = new net.PickupMsg();
             msg.type = net.PickupMsgType.Success;
             msg.item = type;

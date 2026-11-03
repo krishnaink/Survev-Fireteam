@@ -1865,6 +1865,7 @@ export class Game {
                         this.m_ui2Manager.addRareLootMessage(msg.item, true);
                     }
                     if (isZombiePowerUpType(msg.item)) {
+                        this.m_uiManager.displayZombiePowerUpPickup(msg.item);
                         this.m_uiManager.displayAnnouncement(
                             this.m_localization.translate(`game-${msg.item}`),
                         );

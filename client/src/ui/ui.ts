@@ -34,6 +34,12 @@ import {
     specOpsUnequipPerk,
     specOpsUnequipSku,
 } from "../../../shared/defs/maps/specOpsShop.ts";
+import {
+    isZombiePowerUpType,
+    zombiePowerUpHudFlashPeriod,
+    ZombiePowerUpWarningTime,
+    type ZombiePowerUpType,
+} from "../../../shared/defs/maps/zombiePowerUps.ts";
 import { GameObjectDefs } from "../../../shared/defs/register.ts";
 import { Action, GameConfig, GasMode, HudTeammateSlots, TeamMode } from "../../../shared/gameConfig.ts";
 import type { PlayerStatsMsg } from "../../../shared/net/playerStatsMsg.ts";
@@ -207,6 +213,9 @@ export class UiManager {
     zombiePowerUpsElem = $("#ui-zombie-powerups");
     zombieInstaKillElem = $("#ui-zombie-insta-kill");
     zombieDoublePointsElem = $("#ui-zombie-double-points");
+    zombiePowerUpNoticeElem = $("#ui-zombie-powerup-notice");
+    zombiePowerUpNoticeImg = $("#ui-zombie-powerup-notice-img");
+    zombiePowerUpNoticeTicker = 0;
     specOpsShopElem = $("#ui-specops-shop");
     specOpsShopTitle = $("#ui-specops-shop-title");
     specOpsShopItems = $("#ui-specops-shop-items");
@@ -904,8 +913,11 @@ export class UiManager {
         this.specOpsPhaseElem.css("display", "none").text("");
         this.specOpsContractElem.css("display", "none").text("");
         this.zombiePowerUpsElem.css("display", "none");
-        this.zombieInstaKillElem.text("");
-        this.zombieDoublePointsElem.text("");
+        this.zombieInstaKillElem.css("display", "none").removeClass("is-expiring");
+        this.zombieDoublePointsElem.css("display", "none").removeClass("is-expiring");
+        this.zombiePowerUpNoticeElem.css("display", "none").removeClass("is-expiring");
+        this.zombiePowerUpNoticeImg.removeAttr("src alt");
+        this.zombiePowerUpNoticeTicker = 0;
         this.specOpsShopElem.css("display", "none");
         this.specOpsCashElem.text("$0");
         this.specOpsBuybackElem.css("display", "none");
@@ -965,7 +977,7 @@ export class UiManager {
         this.mapIndicatorBarn.updateIndicatorPulses(dt);
 
         if (map.specOpsMode) {
-            this.updateSpecOpsHud(player, map, playerBarn);
+            this.updateSpecOpsHud(player, map, playerBarn, dt);
             this.updateSpecOpsWaitUi();
         }
 
@@ -2236,20 +2248,55 @@ export class UiManager {
         this.lastSpecOpsContractCode = code;
     }
 
-    updateZombiePowerUps(player: Player) {
+    displayZombiePowerUpPickup(type: ZombiePowerUpType) {
+        if (!isZombiePowerUpType(type)) return;
+        if (type === "zombie_powerup_insta_kill" || type === "zombie_powerup_double_points") {
+            return;
+        }
+        const suffix = type.slice("zombie_powerup_".length).replaceAll("_", "-");
+        const name = this.localization.translate(`game-${type}`);
+        this.zombiePowerUpNoticeImg
+            .attr("src", `img/loot/loot-zombie-${suffix}.svg`)
+            .attr("alt", name);
+        this.zombiePowerUpNoticeElem.attr("title", name);
+        this.zombiePowerUpNoticeTicker = 3;
+    }
+
+    updateZombiePowerUps(player: Player, dt: number) {
         const timers = player.m_localData.m_zombiePowerUps;
         const insta = timers?.instaKill ?? 0;
         const double = timers?.doublePoints ?? 0;
-        const instaName = this.localization.translate("game-zombie_powerup_insta_kill");
-        const doubleName = this.localization.translate("game-zombie_powerup_double_points");
+        const updateTimedIcon = ($elem: JQuery, remaining: number) => {
+            const expiring = remaining > 0 && remaining <= ZombiePowerUpWarningTime;
+            $elem
+                .css("display", remaining > 0 ? "block" : "none")
+                .toggleClass("is-expiring", expiring);
+            if (expiring) {
+                $elem.css(
+                    "--zombie-flash-period",
+                    `${zombiePowerUpHudFlashPeriod(remaining)}s`,
+                );
+            }
+        };
+        updateTimedIcon(this.zombieInstaKillElem, insta);
+        updateTimedIcon(this.zombieDoublePointsElem, double);
 
-        this.zombieInstaKillElem
-            .text(insta > 0 ? `${instaName} ${insta}s` : "")
-            .css("display", insta > 0 ? "block" : "none");
-        this.zombieDoublePointsElem
-            .text(double > 0 ? `${doubleName} ${double}s` : "")
-            .css("display", double > 0 ? "block" : "none");
-        this.zombiePowerUpsElem.css("display", insta > 0 || double > 0 ? "flex" : "none");
+        this.zombiePowerUpNoticeTicker = math.max(this.zombiePowerUpNoticeTicker - dt, 0);
+        const noticeVisible = this.zombiePowerUpNoticeTicker > 0;
+        const noticeExpiring = noticeVisible && this.zombiePowerUpNoticeTicker <= 1;
+        this.zombiePowerUpNoticeElem
+            .css("display", noticeVisible ? "block" : "none")
+            .toggleClass("is-expiring", noticeExpiring);
+        if (noticeExpiring) {
+            this.zombiePowerUpNoticeElem.css(
+                "--zombie-flash-period",
+                `${zombiePowerUpHudFlashPeriod(this.zombiePowerUpNoticeTicker, 1)}s`,
+            );
+        }
+        this.zombiePowerUpsElem.css(
+            "display",
+            insta > 0 || double > 0 || noticeVisible ? "flex" : "none",
+        );
     }
 
     updateSpecOpsWaitUi() {
@@ -2340,12 +2387,12 @@ export class UiManager {
         $("#ui-map-counter-faction").css("display", "inline-block");
     }
 
-    updateSpecOpsHud(player: Player, map: Map, playerBarn: PlayerBarn) {
+    updateSpecOpsHud(player: Player, map: Map, playerBarn: PlayerBarn, dt: number) {
         const cash = player.m_localData.m_specOpsCash ?? 0;
         this.specOpsCashElem.text(`$${cash}`);
         this.updateSpecOpsPhase();
         this.updateSpecOpsContractHud(player);
-        this.updateZombiePowerUps(player);
+        this.updateZombiePowerUps(player, dt);
         this.updateSpecOpsSupportHud(player, playerBarn);
 
         const buybackCost = specOpsBuybackCost(

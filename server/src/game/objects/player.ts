@@ -2289,7 +2289,7 @@ export class Player extends BaseGameObject {
         if (this.mobileDropTicker <= 0 && !this.downed && !this.dead) {
             const closestLoot = this.getClosestLoot();
             if (closestLoot) {
-                if (isZombiePowerUpType(closestLoot.type)) {
+                if (!this.specOpsAi && isZombiePowerUpType(closestLoot.type)) {
                     this.pickupLoot(closestLoot);
                 }
                 const itemDef = GameObjectDefs.typeToDef(closestLoot.type);
@@ -4053,6 +4053,8 @@ export class Player extends BaseGameObject {
     }
 
     getClosestLoot(): Loot | undefined {
+        // Spec Ops NPCs pass through loot and never reserve or collect it.
+        if (this.specOpsAi) return undefined;
         const objs = this.game.grid.intersectCollider(
             collider.createCircle(this.pos, this.rad + 5),
         );
@@ -4206,7 +4208,10 @@ export class Player extends BaseGameObject {
     pickupLoot(obj: Loot) {
         if (obj.destroyed || obj.mysteryBoxLocked) return;
 
-        if (this.game.specOps?.tryPickupZombiePowerUp(this, obj)) return;
+        if (isZombiePowerUpType(obj.type)) {
+            if (!this.specOpsAi) this.game.specOps?.tryPickupZombiePowerUp(this, obj);
+            return;
+        }
 
         const def = GameObjectDefs.typeToDef(obj.type);
         if (

@@ -20,6 +20,8 @@ import {
     isZombiePowerUpType,
     ZombieNukeCash,
     zombiePowerUpBudget,
+    zombiePowerUpFlashVisible,
+    zombiePowerUpHudFlashPeriod,
     ZombiePowerUpLifetime,
     ZombieTimedPowerUpDuration,
 } from "../../shared/defs/maps/zombiePowerUps.ts";
@@ -44,6 +46,19 @@ test("Zombie Survival uses a dedicated, scaling zombie wave profile", () => {
     expect(zombiePowerUpBudget(1)).toBe(2);
     expect(zombiePowerUpBudget(11)).toBe(4);
     expect(zombiePowerUpBudget(100)).toBe(5);
+    expect(zombiePowerUpHudFlashPeriod(1)).toBeLessThan(zombiePowerUpHudFlashPeriod(5));
+
+    const flashes = (start: number, end: number) => {
+        let transitions = 0;
+        let previous = zombiePowerUpFlashVisible(start);
+        for (let age = start + 0.01; age <= end; age += 0.01) {
+            const visible = zombiePowerUpFlashVisible(age);
+            if (visible !== previous) transitions++;
+            previous = visible;
+        }
+        return transitions;
+    };
+    expect(flashes(29, 30)).toBeGreaterThan(flashes(25, 26));
 });
 
 test("Max Ammo refills every living operator without changing loaded magazines", () => {
@@ -160,6 +175,27 @@ test("Zombie power-up loot activates on touch and expires when ignored", () => {
     )!;
     game.step(ZombiePowerUpLifetime + 0.1);
     expect(ignored.destroyed).toBe(true);
+});
+
+test("AI zombies pass through power-ups without collecting or removing them", () => {
+    const game = createGame(TeamMode.Solo, "specops_complex");
+    game.playerBarn.addTestPlayer({ name: "Operator" });
+    game.update(0.1);
+    game.specOps!.startNextWave();
+    game.specOps!.drainWaveSpawnQueuePublic();
+    const zombie = game.specOps!.livingEnemies()[0];
+    const pickup = game.specOps!.spawnZombiePowerUp(
+        "zombie_powerup_insta_kill",
+        v2.copy(zombie.pos),
+        zombie.layer,
+    )!;
+
+    zombie.pickupLoot(pickup);
+    game.update(0.2);
+
+    expect(zombie.getClosestLoot()).toBeUndefined();
+    expect(pickup.destroyed).toBe(false);
+    expect(game.specOps!.isZombiePowerUpActive("instaKill")).toBe(false);
 });
 
 test("Zombie kills create at most one early-wave drop during the minimum interval", () => {
