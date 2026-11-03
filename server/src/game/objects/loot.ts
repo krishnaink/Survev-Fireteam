@@ -119,7 +119,7 @@ export class LootBarn {
             source?: "player" | "obstacle" | "map";
             ownerId?: number;
         },
-    ) {
+    ): Loot | undefined {
         const {
             useCountForAmmo,
             pushSpeed,
@@ -133,7 +133,7 @@ export class LootBarn {
 
         if (!("lootImg" in def)) {
             this.game.logger.warn("Invalid loot type:", type);
-            return;
+            return undefined;
         }
 
         const loot = new Loot(
@@ -148,7 +148,7 @@ export class LootBarn {
         );
         this._addLoot(loot);
 
-        if (noSideAmmo) return;
+        if (noSideAmmo) return loot;
 
         if (
             def.type === "gun"
@@ -161,7 +161,7 @@ export class LootBarn {
 
         if (def.type === "gun" && GameObjectDefs.typeExists(def.ammo) && !loot.isPreloadedGun) {
             const ammoCount = useCountForAmmo ? count : def.ammoSpawnCount;
-            if (ammoCount <= 0) return;
+            if (ammoCount <= 0) return loot;
             const halfAmmo = Math.ceil(ammoCount / 2);
 
             const leftAmmo = new Loot(
@@ -190,6 +190,7 @@ export class LootBarn {
                 this._addLoot(rightAmmo);
             }
         }
+        return loot;
     }
 
     /**
@@ -261,6 +262,11 @@ export class Loot extends BaseGameObject {
     bounds: AABB;
 
     isPreloadedGun = false;
+
+    /** Mystery Box previews render as loot but cannot be collected until revealed. */
+    mysteryBoxLocked = false;
+    mysteryBoxId = 0;
+    ignoreObstacleId = 0;
 
     get hasOwner() {
         return this.ownerId !== 0;
@@ -398,6 +404,7 @@ export class Loot extends BaseGameObject {
 
             switch (obj.__type) {
                 case ObjectType.Obstacle: {
+                    if (obj.__id === this.ignoreObstacleId) continue;
                     if (!obj.collidable) continue;
                     if (!util.sameLayer(obj.layer, this.layer)) continue;
                     if (obj.dead) continue;

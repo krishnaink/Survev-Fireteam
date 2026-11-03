@@ -2,6 +2,12 @@ import { FactionTeam } from "../gameConfig.ts";
 import { collider } from "../utils/collider.ts";
 import { type DeepPartial, util } from "../utils/util.ts";
 import { v2 } from "../utils/v2.ts";
+import {
+    lastCallCarDef,
+    LastCallMapObjectDefs,
+    lastCallPowerGateDef,
+    lastCallShutterDef,
+} from "./lastCallObjectDefs.ts";
 import type { BuildingDef, LootSpawnDef, MapObjectDef, ObstacleDef, StructureDef } from "./mapObjectsTyping.ts";
 
 // some errors could be fixed by this but opted to using Partial and casting instead to avoid choking the lsp server
@@ -1957,6 +1963,7 @@ function createWall<T extends ObstacleDef>(e: Partial<T>): T {
     }
     return util.mergeDeep(t, MaterialDefs[material], e || {});
 }
+
 function createWheel<T extends ObstacleDef>(e: Partial<T>): T {
     const t = {
         type: "obstacle",
@@ -36146,6 +36153,94 @@ export const RawMapObjectDefs: Record<string, MapObjectDef> = {
             zIdx: 4,
         },
     },
+    zombie_mystery_box: createCrate({
+        destructible: false,
+        health: 9999,
+        collidable: true,
+        loot: [],
+        collision: collider.createAabbExtents(v2.create(0, 0), v2.create(4.4, 1.85)),
+        img: {
+            sprite: "map-zombie-mystery-box-closed.img",
+            scale: 1,
+            zIdx: 10,
+        },
+        map: { display: true, color: 0x81732e, scale: 1.1 },
+        terrain: { grass: true, beach: true },
+        button: {
+            interactionRad: 2,
+            interactionText: "game-use",
+            useOnce: false,
+            useType: "",
+            useDelay: 0,
+            useDir: v2.create(0, -1),
+            useImg: "map-zombie-mystery-box-open.img",
+            sound: { on: "airdrop_open_01", off: "airdrop_open_01" },
+        },
+        sound: {
+            bullet: "wood_crate_bullet",
+            punch: "wood_crate_bullet",
+            explode: "crate_break_01",
+            enter: "none",
+        },
+    }),
+    zombie_mystery_box_spot: createCrate({
+        destructible: false,
+        collidable: false,
+        loot: [],
+        collision: collider.createCircle(v2.create(0, 0), 0.1),
+        img: { sprite: "none", alpha: 0 },
+        map: { display: false },
+    }),
+    zombie_spawn_point: createCrate({
+        destructible: false,
+        collidable: false,
+        loot: [],
+        collision: collider.createCircle(v2.create(0, 0), 0.1),
+        img: { sprite: "none", alpha: 0 },
+        map: { display: false },
+    }),
+    zombie_power_switch: createControlPanel({
+        destructible: false,
+        health: 9999,
+        map: { display: true, color: 0xf72585, scale: 1.25 },
+        button: {
+            interactionRad: 2,
+            interactionText: "game-use",
+            useOnce: true,
+            useType: "",
+            useDelay: 0,
+            useDir: v2.create(-1, 0),
+            useImg: "map-power-box-01.img",
+            sound: { on: "button_press_01", off: "button_press_01" },
+        },
+    } as unknown as Partial<ObstacleDef>),
+    // Last Call's freight gate, pool-free courtyard and garage cars (see lastCallObjectDefs.ts).
+    zombie_power_gate: lastCallPowerGateDef(),
+    zombie_garage_car: lastCallCarDef(),
+    zombie_upgrade_bench: createCrate({
+        destructible: false,
+        health: 9999,
+        loot: [],
+        collision: collider.createAabbExtents(v2.create(0, 0), v2.create(3.2, 1.5)),
+        img: { sprite: "map-crate-mil-03.img", tint: 0xff4fa3 },
+        map: { display: true, color: 0xf72585, scale: 1.25 },
+        button: {
+            interactionRad: 2.5,
+            interactionText: "game-use",
+            useOnce: false,
+            useType: "",
+            useDelay: 0,
+            useDir: v2.create(0, -1),
+            useImg: "map-crate-mil-03.img",
+            sound: { on: "button_press_01", off: "button_press_01" },
+        },
+    }),
+    // Rolling shutters you pay to open (Last Call doorways are 6 units wide).
+    zombie_buy_gate_750: lastCallShutterDef(),
+    zombie_buy_gate_1000: lastCallShutterDef(),
+    zombie_buy_gate_1250: lastCallShutterDef(),
+    zombie_buy_gate_1500: lastCallShutterDef(),
+    zombie_buy_gate_2000: lastCallShutterDef(),
     specops_station_weapon: createCrate({
         destructible: false,
         health: 9999,
@@ -36220,4 +36315,6 @@ export const RawMapObjectDefs: Record<string, MapObjectDef> = {
         map: { display: true, color: 0x76000b, scale: 1.15 },
         terrain: { grass: true, beach: true },
     }),
+    // Last Call: walls, props and the zombie_branching_complex_01 block.
+    ...LastCallMapObjectDefs,
 };

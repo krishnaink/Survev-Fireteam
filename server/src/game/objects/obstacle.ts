@@ -1,3 +1,4 @@
+import { zombiePerkMachine } from "../../../../shared/defs/maps/zombiePerks.ts";
 import { GameObjectDefs, MapObjectDefs } from "../../../../shared/defs/register.ts";
 import { DamageType, GameConfig } from "../../../../shared/gameConfig.ts";
 import { ObjectType } from "../../../../shared/net/objectSerializeFns.ts";
@@ -699,6 +700,31 @@ export class Obstacle extends BaseGameObject {
 
     interact(player?: Player, auto = false): void {
         if (this.dead) return;
+
+        if (player && !auto && this.type === "zombie_mystery_box") {
+            this.game.specOps?.tryUseMysteryBox(player, this);
+            return;
+        }
+
+        if (player && !auto && this.type.startsWith("zombie_buy_gate_")) {
+            this.game.specOps?.tryBuyZombieGate(player, this);
+            return;
+        }
+
+        if (player && !auto && this.type === "zombie_power_switch") {
+            this.game.specOps?.tryTurnOnZombiePower(player, this);
+            return;
+        }
+
+        if (player && !auto && this.type === "zombie_upgrade_bench") {
+            this.game.specOps?.tryUpgradeZombieWeapon(player, this);
+            return;
+        }
+
+        if (player && !auto && zombiePerkMachine(this.type)) {
+            this.game.specOps?.tryBuyZombiePerk(player, this);
+            return;
+        }
 
         if (player && !auto && this.interactCooldown > 0) {
             return;

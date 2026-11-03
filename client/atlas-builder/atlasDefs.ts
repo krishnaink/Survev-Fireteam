@@ -5,6 +5,7 @@ import { DesertAtlas } from "./defs/desert.ts";
 import { FactionAtlas } from "./defs/faction.ts";
 import { GradientAtlas } from "./defs/gradient.ts";
 import { HalloweenAtlas } from "./defs/halloween.ts";
+import { LastCallAtlas } from "./defs/lastcall.ts";
 import { LoadoutAtlas } from "./defs/loadout.ts";
 import { MainAtlas } from "./defs/main.ts";
 import { PotatoAtlas } from "./defs/potato.ts";
@@ -44,6 +45,7 @@ export const Atlases: Record<Atlas, AtlasDef> = {
     savannah: SavannahAtlas,
     turkey: TurkeyAtlas,
     beach: BeachAtlas,
+    lastcall: LastCallAtlas,
 };
 export type AtlasRes = "high" | "low";
 
@@ -54,6 +56,14 @@ export const AtlasResolutions: Record<AtlasRes, number> = {
 
 // sprites that are scaled inside the sheets
 export const scaledSprites: Record<string, number> = {
+    "map/map-zombie-mystery-box-closed.png": 0.09,
+    "map/map-zombie-mystery-box-open.png": 0.115,
+    // Perk machines: 0.22 keeps them sharp at PerkMachineScale 1.25 (lastCallObjectDefs.ts).
+    "map/map-zombie-perk-juggernog.png": 0.15,
+    "map/map-zombie-perk-speed-cola.png": 0.15,
+    "map/map-zombie-perk-quick-revive.png": 0.15,
+    "map/map-zombie-perk-stamin-up.png": 0.15,
+    "map/map-zombie-perk-double-tap.png": 0.15,
     // Smaller ceilings
     "map/map-building-house-ceiling.svg": 0.75,
     "map/map-building-hut-ceiling-01.svg": 0.75,

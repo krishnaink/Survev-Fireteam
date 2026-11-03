@@ -1,5 +1,9 @@
 import $ from "jquery";
-import { specOpsMapDisplayName, SpecOpsMapPool } from "../../../shared/defs/maps/specOpsDefs.ts";
+import {
+    FireteamMapPool,
+    specOpsMapDisplayName,
+    ZombieMapPool,
+} from "../../../shared/defs/maps/specOpsDefs.ts";
 import { SpecOpsBotDebugMapName } from "../../../shared/defs/maps/specOpsNpcDebug.ts";
 import { parseSpecOpsDifficulty } from "../../../shared/defs/maps/specOpsShop.ts";
 import { GameConfig, TeamMode } from "../../../shared/gameConfig.ts";
@@ -845,16 +849,21 @@ export class TeamMenu {
 
     ensureMapSelectOptions() {
         if (this.mapSelectPopulated) return;
-        const randomLabel = this.localization.translate("index-specops-map-random");
         this.mapSelect.empty();
-        this.mapSelect.append(
-            $("<option/>", { value: "random", text: randomLabel }),
-        );
-        for (const key of SpecOpsMapPool) {
-            this.mapSelect.append(
-                $("<option/>", { value: key, text: specOpsMapDisplayName(key) }),
-            );
+        const fireteam = $("<optgroup/>", {
+            label: this.localization.translate("index-mode-fireteam"),
+        });
+        fireteam.append($("<option/>", { value: "random", text: specOpsMapDisplayName("random") }));
+        for (const key of FireteamMapPool) {
+            fireteam.append($("<option/>", { value: key, text: specOpsMapDisplayName(key) }));
         }
+        const zombies = $("<optgroup/>", {
+            label: this.localization.translate("index-mode-zombies"),
+        });
+        for (const key of ZombieMapPool) {
+            zombies.append($("<option/>", { value: key, text: specOpsMapDisplayName(key) }));
+        }
+        this.mapSelect.append(fireteam, zombies);
         if (this.siteInfo.info.allowEditMsg) {
             this.mapSelect.append(
                 $("<option/>", {
@@ -1012,7 +1021,9 @@ export class TeamMenu {
             this.applyingServerState = true;
             try {
                 const mapName = this.roomData.mapName || "random";
-                this.mapSelect.val(mapName);
+                const known = this.mapSelect.find("option").toArray()
+                    .some((opt) => (opt as HTMLOptionElement).value === mapName);
+                this.mapSelect.val(known ? mapName : "random");
                 this.mapSelect.prop("disabled", !this.isLeader);
 
                 const difficulty = parseSpecOpsDifficulty(this.roomData.difficulty);

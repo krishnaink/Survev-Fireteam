@@ -5,6 +5,13 @@ import { math } from "../../../shared/utils/math.ts";
 import { util } from "../../../shared/utils/util.ts";
 import { v2, type Vec2 } from "../../../shared/utils/v2.ts";
 import type { Game } from "./game.ts";
+import {
+    lastCallBlock,
+    lastCallNavPoints,
+    lastCallNavPortals,
+    lastCallRoomKey,
+    lastCallWalkable,
+} from "./lastCallNav.ts";
 import type { Building } from "./objects/building.ts";
 import type { Obstacle } from "./objects/obstacle.ts";
 import type { Player } from "./objects/player.ts";
@@ -173,6 +180,16 @@ function doorNormal(door: Obstacle): Vec2 {
     return v2.rotate(v2.create(1, 0), math.oriToRad(ori));
 }
 
+/** Stable center of the doorway frame. Door object positions are hinges. */
+export function doorFrameCenter(door: Obstacle): Vec2 {
+    const state = door.door;
+    if (!state) return v2.copy(door.pos);
+    return v2.add(
+        state.closedPos,
+        v2.rotate(state.hinge, math.oriToRad(state.closedOri)),
+    );
+}
+
 function fixtureAway(fixture: Obstacle, building?: Building): Vec2 {
     if (building) {
         return v2.normalizeSafe(v2.sub(fixture.pos, building.pos), v2.create(1, 0));
@@ -250,6 +267,9 @@ export class MapNavGraph {
         graph.link(game);
         graph.linkStairLandings(game);
         graph.linkDoorsToHull(game);
+        // Last Call packs rooms, counters and a pool into one block: drop links an
+        // operator-sized body can't actually walk, so paths keep clear of corners.
+        if (lastCallBlock(game)) graph.pruneTightLinks(game, 1.05);
         return graph;
     }
 
@@ -279,7 +299,9 @@ export class MapNavGraph {
         toLayer: number,
         rawLayer = fromLayer,
     ): Vec2[] | null {
-        const cacheKey = this.cacheKey(from, to, fromLayer, toLayer);
+        // Cache cells are 16 units wide; Last Call rooms are split by walls inside
+        // a cell, so the room of each end is part of the key there.
+        const cacheKey = this.cacheKey(from, to, fromLayer, toLayer) + lastCallRoomKey(game, from, to);
         const cached = this.pathCache.get(cacheKey);
         if (cached !== undefined) return cached;
 
@@ -295,7 +317,13 @@ export class MapNavGraph {
         const onStair = rawLayer >= 2 || !!stairAtPos(game, from, 0.65);
         const startRadius = onStair ? PathNearbyStairRadius : PathNearbyRadius;
         const starts = this.nearby(from, fromLayer, startRadius, onStair);
-        const ends = this.nearby(to, toLayer, PathNearbyRadius);
+        let ends = this.nearby(to, toLayer, PathNearbyRadius);
+        // Last Call rooms sit wall to wall: an end node in the next room over must
+        // not count as "arrived", or paths stop behind a wall.
+        if (lastCallBlock(game)) {
+            const reachable = ends.filter((node) => isWalkClear(game, node.pos, to, toLayer));
+            if (reachable.length) ends = reachable;
+        }
         if (onStair) this.addStairStarts(game, from, fromLayer, starts);
         if (!starts.length || !ends.length) {
             this.remember(cacheKey, null);
@@ -386,6 +414,40 @@ export class MapNavGraph {
         this.sampleObstacles(game);
         this.sampleBuildings(game);
         this.sampleStairs(game);
+        this.sampleLastCall(game);
+    }
+
+    /**
+     * Last Call is one huge building split into rooms: add a finer grid of
+     * waypoints, corner waypoints around props, and a linked pair of nodes
+     * through every doorway the squad has opened, so AI can path room to room.
+     */
+    private sampleLastCall(game: Game): void {
+        const block = lastCallBlock(game);
+        if (!block) return;
+        for (const pos of lastCallNavPoints(game)) {
+            if (pointClear(game, pos, 0, 1.1)) this.addNode(pos, 0, "interior");
+        }
+        for (const child of block.childObjects) {
+            if (child.__type !== ObjectType.Obstacle) continue;
+            const o = child as Obstacle;
+            if (o.dead || o.destroyed || !o.collidable || o.isWall || o.isDoor) continue;
+            if (o.type.startsWith("lastcall_wall_")) continue;
+            const ring = expandAabb(toAabb(o), 2.2);
+            for (const corner of [
+                ring.min,
+                ring.max,
+                v2.create(ring.min.x, ring.max.y),
+                v2.create(ring.max.x, ring.min.y),
+            ]) {
+                if (pointClear(game, corner, 0, 1.1)) this.addNode(v2.copy(corner), 0, "interior");
+            }
+        }
+        for (const [a, b] of lastCallNavPortals(game)) {
+            const ia = this.addNode(a, 0, "interior");
+            const ib = this.addNode(b, 0, "interior");
+            this.linkBoth(ia, ib, v2.distance(a, b));
+        }
     }
 
     private sampleGrid(game: Game): void {
@@ -476,9 +538,12 @@ export class MapNavGraph {
 
     private addDoorPair(game: Game, door: Obstacle, building: Building, layer: number): void {
         const n = doorNormal(door);
-        const inward = v2.dot(n, v2.sub(building.pos, door.pos)) >= 0 ? n : v2.neg(n);
-        const outside = v2.add(door.pos, v2.mul(v2.neg(inward), 3.1));
-        const inside = v2.add(door.pos, v2.mul(inward, 3.3));
+        const center = game.map.mapDef.gameMode.indoorMode
+            ? doorFrameCenter(door)
+            : door.pos;
+        const inward = v2.dot(n, v2.sub(building.pos, center)) >= 0 ? n : v2.neg(n);
+        const outside = v2.add(center, v2.mul(v2.neg(inward), 3.1));
+        const inside = v2.add(center, v2.mul(inward, 3.3));
         game.map.clampToMapBounds(outside, 6);
         game.map.clampToMapBounds(inside, 6);
         const a = this.addNode(outside, layer, "door");
@@ -742,6 +807,25 @@ export class MapNavGraph {
             const b = ids[(i + 1) % ids.length];
             this.linkBoth(a, b, v2.distance(this.nodes[a].pos, this.nodes[b].pos));
         }
+    }
+
+    /** Remove links whose straight line can't fit a body of radius `rad` (walls, props). */
+    pruneTightLinks(game: Game, rad: number): void {
+        for (const node of this.nodes) {
+            for (let i = node.neighbors.length - 1; i >= 0; i--) {
+                const other = this.nodes[node.neighbors[i]];
+                if (other.id < node.id) continue; // each edge once
+                if (other.layer !== node.layer || lastCallWalkable(game, node.pos, other.pos, rad)) continue;
+                node.neighbors.splice(i, 1);
+                node.costs.splice(i, 1);
+                const back = other.neighbors.indexOf(node.id);
+                if (back >= 0) {
+                    other.neighbors.splice(back, 1);
+                    other.costs.splice(back, 1);
+                }
+            }
+        }
+        this.pathCache.clear();
     }
 
     private alreadyLinked(a: number, b: number): boolean {

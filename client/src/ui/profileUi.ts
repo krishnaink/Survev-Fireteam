@@ -259,6 +259,10 @@ export class ProfileUi {
             this.loadoutMenu.show();
             return false;
         });
+        $(".zv-loadout-btn").on("click", (e) => {
+            this.loadoutMenu.show($(e.currentTarget).data("loadout"));
+            return false;
+        });
         $(".account-details-user").on("click", () => {
             if (
                 this.userSettingsModal!.isVisible()

@@ -38,8 +38,8 @@ import {
     type InventoryItem,
 } from "../../../../shared/gameConfig.ts";
 import * as net from "../../../../shared/net/net.ts";
-import type { ScoreboardEntry } from "../../../../shared/net/updateMsg.ts";
 import { ObjectType } from "../../../../shared/net/objectSerializeFns.ts";
+import type { ScoreboardEntry } from "../../../../shared/net/updateMsg.ts";
 import { type Circle, coldet } from "../../../../shared/utils/coldet.ts";
 import { collider } from "../../../../shared/utils/collider.ts";
 import { math } from "../../../../shared/utils/math.ts";
@@ -771,7 +771,10 @@ export class Player extends BaseGameObject {
 
     get maxHealth(): number {
         if (this.specOpsHumanRules) {
-            return SpecOpsMaxHealth;
+            return SpecOpsMaxHealth
+                + (this.hasPerk("zombie_juggernog")
+                    ? PerkProperties.zombie_juggernog.bonusHealth
+                    : 0);
         }
         if (this.game.map.specOpsMode && this.specOpsKind === "enemy") {
             return SpecOpsEnemyMaxHealth;
@@ -1399,6 +1402,9 @@ export class Player extends BaseGameObject {
             case "firepower":
                 this.weaponManager.clampGunsAmmo();
                 break;
+            case "zombie_juggernog":
+                this.health = math.min(this.health, this.maxHealth);
+                break;
             case "aoe_heal": {
                 util.removeFrom(this.game.playerBarn.aoeHealPlayers, this);
                 break;
@@ -1469,6 +1475,8 @@ export class Player extends BaseGameObject {
     specOpsSpeedMult = 1;
     /** Enemy bullet damage scale; humans / allies stay at 1. */
     specOpsDamageMult = 1;
+    /** Gun definitions upgraded at Last Call's powered workbench. */
+    readonly specOpsUpgradedWeapons = new Set<string>();
     /** Seconds remaining before Spec Ops out-of-combat regen starts. */
     specOpsCombatTimer = 0;
     specOpsKind: "" | "enemy" | "ally" | "sentry" = "";
@@ -4178,7 +4186,7 @@ export class Player extends BaseGameObject {
 
     pickupTicker = 0;
     pickupLoot(obj: Loot) {
-        if (obj.destroyed) return;
+        if (obj.destroyed || obj.mysteryBoxLocked) return;
 
         const def = GameObjectDefs.typeToDef(obj.type);
         if (
@@ -4301,6 +4309,9 @@ export class Player extends BaseGameObject {
                         if (shouldDrop) {
                             this.weaponManager.dropGun(newGunIdx);
                         }
+                    }
+                    if (obj.mysteryBoxId) {
+                        newAmmo = this.weaponManager.getAmmoStats(def, gunType).maxClip;
                     }
 
                     this.weaponManager.setWeapon(newGunIdx, gunType, newAmmo);
@@ -5395,6 +5406,10 @@ export class Player extends BaseGameObject {
 
         if (this.hasteType != GameConfig.HasteType.None) {
             this.speed += GameConfig.player.hasteSpeedBonus;
+        }
+
+        if (this.hasPerk("zombie_stamin_up")) {
+            this.speed += PerkProperties.zombie_stamin_up.speedBoost;
         }
 
         if (this.frozen) {
