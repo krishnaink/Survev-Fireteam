@@ -178,21 +178,6 @@ export class SiteInfo {
             const getGameModeStyles = this.getGameModeStyles();
             for (let i = 0; i < getGameModeStyles.length; i++) {
                 const style = getGameModeStyles[i];
-                const selector = `index-play-${style.buttonText}`;
-                const btn = $(`#btn-start-mode-${i}`);
-                btn.data("l10n", selector);
-                btn.html(this.localization.translate(selector));
-                if (style.icon || style.buttonCss) {
-                    if (i == 0) {
-                        btn.addClass("btn-custom-mode-no-indent");
-                    } else {
-                        btn.addClass("btn-custom-mode-main");
-                    }
-                    btn.addClass(style.buttonCss);
-                    btn.css({
-                        "background-image": `url(${style.icon})`,
-                    });
-                }
                 const l = $(`#btn-team-queue-mode-${i}`);
                 if (l.length) {
                     const c = `index-${style.buttonText}`;
@@ -205,8 +190,6 @@ export class SiteInfo {
                         });
                     }
                 }
-
-                btn.toggle(style.enabled);
             }
             const supportsTeam = this.info.modes.some((s) => s.enabled && s.teamMode > 1);
             $("#btn-join-team, #btn-create-team").toggle(supportsTeam);

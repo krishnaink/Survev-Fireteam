@@ -92,6 +92,18 @@ export const PerkProperties = {
         speedMult: 1.4,
         distanceMult: 1.3,
     },
+    zombie_juggernog: {
+        bonusHealth: 50,
+    },
+    zombie_speed_cola: {
+        reloadMult: 0.65,
+    },
+    zombie_stamin_up: {
+        speedBoost: 1.8,
+    },
+    zombie_double_tap: {
+        bonusDamageMult: 1.25,
+    },
     // map of ammo type to perk that boosts that ammo
     ammoBonuses: {
         "9mm": ["treat_9mm", "bonus_9mm"],
@@ -137,6 +149,54 @@ export interface PerkDef {
 }
 
 export const PerkDefs: Record<string, PerkDef> = {
+    zombie_juggernog: {
+        name: "Juggernog",
+        type: "perk",
+        lootImg: {
+            sprite: "loot-perk-steelskin.img",
+            tint: 0xffffff,
+            border: "loot-circle-outer-03.img",
+            borderTint: 0xffffff,
+            scale: 0.275,
+        },
+        sound: { pickup: "perk_pickup_01" },
+    },
+    zombie_speed_cola: {
+        name: "Speed Cola",
+        type: "perk",
+        lootImg: {
+            sprite: "loot-perk-firepower.img",
+            tint: 0xffffff,
+            border: "loot-circle-outer-03.img",
+            borderTint: 0xffffff,
+            scale: 0.275,
+        },
+        sound: { pickup: "perk_pickup_01" },
+    },
+    zombie_stamin_up: {
+        name: "Stamin-Up",
+        type: "perk",
+        lootImg: {
+            sprite: "loot-perk-windwalk.img",
+            tint: 0xffffff,
+            border: "loot-circle-outer-03.img",
+            borderTint: 0xffffff,
+            scale: 0.275,
+        },
+        sound: { pickup: "perk_pickup_01" },
+    },
+    zombie_double_tap: {
+        name: "Double Tap",
+        type: "perk",
+        lootImg: {
+            sprite: "loot-perk-turkey_shoot.img",
+            tint: 0xffffff,
+            border: "loot-circle-outer-03.img",
+            borderTint: 0xffffff,
+            scale: 0.275,
+        },
+        sound: { pickup: "perk_pickup_01" },
+    },
     leadership: {
         name: "Leadership",
         type: "perk",

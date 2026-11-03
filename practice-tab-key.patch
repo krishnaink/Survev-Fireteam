@@ -31,7 +31,8 @@ index b9071b6..192cb9d 100644
 +++ b/client/src/ui/practiceMenu.ts
 @@ -178,7 +178,7 @@ function el<K extends keyof HTMLElementTagNameMap>(
  }
- 
+  
+  
  /**
 - * Practice mode panel (P key). Opens on its own when the match starts and when
 + * Practice mode panel (Tab key). Opens on its own when the match starts and when

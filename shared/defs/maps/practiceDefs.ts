@@ -33,6 +33,7 @@ const practiceOverlay: PartialMapDef = {
         maxPlayers: 1,
         killLeaderEnabled: false,
         practiceMode: true,
+        zombieMode: false,
     },
     gameConfig: {
         // Survev backpack capacities, not the bigger Spec Ops bags.

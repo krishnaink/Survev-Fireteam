@@ -14,7 +14,14 @@ import { GunDefs } from "../../shared/defs/gameObjects/gunDefs.ts";
 import { MeleeDefs } from "../../shared/defs/gameObjects/meleeDefs.ts";
 import { PerkDefs } from "../../shared/defs/gameObjects/perkDefs.ts";
 import { MapDefs } from "../../shared/defs/mapDefs.ts";
-import { isSpecOpsMapName, pickSpecOpsMapName, SpecOpsMapPool } from "../../shared/defs/maps/specOpsDefs.ts";
+import {
+    FireteamMapPool,
+    isSpecOpsMapName,
+    pickSpecOpsMapName,
+    SpecOpsMapPool,
+    specOpsMapMatches,
+    ZombieMapPool,
+} from "../../shared/defs/maps/specOpsDefs.ts";
 import {
     shopApproachBlocked,
     specOpsAllyDamageMult,
@@ -59,8 +66,7 @@ import {
     specOpsStationFromType,
     SpecOpsTargetingBountyMult,
     specOpsUnequipSku,
-    specOpsUnpackBreakVotes
-
+    specOpsUnpackBreakVotes,
 } from "../../shared/defs/maps/specOpsShop.ts";
 import { GameObjectDefs } from "../../shared/defs/register.ts";
 import { GameConfig, GasMode, TeamMode } from "../../shared/gameConfig.ts";
@@ -128,18 +134,23 @@ test("Spec Ops starts with one operator and no gas", () => {
     expect(game.modeManager.aliveCount()).toBe(1);
 });
 
-test("Spec Ops rotates through distinct biome maps", () => {
-    expect(SpecOpsMapPool.length).toBeGreaterThan(4);
+test("Random picks a Fireteam map; specific Fireteam and Zombies maps are kept", () => {
+    expect(SpecOpsMapPool).toEqual([...FireteamMapPool, ...ZombieMapPool]);
+    expect(ZombieMapPool).toEqual(["specops_complex"]);
     expect(pickSpecOpsMapName("test_specops")).toBe("test_specops");
-    expect(pickSpecOpsMapName("specops_desert")).toBe("specops_desert");
-    expect(isSpecOpsMapName("specops_woods")).toBe(true);
-    expect(isSpecOpsMapName("main")).toBe(false);
-
-    const names = new Set<string>();
-    for (let i = 0; i < 40; i++) {
-        names.add(pickSpecOpsMapName("specops"));
+    for (let i = 0; i < 20; i++) {
+        expect(FireteamMapPool).toContain(pickSpecOpsMapName("specops"));
+        expect(FireteamMapPool).toContain(pickSpecOpsMapName("random"));
     }
-    expect(names.size).toBeGreaterThan(1);
+    expect(pickSpecOpsMapName("specops_desert")).toBe("specops_desert");
+    expect(pickSpecOpsMapName("specops_complex")).toBe("specops_complex");
+    expect(specOpsMapMatches("random", "specops_woods")).toBe(true);
+    expect(specOpsMapMatches("random", "specops_complex")).toBe(false);
+    expect(specOpsMapMatches("specops_complex", "specops_complex")).toBe(true);
+    expect(specOpsMapMatches("specops_outdoor", "specops_woods")).toBe(false);
+    expect(isSpecOpsMapName("specops_woods")).toBe(true);
+    expect(isSpecOpsMapName("specops_outdoor")).toBe(true);
+    expect(isSpecOpsMapName("main")).toBe(false);
 
     for (const key of SpecOpsMapPool) {
         const def = MapDefs[key];
@@ -886,6 +897,7 @@ test("Spec Ops shop lists all guns, perks, support, and gear", () => {
             || type === "classless"
             || type === "assume_leadership"
             || type === "halloween_mystery"
+            || type.startsWith("zombie_")
             || type.startsWith("trick_")
             || type.startsWith("treat_")
         ) {
@@ -5122,8 +5134,6 @@ test("Spec Ops kill counter serializes past 255 kills", () => {
     decoded.deserialize(stream);
     expect(decoded.killerKills).toBe(300);
 });
-
-
 
 function clearSpecOpsWave(
     game: import("../../server/src/game/game.ts").Game,

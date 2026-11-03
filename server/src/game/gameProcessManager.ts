@@ -414,7 +414,9 @@ export class GameProcessManager {
 
     async findGame(body: FindGamePrivateBody): Promise<GameProcess | undefined> {
         const partySize = Math.max(1, body.playerData.length);
-        const specOps = !!MapDefs[body.mapName as MapDefKey]?.gameMode.specOpsMode;
+        // Team lobbies send "random" for any Fireteam map.
+        const specOps = body.mapName === "random"
+            || !!MapDefs[body.mapName as MapDefKey]?.gameMode.specOpsMode;
         const difficulty = parseSpecOpsDifficulty(body.difficulty ?? Config.difficulty);
         const endless = body.endless ?? Config.endless ?? false;
         const requestedTeamSize = teamSizeForMode(

@@ -42,7 +42,7 @@ const SpecOpsMainLandmarks = {
 const specOpsCore: PartialMapDef = {
     mapId: GameConfig.MapId.SpecOps,
     desc: {
-        name: "Spec Ops",
+        name: "Fireteam",
         icon: "img/gui/target.svg",
         buttonCss: "btn-mode-specops",
         backgroundImg: "img/main_splash.png",
@@ -126,7 +126,7 @@ export const SpecOps = specOpsVariant({});
 
 export const SpecOpsWoods = specOpsVariant({
     desc: {
-        name: "Spec Ops",
+        name: "Fireteam",
         backgroundImg: Woods.desc.backgroundImg ?? "img/main_splash.png",
     },
     assets: {
@@ -191,7 +191,7 @@ export const SpecOpsWoods = specOpsVariant({
 
 export const SpecOpsDesert = specOpsVariant({
     desc: {
-        name: "Spec Ops",
+        name: "Fireteam",
         backgroundImg: Desert.desc.backgroundImg,
     },
     assets: {
@@ -252,7 +252,7 @@ export const SpecOpsDesert = specOpsVariant({
 
 export const SpecOpsSnow = specOpsVariant({
     desc: {
-        name: "Spec Ops",
+        name: "Fireteam",
         backgroundImg: Snow.desc.backgroundImg,
     },
     assets: {
@@ -323,7 +323,7 @@ export const SpecOpsSnow = specOpsVariant({
 
 export const SpecOpsHalloween = specOpsVariant({
     desc: {
-        name: "Spec Ops",
+        name: "Fireteam",
         backgroundImg: Halloween.desc.backgroundImg,
     },
     assets: {
@@ -387,7 +387,7 @@ export const SpecOpsHalloween = specOpsVariant({
 
 export const SpecOpsCobalt = specOpsVariant({
     desc: {
-        name: "Spec Ops",
+        name: "Fireteam",
         backgroundImg: Cobalt.desc.backgroundImg,
     },
     assets: {
@@ -454,7 +454,7 @@ export const SpecOpsCobalt = specOpsVariant({
 
 export const SpecOpsPotato = specOpsVariant({
     desc: {
-        name: "Spec Ops",
+        name: "Fireteam",
         backgroundImg: Potato.desc.backgroundImg ?? "img/main_splash.png",
     },
     assets: {
@@ -514,7 +514,7 @@ export const SpecOpsPotato = specOpsVariant({
 
 export const SpecOpsBeach = specOpsVariant({
     desc: {
-        name: "Spec Ops",
+        name: "Fireteam",
         backgroundImg: Beach.desc.backgroundImg ?? "img/main_splash.png",
     },
     assets: {
@@ -571,7 +571,7 @@ export const SpecOpsBeach = specOpsVariant({
 
 export const SpecOpsSavannah = specOpsVariant({
     desc: {
-        name: "Spec Ops",
+        name: "Fireteam",
         backgroundImg: Savannah.desc.backgroundImg ?? "img/main_splash.png",
     },
     assets: {
@@ -628,7 +628,7 @@ export const SpecOpsSavannah = specOpsVariant({
 
 export const SpecOpsTurkey = specOpsVariant({
     desc: {
-        name: "Spec Ops",
+        name: "Fireteam",
         backgroundImg: Turkey.desc.backgroundImg,
     },
     assets: {
@@ -688,8 +688,9 @@ export const SpecOpsTurkey = specOpsVariant({
     /* STRIP_FROM_PROD_CLIENT:END */
 });
 
-export const SpecOpsMapPool = [
-    "specops",
+/** Fireteam maps: classic Spec Ops waves (soldiers) on outdoor biomes. `specops_outdoor` is "Main". */
+export const FireteamMapPool = [
+    "specops_outdoor",
     "specops_woods",
     "specops_desert",
     "specops_snow",
@@ -701,39 +702,59 @@ export const SpecOpsMapPool = [
     "specops_turkey",
 ] as const;
 
+/** Zombies maps: zombie rules, indoor buy-to-progress layouts. */
+export const ZombieMapPool = ["specops_complex"] as const;
+
+/** Every player-facing survival map. */
+export const SpecOpsMapPool = [...FireteamMapPool, ...ZombieMapPool] as const;
+
 export type SpecOpsMapKey = (typeof SpecOpsMapPool)[number];
 
-export function isSpecOpsMapName(name: string): boolean {
-    return name === "test_specops" || (SpecOpsMapPool as readonly string[]).includes(name);
+/**
+ * Requests that mean "any Fireteam map". `specops` is the server-config default
+ * mode map, so it keeps meaning random rather than one biome.
+ */
+export function isRandomFireteamMap(requested: string): boolean {
+    return requested === "random" || requested === "specops";
 }
 
-/** True when `requested` is random/unspecified, or matches the running Spec Ops biome. */
+export function isZombieMapName(name: string): boolean {
+    return (ZombieMapPool as readonly string[]).includes(name);
+}
+
+export function isSpecOpsMapName(name: string): boolean {
+    return name === "test_specops"
+        || name === "specops"
+        || (SpecOpsMapPool as readonly string[]).includes(name);
+}
+
+/** True when `requested` is a random Fireteam pick matching a running Fireteam map, or the exact map. */
 export function specOpsMapMatches(requested: string, actual: string): boolean {
     if (!isSpecOpsMapName(actual)) return false;
-    if (requested === "specops" || requested === "random") return true;
+    if (isRandomFireteamMap(requested)) {
+        return (FireteamMapPool as readonly string[]).includes(actual);
+    }
     if ((SpecOpsMapPool as readonly string[]).includes(requested)) {
         return actual === requested;
     }
     return true;
 }
 
-/** Human-readable biome label for team menu / server browser. */
+/** Human-readable map label for the home page, team menu and server browser. */
 export function specOpsMapDisplayName(mapKey: string): string {
-    if (mapKey === "random") return "Random";
-    if (mapKey === "specops") return "Main";
+    if (isRandomFireteamMap(mapKey)) return "Random";
+    if (mapKey === "specops_outdoor") return "Main";
+    if (mapKey === "specops_complex") return "Last Call";
     const suffix = mapKey.replace(/^specops_/, "");
     if (!suffix || suffix === mapKey) return mapKey;
     return suffix.charAt(0).toUpperCase() + suffix.slice(1);
 }
 
-/** Live Spec Ops: random rotates biomes; a specific pool key plays that biome. */
+/** Random picks a Fireteam biome; a specific pool key plays that map. */
 export function pickSpecOpsMapName(requested: string): string {
     if (requested === "test_specops" || requested === SpecOpsBotDebugMapName) return requested;
-    if (requested === "specops" || requested === "random") {
-        return SpecOpsMapPool[util.randomInt(0, SpecOpsMapPool.length - 1)];
-    }
-    if ((SpecOpsMapPool as readonly string[]).includes(requested)) {
-        return requested;
+    if (isRandomFireteamMap(requested)) {
+        return FireteamMapPool[util.randomInt(0, FireteamMapPool.length - 1)];
     }
     return requested;
 }

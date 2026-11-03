@@ -187,6 +187,7 @@ export class LoadoutMenu {
 
     emotesLoaded = false;
     selectedCatIdx = 0;
+    openCatIdx = 0;
     selectedCatItems: ItemInfo[] = [];
     equippedItems: EquippedItem[] = [];
 
@@ -361,8 +362,13 @@ export class LoadoutMenu {
         }
     }
 
-    show() {
+    /** Open the loadout; `loadoutType` (outfit, melee, emote, heal…) picks the starting tab. */
+    show(loadoutType?: string) {
         this.init();
+        const idx = loadoutType
+            ? this.categories.findIndex((c) => c.loadoutType === loadoutType)
+            : -1;
+        this.openCatIdx = Math.max(idx, 0);
         this.modal.show();
     }
 
@@ -381,7 +387,8 @@ export class LoadoutMenu {
                 this.localAckItems.push(item);
             }
         }
-        this.selectCat(0);
+        this.selectCat(this.openCatIdx);
+        this.openCatIdx = 0;
         this.tryBeginConfirmingItems();
         $("#start-bottom-right, #start-main").fadeOut(200);
         $("#background").hide();

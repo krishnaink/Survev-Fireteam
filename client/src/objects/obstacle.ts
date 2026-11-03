@@ -312,6 +312,13 @@ export class Obstacle implements AbstractObject {
                 return null;
             }
 
+            if (this.type === "zombie_mystery_box" && this.button.onOff) {
+                return {
+                    rad: this.button.interactionRad,
+                    action: "game-take",
+                    object: "game-zombie_mystery_box_reward",
+                };
+            }
             return {
                 rad: this.button.interactionRad,
                 action: this.button.interactionText,

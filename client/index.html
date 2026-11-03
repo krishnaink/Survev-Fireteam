@@ -4,25 +4,25 @@
     %VITE_TURNSTILE_SCRIPT%
     <!-- Meta Properties -->
     <meta charset="UTF-8">
-    <title>Survev Fireteam — Spec Ops</title>
+    <title>Zurvev</title>
     <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <link rel="manifest" href="manifest.json">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Survev Fireteam">
+    <meta name="apple-mobile-web-app-title" content="Zurvev">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="application-name" content="Survev Fireteam">
-    <meta name="description" content="Survev Fireteam Spec Ops — wave-survival fireteam shooter. Squad up, clear rounds, buy gear, and survive the endless fight.">
-    <meta property="og:description" content="Survev Fireteam Spec Ops — wave-survival fireteam shooter. Squad up, clear rounds, buy gear, and survive the endless fight.">
+    <meta name="application-name" content="Zurvev">
+    <meta name="description" content="Zurvev — Fireteam, Zombies, and bot practice.">
+    <meta property="og:description" content="Zurvev — Fireteam, Zombies, and bot practice.">
     <meta name="keywords" content="survev fireteam, spec ops, wave survival, fireteam shooter, squad, survev, co-op shooter, browser game">
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Survev Fireteam — Spec Ops">
+    <meta property="og:title" content="Zurvev">
     <meta property="og:url" content="https://fireteam.bbyte.app/">
-    <meta property="og:site_name" content="Survev Fireteam">
+    <meta property="og:site_name" content="Zurvev">
     <meta content="https://fireteam.bbyte.app/img/title.png" property="og:image">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Survev Fireteam — Spec Ops">
-    <meta name="twitter:description" content="Wave-survival fireteam shooter. Clear rounds, buy gear, survive Spec Ops.">
+    <meta name="twitter:title" content="Zurvev">
+    <meta name="twitter:description" content="Fireteam, Zombies, and bot practice.">
     <link rel="canonical" href="https://fireteam.bbyte.app/" />
     <link rel="apple-touch-icon-precomposed" href="img/icon_app.png">
     <link rel="icon" href="favicon.ico" type="image/x-icon">
@@ -995,8 +995,7 @@
                     <div id="server-warning"></div>
                     <div class="specops-logo-lockup">
                       <div class="specops-logo-box">
-                        <span class="specops-logo-title">SURVEV</span>
-                        <span class="specops-logo-mode" data-l10n="index-fireteam-brand">FIRETEAM</span>
+                        <span class="specops-logo-title">ZURVEV</span>
                       </div>
                     </div>
                   </div>
@@ -1051,8 +1050,18 @@
                   </div>
                 </div>
               </div>
-              <p class="specops-hero-tagline" data-l10n="index-specops-tagline">Survive escalating waves. Gear up. Hold the line.</p>
+              <p class="specops-hero-tagline" data-l10n="index-specops-tagline">Survive the horde. Gear up. Keep moving.</p>
             </header>
+            <aside id="zv-loadout" class="specops-panel zv-loadout" aria-label="Loadout">
+              <div class="specops-panel-accent"></div>
+              <span class="zv-loadout-title" data-l10n="index-loadout">Loadout</span>
+              <div class="zv-loadout-grid">
+                <a class="zv-loadout-btn btn-darken menu-option" data-loadout="outfit" href="#"><span class="zv-loadout-icon" style="background-image: url(img/gui/loadout-outfit.svg)"></span><span data-l10n="index-home-outfit">Outfit</span></a>
+                <a class="zv-loadout-btn btn-darken menu-option" data-loadout="melee" href="#"><span class="zv-loadout-icon" style="background-image: url(img/gui/loadout-melee.svg)"></span><span data-l10n="index-home-melee">Melee</span></a>
+                <a class="zv-loadout-btn btn-darken menu-option" data-loadout="emote" href="#"><span class="zv-loadout-icon" style="background-image: url(img/gui/loadout-emote.svg)"></span><span data-l10n="index-home-emotes">Emotes</span></a>
+                <a class="zv-loadout-btn btn-darken menu-option" data-loadout="heal" href="#"><span class="zv-loadout-icon" style="background-image: url(img/gui/loadout-heal.svg)"></span><span data-l10n="index-home-effects">Effects</span></a>
+              </div>
+            </aside>
             <div class="specops-menu-column">
             <div class="specops-hub-center">
             <div id="start-menu" class="menu-column specops-panel">
@@ -1062,56 +1071,57 @@
                   <div class="play-loading-spinner"></div>
                 </div>
               </div>
-              <div class="specops-panel-content play-button-container">
-                <div class="specops-field specops-field--center">
-                  <span class="specops-field-label" data-l10n="index-specops-callsign">Callsign</span>
-                  <div id="player-options" class="specops-field-row specops-field-row--center">
-                    <input type="text" class="menu-option player-name-input specops-input" tabindex="0" placeholder="Enter your name" data-l10n="index-enter-name-here" id="player-name-input-solo" maxlength="16" />
-                    <a class="btn-darken menu-option player-options-btn specops-loadout-btn" id="btn-customize" title="Loadout"></a>
+              <div class="specops-panel-content play-button-container zv-home">
+                <div class="specops-field">
+                  <label class="specops-field-label" for="player-name-input-solo" data-l10n="index-specops-callsign">Name</label>
+                  <input type="text" class="menu-option player-name-input specops-input" tabindex="0" placeholder="Enter your name" data-l10n="index-enter-name-here" id="player-name-input-solo" maxlength="16" />
+                </div>
+                <div class="zv-field-pair">
+                  <div class="specops-field">
+                    <label class="specops-field-label" for="game-mode-select" data-l10n="index-home-mode">Mode</label>
+                    <select id="game-mode-select" class="menu-option specops-select">
+                      <option value="fireteam" data-l10n="index-mode-fireteam">Fireteam</option>
+                      <option value="zombies" data-l10n="index-mode-zombies">Zombies</option>
+                      <option value="practice" data-l10n="index-mode-practice">Practice (bots)</option>
+                    </select>
+                  </div>
+                  <div class="specops-field">
+                    <label class="specops-field-label" for="game-map-select" data-l10n="index-specops-map">Map</label>
+                    <select id="game-map-select" class="menu-option specops-select"></select>
                   </div>
                 </div>
-                <div class="specops-field specops-field--center">
-                  <span class="specops-field-label" data-l10n="index-specops-fireteam">Fireteam size</span>
-                  <div class="specops-mode-switch" role="tablist">
-                    <a class="specops-mode-tab is-active menu-option" id="btn-start-mode-0" data-l10n="index-solo">Solo</a>
-                    <a class="specops-mode-tab menu-option" id="btn-start-mode-1" data-l10n="index-duo">Duo</a>
-                    <a class="specops-mode-tab menu-option" id="btn-start-mode-2" data-l10n="index-squad">Squad</a>
-                  </div>
-                </div>
-                <div class="specops-field specops-field--center">
-                  <span class="specops-field-label" data-l10n="index-region">Server</span>
+                <div class="specops-field">
+                  <label class="specops-field-label" for="server-select-main" data-l10n="index-region">Server</label>
                   <select id="server-select-main" class="server-select menu-option specops-select">
                     <optgroup id="server-opts" label="Servers" data-l10n="index-servers">
                     </optgroup>
                   </select>
                 </div>
-                <a id="btn-specops-deploy" class="specops-deploy-btn btn-darken menu-option">
-                  <span class="specops-deploy-label" data-l10n="index-specops-deploy-now">Deploy</span>
-                </a>
+                <div class="zv-play-list">
+                  <a id="btn-play-mode-0" class="zv-play-btn btn-darken menu-option" data-mode-idx="0">
+                    <span class="zv-play-label" data-l10n="index-home-play-solo">Play solo</span>
+                    <span class="zv-play-sub" data-l10n="index-home-players-1">1 player</span>
+                  </a>
+                  <a id="btn-play-mode-1" class="zv-play-btn btn-darken menu-option" data-mode-idx="1">
+                    <span class="zv-play-label" data-l10n="index-home-play-duo">Play duo</span>
+                    <span class="zv-play-sub" data-l10n="index-home-players-2">2 players</span>
+                  </a>
+                  <a id="btn-play-mode-2" class="zv-play-btn btn-darken menu-option" data-mode-idx="2">
+                    <span class="zv-play-label" data-l10n="index-home-play-squad">Play squad</span>
+                    <span class="zv-play-sub" data-l10n="index-home-squad-sub">Full team</span>
+                  </a>
+                </div>
+                <div class="zv-team-row">
+                  <a id="btn-create-team" class="zv-team-btn btn-darken menu-option" data-l10n="index-home-create-team">Create team</a>
+                  <a id="btn-join-team" class="zv-team-btn zv-team-btn--outline btn-darken menu-option" data-l10n="index-home-join-team">Join team</a>
+                </div>
                 <a class="specops-secondary-btn btn-darken menu-option" id="btn-browse-games" data-l10n="index-browse-games">Browse Games</a>
-                <div class="specops-field specops-field--center">
-                  <span class="specops-field-label">Practice Mode (Bots)</span>
-                  <div class="specops-mode-switch specops-mode-switch--pair">
-                    <select id="practice-map-select" class="specops-secondary-btn btn-darken menu-option" title="Practice map"></select>
-                    <a id="btn-practice" class="specops-mode-tab btn-darken menu-option">Practice</a>
-                  </div>
-                </div>
-                <div class="specops-field specops-field--center">
-                  <span class="specops-field-label" data-l10n="index-create-game">Create a game</span>
-                  <div class="specops-mode-switch specops-mode-switch--pair specops-create-team-switch">
-                    <a id="btn-create-team" class="specops-mode-tab btn-darken menu-option" data-l10n="index-create-team">Create Game</a>
-                    <a id="btn-join-team" class="specops-mode-tab btn-darken menu-option" data-l10n="index-join-team">Join Game</a>
-                  </div>
-                </div>
                 <div class="specops-footer-actions">
                   <a id="btn-help" class="specops-footer-btn btn-darken menu-option" data-l10n="index-controls-help">Controls</a>
-                  <a href="https://discord.gg/w2MDPCpYqC" target="_blank" rel="noopener" class="specops-footer-btn btn-darken menu-option" data-l10n="index-discord">Discord</a>
-                  <a href="https://github.com/ZEROPOINTBRUH" target="_blank" rel="noopener" class="specops-footer-btn btn-darken menu-option" data-l10n="index-github">GitHub</a>
-                  <a href="https://ko-fi.com/zeropointbruh" target="_blank" rel="noopener" class="specops-footer-btn btn-darken menu-option" data-l10n="index-kofi">Ko-fi</a>
                 </div>
                 <div id="start-help" class="specops-help-drawer">
-                  <h3 data-l10n="index-specops-how-title">How it works</h3>
-                  <p data-l10n="index-specops-how-desc">Fight escalating enemy waves with up to 4 players. Earn cash between rounds, buy gear at stations, and buy back fallen teammates.</p>
+                  <h3 data-l10n="index-specops-how-title">How Zombie Survival works</h3>
+                  <p data-l10n="index-specops-how-desc">Fight escalating zombie waves with up to 4 players. Earn cash, buy weapons and gear, and revive fallen teammates.</p>
                   <h3 data-l10n="index-controls">Controls</h3>
                   <p><span class="help-action" data-l10n="index-movement"></span>: <span class="help-control" data-l10n="index-movement-ctrl"></span></p>
                   <p><span class="help-action" data-l10n="index-aim"></span>: <span class="help-control" data-l10n="index-aim-ctrl"></span></p>
@@ -1181,7 +1191,6 @@
                         <div class="specops-team-field">
                           <label class="specops-team-field-label" for="team-map-select" data-l10n="index-specops-map">Map</label>
                           <select id="team-map-select" class="server-select menu-option specops-select specops-team-select">
-                            <option value="random" data-l10n="index-specops-map-random">Random</option>
                           </select>
                         </div>
                         <div class="specops-team-field">
@@ -1520,11 +1529,6 @@
               <span class="specops-credit-edition" data-l10n="index-fireteam-version">Fireteam 1.7</span>
               <a href="changelogRec.html" target="_blank" rel="noopener" class="specops-credit-engine">survev %VITE_GAME_VERSION%</a>
             </div>
-            <nav class="specops-credit-links">
-              <a href="https://discord.gg/w2MDPCpYqC" target="_blank" rel="noopener" class="specops-credit-link" data-l10n="index-discord">Discord</a>
-              <a href="https://github.com/ZEROPOINTBRUH" target="_blank" rel="noopener" class="specops-credit-link" data-l10n="index-github">GitHub</a>
-              <a href="https://ko-fi.com/zeropointbruh" target="_blank" rel="noopener" class="specops-credit-link" data-l10n="index-kofi">Ko-fi</a>
-            </nav>
           </div>
           <p class="specops-credit-legal">
             <span data-l10n="index-copyright-short">© 2026 Survev · Survev Fireteam</span>

@@ -1,5 +1,11 @@
 import { BulletDefs } from "../../../shared/defs/gameObjects/bulletDefs.ts";
 import { type GunDef, GunDefs } from "../../../shared/defs/gameObjects/gunDefs.ts";
+import {
+    LastCallBuildingType,
+    LastCallMapName,
+    LastCallPlayerSpawns,
+    lastCallToLocal,
+} from "../../../shared/defs/maps/lastCallLayout.ts";
 import { SpecOpsEnemyClasses } from "../../../shared/defs/maps/specOpsNpcDebug.ts";
 import {
     isSpecOpsArmorSatchel,
@@ -67,6 +73,7 @@ import {
     specOpsUnequipPerk,
     specOpsWaveBonus,
 } from "../../../shared/defs/maps/specOpsShop.ts";
+import { zombiePerkMachine } from "../../../shared/defs/maps/zombiePerks.ts";
 import { GameObjectDefs, MapObjectDefs } from "../../../shared/defs/register.ts";
 import type { ObstacleDef } from "../../../shared/defs/types/obstacle.ts";
 import { GameConfig, type InventoryItem, TeamMode } from "../../../shared/gameConfig.ts";
@@ -96,14 +103,33 @@ import { v2, type Vec2 } from "../../../shared/utils/v2.ts";
 import { Config } from "../config.ts";
 import type { Game } from "./game.ts";
 import type { Team } from "./group.ts";
+import { lastCallBlock, lastCallOpenZones, lastCallPosReachable, lastCallWalkable } from "./lastCallNav.ts";
 import type { Building } from "./objects/building.ts";
+import type { Loot } from "./objects/loot.ts";
 import type { Obstacle } from "./objects/obstacle.ts";
 import type { Player } from "./objects/player.ts";
 import type { Structure } from "./objects/structure.ts";
 import { PracticeCombat } from "./practiceCombat.ts";
 import { PracticeController, type PracticeHost } from "./practiceController.ts";
 import { SpecOpsContractRunner } from "./specOpsContracts.ts";
-import { inferGroundLayer, MapNavGraph, navGroundLayer, stairAtPos } from "./specOpsNav.ts";
+import { doorFrameCenter, inferGroundLayer, MapNavGraph, navGroundLayer, stairAtPos } from "./specOpsNav.ts";
+import {
+    composeZombieWave,
+    isZombieClass,
+    zombieBuyGateCost,
+    type ZombieClass,
+    zombieEnemyHealth,
+    ZombieKillBounty,
+    ZombieLoadouts,
+    ZombieMysteryBoxClaimDuration,
+    ZombieMysteryBoxCooldown,
+    ZombieMysteryBoxCost,
+    ZombieMysteryBoxCycleInterval,
+    ZombieMysteryBoxRelocateUses,
+    ZombieMysteryBoxRollDuration,
+    ZombieMysteryBoxWeapons,
+    ZombieUpgradeCost,
+} from "./zombieMode.ts";
 
 export type SpecOpsKind = "enemy" | "ally" | "sentry";
 
@@ -136,6 +162,9 @@ function stationPlanForBuilding(type: string):
     >
     | undefined
 {
+    if (type === "zombie_branching_complex_01") {
+        return { size: "large", maxIndoor: 5, maxOutdoor: 0, maxTotal: 5 };
+    }
     if (
         type.includes("outhouse")
         || type.includes("container")
@@ -167,6 +196,7 @@ function stationPlanForBuilding(type: string):
 }
 
 type EnemyClass =
+    | ZombieClass
     | "militia"
     | "smg"
     | "rifle"
@@ -301,6 +331,7 @@ interface PracticeBotTuning {
 const PracticeBotOutfits = ["outfitCamo", "outfitKhaki", "outfitDarkShirt", "outfitWoodland"];
 
 const Loadouts: Record<EnemyClass, EnemyLoadout> = {
+    ...ZombieLoadouts,
     militia: {
         name: "Militia",
         gun: "m9",
@@ -1725,6 +1756,7 @@ type Phase = "prep" | "combat" | "intermission";
 const PrepTime = 45;
 const IntermissionTime = 35;
 const IntermissionCap = 50;
+export const ZombieWaveIntermissionTime = 8;
 /** Ignore leftover E/F from the fight before shop skip is allowed. */
 const ShopSkipLockTime = 2.5;
 const AiTeamId = 200;
@@ -1915,6 +1947,7 @@ const LateCombatPerks = [
 ] as const;
 
 function lateEnemyPerks(wave: number, kind: EnemyClass): string[] {
+    if (isZombieClass(kind)) return [];
     if (wave < SpecOpsElitePerkWave) return [];
     const extra = 1 + Math.min(3, Math.floor((wave - SpecOpsElitePerkWave) / 8));
     const out: string[] = [];
@@ -2507,9 +2540,15 @@ function doorPlaneNormal(door: Obstacle): Vec2 {
     return v2.rotate(v2.create(1, 0), math.oriToRad(ori));
 }
 
+function doorNavPoint(door: Obstacle): Vec2 {
+    return door.game.map.mapDef.gameMode.indoorMode
+        ? doorFrameCenter(door)
+        : door.pos;
+}
+
 function doorInwardDir(door: Obstacle, building: Building): Vec2 {
     const n = doorPlaneNormal(door);
-    const toCenter = v2.sub(building.pos, door.pos);
+    const toCenter = v2.sub(building.pos, doorNavPoint(door));
     return v2.dot(n, toCenter) >= 0 ? n : v2.neg(n);
 }
 
@@ -2526,7 +2565,7 @@ function throughDoorDir(door: Obstacle, from: Vec2, goal: Vec2): Vec2 {
 
 function doorFoyerPoint(door: Obstacle, building: Building, dist: number, game: Game): Vec2 {
     const inward = doorInwardDir(door, building);
-    const pos = v2.add(door.pos, v2.mul(inward, dist));
+    const pos = v2.add(doorNavPoint(door), v2.mul(inward, dist));
     const zoom = building.zoomRegions.find((r) => r.zoomIn)?.zoomIn;
     if (zoom) {
         const pad = 1.15;
@@ -2547,8 +2586,9 @@ function doorFoyerPoint(door: Obstacle, building: Building, dist: number, game: 
 function doorBlocksCrossing(door: Obstacle, from: Vec2, goal: Vec2): boolean {
     if (!door.door?.open || !door.collidable) return false;
     const through = throughDoorDir(door, from, goal);
-    const a = v2.add(door.pos, v2.mul(v2.neg(through), 2.8));
-    const b = v2.add(door.pos, v2.mul(through, 2.8));
+    const center = doorNavPoint(door);
+    const a = v2.add(center, v2.mul(v2.neg(through), 2.8));
+    const b = v2.add(center, v2.mul(through, 2.8));
     const objs = door.game.grid.intersectLineSegment(a, b);
     for (let i = 0; i < objs.length; i++) {
         if (objs[i] === door) return true;
@@ -2575,14 +2615,14 @@ function botNearDoor(door: Obstacle, player: Player): boolean {
     if (!botDoorSameLayer(door, player)) return false;
     const reach = botDoorReach(door, player);
     if (collider.intersectCircle(door.collider, player.pos, reach)) return true;
-    return v2.distance(player.pos, door.pos) <= reach;
+    return v2.distance(player.pos, doorNavPoint(door)) <= reach;
 }
 
 function botOnDoorThreshold(door: Obstacle, player: Player): boolean {
     if (!botDoorSameLayer(door, player)) return false;
     const reach = player.rad + math.max(door.interactionRad * 0.85, 0.55);
     if (collider.intersectCircle(door.collider, player.pos, reach)) return true;
-    return v2.distance(player.pos, door.pos) <= reach;
+    return v2.distance(player.pos, doorNavPoint(door)) <= reach;
 }
 
 function botDoorOnCooldown(player: Player, door: Obstacle): boolean {
@@ -2593,7 +2633,7 @@ function botDoorOnCooldown(player: Player, door: Obstacle): boolean {
 
 function doorOnPathToGoal(door: Obstacle, player: Player, goal: Vec2): boolean {
     const toGoal = v2.sub(goal, player.pos);
-    const toDoor = v2.sub(door.pos, player.pos);
+    const toDoor = v2.sub(doorNavPoint(door), player.pos);
     const goalLen = v2.length(toGoal);
     if (goalLen < 0.2) return v2.length(toDoor) <= BOT_DOOR_SCAN_RAD;
     const along = v2.dot(toDoor, v2.normalizeSafe(toGoal));
@@ -2673,7 +2713,7 @@ function tryOpenNearbyDoors(player: Player, toward?: Vec2, stuckStrikes = 0, goa
         if (!botNearDoor(o, player)) continue;
         const onPath = doorOnPathToGoal(o, player, crossGoal);
         if (toward && stuckStrikes < 2 && !o.door.open && !onPath) {
-            const toDoor = v2.sub(o.pos, player.pos);
+            const toDoor = v2.sub(doorNavPoint(o), player.pos);
             if (v2.length(toDoor) > 0.35 && v2.dot(v2.normalizeSafe(toDoor), toward) < -0.3) {
                 continue;
             }
@@ -2938,7 +2978,7 @@ function steerAroundWalls(
  * across the map after dumping a magazine (that ends fights early).
  */
 function aiIsDedicatedMelee(enemyClass?: EnemyClass): boolean {
-    return enemyClass === "cqc";
+    return enemyClass === "cqc" || isZombieClass(enemyClass);
 }
 
 function aiPrimaryDry(player: Player): boolean {
@@ -3464,7 +3504,50 @@ function isDoorCandidate(pos: Vec2, building?: Building): boolean {
         if (child.__type !== ObjectType.Obstacle) continue;
         const door = child as Obstacle;
         if (!door.isDoor) continue;
-        if (v2.distance(pos, door.pos) < 4.5) return true;
+        if (v2.distance(pos, doorNavPoint(door)) < 4.5) return true;
+    }
+    return false;
+}
+
+function canAiOccupy(game: Game, player: Player, pos: Vec2): boolean {
+    if (game.map.isOnWater(pos, util.toGroundLayer(player.layer))) return false;
+    const circle = collider.createCircle(pos, player.rad);
+    const objs = game.grid.intersectCollider(circle);
+    for (let i = 0; i < objs.length; i++) {
+        const obj = objs[i];
+        if (obj.__type !== ObjectType.Obstacle || !util.sameLayer(obj.layer, player.layer)) {
+            continue;
+        }
+        const obstacle = obj as Obstacle;
+        if (obstacle.collidable && coldet.test(circle, obstacle.collider)) return false;
+    }
+    return !game.map.mapDef.gameMode.indoorMode
+        || !!buildingContaining(game, pos, util.toGroundLayer(player.layer));
+}
+
+/** A trailing zombie yields while another hostile is already entering the door. */
+function zombieDoorwayCongested(player: Player, waypoint: Vec2): boolean {
+    let doorway: Vec2 | undefined;
+    const obstacles = player.game.map.obstacles;
+    for (let i = 0; i < obstacles.length; i++) {
+        const obstacle = obstacles[i];
+        if (!obstacle.isDoor || !obstacle.door || obstacle.dead) continue;
+        const center = doorNavPoint(obstacle);
+        if (v2.distance(center, waypoint) < 4.8) {
+            doorway = center;
+            break;
+        }
+    }
+    if (!doorway) return false;
+
+    const selfDist = v2.distance(player.pos, doorway);
+    const players = player.game.playerBarn.livingPlayers;
+    for (let i = 0; i < players.length; i++) {
+        const other = players[i];
+        if (other === player || !other.specOpsAi || other.specOpsKind !== "enemy") continue;
+        if (!util.sameLayer(other.layer, player.layer)) continue;
+        if (v2.distance(other.pos, player.pos) > 3.4) continue;
+        if (v2.distance(other.pos, doorway) + 0.45 < selfDist) return true;
     }
     return false;
 }
@@ -3491,6 +3574,20 @@ function findRouteWaypoint(
         return undefined;
     }
 
+    // Last Call: every room is inside one building, so the door/corner heuristics
+    // below point at the wrong places. Walk to the farthest node of the graph path
+    // that is in straight-line reach (string pulling), so bots don't flip-flop.
+    if (lastCallBlock(game)) {
+        if (lastCallWalkable(game, from.pos, goal)) return undefined;
+        const path = game.specOps?.paths?.path(game, from.pos, goal, 0, 0);
+        if (!path?.length) return undefined;
+        for (let i = path.length - 1; i >= 0; i--) {
+            if (v2.distance(from.pos, path[i]) < 1.2) break;
+            if (lastCallWalkable(game, from.pos, path[i])) return path[i];
+        }
+        return path.find((p) => v2.distance(from.pos, p) >= 1.2);
+    }
+
     const graphWp = game.specOps?.paths?.firstWaypoint(from, goal);
     const goalLayer = inferGroundLayer(game, goal, from.layer);
     const crossFloor = navGroundLayer(from.layer) !== goalLayer;
@@ -3504,7 +3601,12 @@ function findRouteWaypoint(
             }
         }
         const progress = v2.distance(from.pos, goal) - v2.distance(graphWp, goal);
-        if (!banned && v2.distance(from.pos, graphWp) > 1.15 && progress > -1.8) {
+        const indoorRoute = !!game.map.mapDef.gameMode.indoorMode;
+        if (
+            !banned
+            && v2.distance(from.pos, graphWp) > 1.15
+            && (progress > -1.8 || indoorRoute)
+        ) {
             return graphWp;
         }
     }
@@ -3634,19 +3736,20 @@ function pushDoorApproaches(building: Building, from: Player, goal: Vec2, out: V
         if (door.door.locked) continue;
         if (!door.door.open && !door.door.canUse) continue;
         const inward = doorInwardDir(door, building);
-        const fromInside = v2.dot(inward, v2.sub(from.pos, door.pos)) > 0.2;
+        const center = doorNavPoint(door);
+        const fromInside = v2.dot(inward, v2.sub(from.pos, center)) > 0.2;
         const approach = fromInside ? inward : v2.neg(inward);
         // Stay clear of the door collider on the approach side.
-        out.push(v2.add(door.pos, v2.mul(approach, 2.6)));
-        out.push(v2.add(door.pos, v2.mul(approach, 3.6)));
+        out.push(v2.add(center, v2.mul(approach, 2.6)));
+        out.push(v2.add(center, v2.mul(approach, 3.6)));
         if (!door.door.open) continue;
         const through = throughDoorDir(door, from.pos, goal);
         if (v2.dot(through, inward) > 0) {
             out.push(doorFoyerPoint(door, building, 3.4, from.game));
             out.push(doorFoyerPoint(door, building, 4.8, from.game));
         } else {
-            const foyer = v2.add(door.pos, v2.mul(through, 3.4));
-            const deep = v2.add(door.pos, v2.mul(through, 4.8));
+            const foyer = v2.add(center, v2.mul(through, 3.4));
+            const deep = v2.add(center, v2.mul(through, 4.8));
             from.game.map.clampToMapBounds(foyer, 6);
             from.game.map.clampToMapBounds(deep, 6);
             out.push(foyer);
@@ -3744,6 +3847,8 @@ class AiBrain {
     detourPos?: Vec2;
     stuckStrikes = 0;
     routeRefreshTicker = 0;
+    /** Remembered room-to-room portal sequence for indoor zombies. */
+    doorYieldTicker = 0;
     lookScanTicker = util.random(0.4, 1.2);
     lookScanSign = Math.random() < 0.5 ? 1 : -1;
     searchFovDot = 0.55;
@@ -4091,6 +4196,7 @@ class AiBrain {
         const desired = v2.normalizeSafe(toTarget);
         const canSee = hasLineOfSight(player.game, player, target);
         const isBomber = !!this.loadout.suicideVest;
+        const zombieMelee = isZombieClass(this.enemyClass);
         const directClear = isPathClear(player.game, player, target.pos, 0.8);
         const navHit = directClear ? undefined : firstNavHit(player.game, player, target.pos);
         const blockedByStructure = !!(navHit && (navHit.isWindow || navHit.isWall));
@@ -4344,9 +4450,11 @@ class AiBrain {
                 looping = pathLen > 5.5 && net < 1.55;
             }
             const reversing = v2.dot(stepDir, this.lastStepDir) < -0.45 && moved > 0.08;
+            const indoorZombie = zombieMelee && !!player.game.map.mapDef.gameMode.indoorMode;
 
             this.stuckTicker += dt;
-            if (this.stuckTicker > 0.32 && !stairTransit && !this.stairTarget) {
+            const stuckCheckDelay = indoorZombie ? 0.75 : 0.32;
+            if (this.stuckTicker > stuckCheckDelay && !stairTransit && !this.stairTarget) {
                 if (moved < 0.14 || looping || reversing) {
                     this.stuckStrikes++;
                     this.pathSideSign *= -1;
@@ -4354,7 +4462,9 @@ class AiBrain {
                     field.penalize(player.pos, looping ? 3.2 : 2.1);
                     if (this.detourPos) {
                         field.penalizeToward(player.pos, this.detourPos, 2.4);
-                        this.failedWaypoints.push({ pos: v2.copy(this.detourPos), ttl: 3.2 });
+                        if (!indoorZombie) {
+                            this.failedWaypoints.push({ pos: v2.copy(this.detourPos), ttl: 3.2 });
+                        }
                         this.detourPos = undefined;
                         this.trail.length = 0;
                     }
@@ -4374,19 +4484,30 @@ class AiBrain {
                     const detourGoal = this.stairTarget
                         ? (this.assaultDest ?? target.pos)
                         : target.pos;
-                    const detour = findRouteWaypoint(
-                        player.game,
-                        player,
-                        detourGoal,
-                        field,
-                        this,
-                    );
+                    const detour = findRouteWaypoint(player.game, player, detourGoal, field, this);
                     if (detour) {
                         this.detourPos = detour;
                         field.occupy(detour, 1.6);
                     }
 
-                    if (this.stuckStrikes >= 5) {
+                    if (indoorZombie && this.stuckStrikes >= 3) {
+                        const waypoint = this.detourPos ?? target.pos;
+                        const forward = v2.normalizeSafe(v2.sub(waypoint, player.pos), desired);
+                        const side = v2.mul(v2.perp(forward), this.pathSideSign);
+                        for (const amount of [0.9, 1.35, -0.9, -1.35]) {
+                            const nudge = v2.add(
+                                player.pos,
+                                v2.add(v2.mul(side, amount), v2.mul(forward, 0.35)),
+                            );
+                            player.game.map.clampToMapBounds(nudge, 4);
+                            if (!canAiOccupy(player.game, player, nudge)) continue;
+                            v2.set(player.pos, nudge);
+                            player.game.grid.updateObject(player);
+                            player.setDirty();
+                            break;
+                        }
+                        this.stuckStrikes = 1;
+                    } else if (this.stuckStrikes >= 5) {
                         const escape = steerAroundWalls(
                             player.game,
                             player,
@@ -4395,7 +4516,7 @@ class AiBrain {
                             field,
                         );
                         const nudge = v2.add(player.pos, v2.mul(escape, 1.05));
-                        if (player.game.map.canPlayerSpawn(nudge)) {
+                        if (canAiOccupy(player.game, player, nudge)) {
                             v2.set(player.pos, nudge);
                             player.game.grid.updateObject(player);
                             player.setDirty();
@@ -4433,13 +4554,7 @@ class AiBrain {
                 const routeGoal = this.stairTarget
                     ? (this.assaultDest ?? target.pos)
                     : (this.assaultDest ?? target.pos);
-                const next = findRouteWaypoint(
-                    player.game,
-                    player,
-                    routeGoal,
-                    field,
-                    this,
-                );
+                const next = findRouteWaypoint(player.game, player, routeGoal, field, this);
                 if (next) {
                     this.detourPos = next;
                     field.occupy(next, 1.4);
@@ -4481,17 +4596,21 @@ class AiBrain {
                 && !target.downed
                 && !isBomber
                 && !doorBlock
+                && directClear
                 && dist > AiMeleeAttackRange - 0.35
             ) {
-                // Knife bots: commit to closing — wander/detour/cover must not orbit outside swing range.
+                // Melee units only charge when the route is clear. When a wall
+                // blocks them, preserve the graph waypoint so they use a door.
                 this.detourPos = undefined;
                 this.coverPos = undefined;
                 this.wanderTicker = 0;
                 this.assaultDest = undefined;
-                move = v2.add(
-                    v2.mul(desired, 1.15),
-                    v2.mul(v2.perp(desired), this.strafeSign * 0.12),
-                );
+                move = zombieMelee
+                    ? v2.mul(desired, 1.15)
+                    : v2.add(
+                        v2.mul(desired, 1.15),
+                        v2.mul(v2.perp(desired), this.strafeSign * 0.12),
+                    );
             } else if (
                 meleeEngage
                 && !dedicatedMelee
@@ -4598,8 +4717,10 @@ class AiBrain {
                     v2.mul(v2.perp(desired), this.strafeSign * (0.55 + overlap * 0.35)),
                 );
             } else if (meleeEngage) {
-                // In swing band: light strafe only (close-in handled above).
-                move = v2.mul(v2.perp(desired), this.strafeSign * 0.35);
+                // Zombies keep pressing into attack range instead of orbiting.
+                move = zombieMelee
+                    ? (dist > player.rad + target.rad + 0.25 ? desired : v2.create(0, 0))
+                    : v2.mul(v2.perp(desired), this.strafeSign * 0.35);
             } else if (!canSee || dist > maxRange) {
                 const hunt = this.investigatePos
                     ? v2.normalizeSafe(v2.sub(this.investigatePos, player.pos))
@@ -4654,27 +4775,43 @@ class AiBrain {
             }
 
             if (v2.length(move) > 0.01) {
-                player.touchMoveActive = true;
-                player.touchMoveDir = assaultDirect
-                    ? v2.normalizeSafe(move)
-                    : steerAroundWalls(
-                        player.game,
-                        player,
-                        move,
-                        this.pathSideSign,
-                        field,
-                        push,
+                const zombieGraphRoute = zombieMelee && !directClear && !!this.detourPos;
+                this.doorYieldTicker = math.max(this.doorYieldTicker - dt, 0);
+                if (
+                    zombieGraphRoute
+                    && this.detourPos
+                    && zombieDoorwayCongested(player, this.detourPos)
+                ) {
+                    this.doorYieldTicker = math.max(
+                        this.doorYieldTicker,
+                        0.14 + (player.__id % 3) * 0.04,
                     );
-                player.touchMoveLen = 255;
+                }
+                if (this.doorYieldTicker <= 0) {
+                    player.touchMoveActive = true;
+                    player.touchMoveDir = assaultDirect || zombieGraphRoute
+                        ? v2.normalizeSafe(move)
+                        : steerAroundWalls(
+                            player.game,
+                            player,
+                            move,
+                            this.pathSideSign,
+                            field,
+                            push,
+                        );
+                    player.touchMoveLen = 255;
+                }
             }
 
             if (doorBlock) {
                 const through = throughDoorDir(doorBlock, player.pos, crossingGoal);
-                player.touchMoveActive = true;
-                player.touchMoveDir = through;
-                player.touchMoveLen = 255;
+                if (this.doorYieldTicker <= 0) {
+                    player.touchMoveActive = true;
+                    player.touchMoveDir = through;
+                    player.touchMoveLen = 255;
+                }
                 this.shooting = false;
-                if (this.doorStuckTicker > 2.2) {
+                if (this.doorYieldTicker <= 0 && this.doorStuckTicker > 2.2) {
                     tryUseDoor(doorBlock, player, crossingGoal, true);
                     const step = v2.add(player.pos, v2.mul(through, 0.85));
                     player.game.map.clampToMapBounds(step, 4);
@@ -5534,6 +5671,15 @@ export const SpecOpsAbandonedTimeout = 90;
 /** Seconds without movement/shoot/interact before a connected operator is treated as idle. */
 export const SpecOpsIdleTimeout = 300;
 
+interface ZombieMysteryBoxState {
+    box: Obstacle;
+    phase: "rolling" | "claim" | "cooldown";
+    ticker: number;
+    cycleTicker: number;
+    weapon: string;
+    loot?: Loot;
+}
+
 export class SpecOpsManager implements PracticeHost {
     static readonly AiTeamId = AiTeamId;
 
@@ -5612,6 +5758,9 @@ export class SpecOpsManager implements PracticeHost {
     private waveSpawnPulseIndex = 0;
     readonly contracts = new SpecOpsContractRunner(this);
     private lastContractHudCode = -1;
+    private mysteryBoxState?: ZombieMysteryBoxState;
+    private mysteryBoxUses = 0;
+    zombiePowerOn = false;
 
     /** Practice mode controller; undefined in normal Spec Ops. */
     readonly practice?: PracticeController;
@@ -5626,6 +5775,282 @@ export class SpecOpsManager implements PracticeHost {
         if (game.map.practiceMode) {
             this.practice = new PracticeController(this);
             this.contractsEnabled = false;
+        }
+    }
+
+    /** Zombie Survival reuses the proven round/shop/nav engine with a separate roster. */
+    get zombieMode(): boolean {
+        return !!this.game.map.mapDef.gameMode.zombieMode
+            && !this.practice
+            && !this.game.map.specOpsBotArena;
+    }
+
+    private setMysteryBoxVisual(box: Obstacle, open: boolean, canUse: boolean): void {
+        if (!box.button) return;
+        const changed = box.button.onOff !== open || box.button.canUse !== canUse;
+        box.button.onOff = open;
+        box.button.canUse = canUse;
+        if (!changed) return;
+        box.button.seq++;
+        box.setDirty();
+    }
+
+    private pickMysteryBoxWeapon(previous = ""): string {
+        const pool = ZombieMysteryBoxWeapons;
+        let weapon = previous;
+        while (weapon === previous) {
+            weapon = pool[Math.floor(util.random(0, pool.length))];
+        }
+        return weapon;
+    }
+
+    private replaceMysteryBoxLoot(state: ZombieMysteryBoxState, locked: boolean): void {
+        if (state.loot && !state.loot.destroyed) state.loot.destroy();
+        const loot = this.game.lootBarn.addLoot(
+            state.weapon,
+            v2.copy(state.box.pos),
+            state.box.layer,
+            1,
+            {
+                pushSpeed: 0,
+                noSideAmmo: true,
+                source: "map",
+            },
+        );
+        if (!loot) {
+            state.loot = undefined;
+            return;
+        }
+        loot.isPreloadedGun = true;
+        loot.mysteryBoxLocked = locked;
+        loot.mysteryBoxId = state.box.__id;
+        loot.ignoreObstacleId = state.box.__id;
+        state.loot = loot;
+    }
+
+    private beginMysteryBoxCooldown(state: ZombieMysteryBoxState): void {
+        if (state.loot && !state.loot.destroyed) state.loot.destroy();
+        state.loot = undefined;
+        state.phase = "cooldown";
+        state.ticker = ZombieMysteryBoxCooldown;
+        this.mysteryBoxUses++;
+        this.setMysteryBoxVisual(state.box, false, false);
+    }
+
+    private relocateMysteryBox(box: Obstacle): void {
+        const spots = this.game.map.obstacles.filter((obstacle) =>
+            obstacle.type === "zombie_mystery_box_spot"
+            && v2.distance(obstacle.pos, box.pos) > 4
+        );
+        if (!spots.length) return;
+        const destination = spots[Math.floor(util.random(0, spots.length))];
+        box.updatePos(destination.pos);
+        box.updateCollider();
+        this.game.playerBarn.addMapPing("ping_unlock", box.pos);
+    }
+
+    private tickMysteryBox(dt: number): void {
+        const state = this.mysteryBoxState;
+        if (!state) return;
+        if (state.box.dead || state.box.destroyed) {
+            if (state.loot && !state.loot.destroyed) state.loot.destroy();
+            this.mysteryBoxState = undefined;
+            return;
+        }
+
+        state.ticker -= dt;
+        if (state.phase === "rolling") {
+            state.cycleTicker -= dt;
+            if (state.cycleTicker <= 0) {
+                state.weapon = this.pickMysteryBoxWeapon(state.weapon);
+                state.cycleTicker = ZombieMysteryBoxCycleInterval;
+                this.replaceMysteryBoxLoot(state, true);
+            }
+            if (state.ticker <= 0) {
+                state.phase = "claim";
+                state.ticker = ZombieMysteryBoxClaimDuration;
+                this.replaceMysteryBoxLoot(state, false);
+                this.setMysteryBoxVisual(state.box, true, true);
+            }
+            return;
+        }
+
+        if (state.phase === "claim") {
+            if (!state.loot || state.loot.destroyed || state.ticker <= 0) {
+                this.beginMysteryBoxCooldown(state);
+            }
+            return;
+        }
+
+        if (state.ticker <= 0) {
+            if (this.mysteryBoxUses >= ZombieMysteryBoxRelocateUses) {
+                this.relocateMysteryBox(state.box);
+                this.mysteryBoxUses = 0;
+            }
+            this.setMysteryBoxVisual(state.box, false, true);
+            this.mysteryBoxState = undefined;
+        }
+    }
+
+    /** Starts the shared BO2-style roll; the revealed gun is picked up manually. */
+    tryUseMysteryBox(player: Player, box: Obstacle): boolean {
+        if (!this.zombieMode || box.type !== "zombie_mystery_box" || !box.button) return false;
+        if (player.specOpsAi || player.dead || player.downed || player.disconnected) return false;
+        if (!collider.intersectCircle(box.collider, player.pos, box.interactionRad + player.rad)) {
+            return false;
+        }
+        const active = this.mysteryBoxState;
+        if (active) {
+            if (active.box !== box || active.phase !== "claim" || !active.loot) return false;
+            player.pickupLoot(active.loot);
+            return active.loot.destroyed;
+        }
+        if (!box.button.canUse || player.specOpsCash < ZombieMysteryBoxCost) return false;
+
+        this.grantCash(player, -ZombieMysteryBoxCost);
+        this.setMysteryBoxVisual(box, true, false);
+        const state: ZombieMysteryBoxState = {
+            box,
+            phase: "rolling",
+            ticker: ZombieMysteryBoxRollDuration,
+            cycleTicker: 0,
+            weapon: this.pickMysteryBoxWeapon(),
+        };
+        this.mysteryBoxState = state;
+        this.replaceMysteryBoxLoot(state, true);
+        return true;
+    }
+
+    /** Buy and remove a route gate, then rebuild navigation around the new opening. */
+    tryBuyZombieGate(player: Player, gate: Obstacle): boolean {
+        const cost = zombieBuyGateCost(gate.type);
+        if (!this.zombieMode || cost === undefined || !gate.button) return false;
+        if (player.specOpsAi || player.dead || player.downed || player.disconnected) return false;
+        if (!collider.intersectCircle(gate.collider, player.pos, gate.interactionRad + player.rad)) {
+            return false;
+        }
+        if (player.specOpsCash < cost) return false;
+
+        this.grantCash(player, -cost);
+        gate.destroy();
+        this.paths = undefined;
+        this.game.playerBarn.addMapPing("ping_unlock", gate.pos);
+        return true;
+    }
+
+    tryTurnOnZombiePower(player: Player, powerSwitch: Obstacle): boolean {
+        if (
+            !this.zombieMode
+            || this.zombiePowerOn
+            || powerSwitch.type !== "zombie_power_switch"
+            || !powerSwitch.button?.canUse
+        ) return false;
+        if (player.specOpsAi || player.dead || player.downed || player.disconnected) return false;
+        if (
+            !collider.intersectCircle(
+                powerSwitch.collider,
+                player.pos,
+                powerSwitch.interactionRad + player.rad,
+            )
+        ) return false;
+
+        this.zombiePowerOn = true;
+        powerSwitch.useButton(player);
+        for (const obstacle of this.game.map.obstacles) {
+            if (obstacle.type === "zombie_power_gate" && !obstacle.destroyed) {
+                obstacle.destroy();
+            }
+            if (obstacle.type === "zombie_upgrade_bench" && obstacle.button) {
+                obstacle.button.canUse = true;
+                obstacle.button.seq++;
+                obstacle.setDirty();
+            }
+        }
+        this.paths = undefined;
+        this.game.playerBarn.addMapPing("ping_unlock", powerSwitch.pos);
+        return true;
+    }
+
+    tryBuyZombiePerk(player: Player, machine: Obstacle): boolean {
+        const offer = zombiePerkMachine(machine.type);
+        if (!this.zombieMode || !offer || !machine.button?.canUse) return false;
+        if (player.specOpsAi || player.dead || player.downed || player.disconnected) return false;
+        if (this.buyCooldown.get(player.__id)) return false;
+        if (
+            !collider.intersectCircle(
+                machine.collider,
+                player.pos,
+                machine.interactionRad + player.rad,
+            )
+        ) return false;
+        if (player.hasPerk(offer.perk) || player.perks.length >= SpecOpsMaxPerks) return false;
+        if (player.specOpsCash < offer.cost) return false;
+
+        const previousMaxHealth = player.maxHealth;
+        player.addPerk(offer.perk, false);
+        if (offer.perk === "zombie_juggernog") {
+            player.health += player.maxHealth - previousMaxHealth;
+        }
+        player.setDirty();
+        this.grantCash(player, -offer.cost);
+        this.buyCooldown.set(player.__id, 0.45);
+        this.game.playerBarn.addEmote("emote_loot", player.__id, offer.perk);
+        return true;
+    }
+
+    tryUpgradeZombieWeapon(player: Player, bench: Obstacle): boolean {
+        if (
+            !this.zombieMode
+            || !this.zombiePowerOn
+            || bench.type !== "zombie_upgrade_bench"
+            || !bench.button?.canUse
+        ) return false;
+        if (player.specOpsAi || player.dead || player.downed || player.disconnected) return false;
+        if (!collider.intersectCircle(bench.collider, player.pos, bench.interactionRad + player.rad)) {
+            return false;
+        }
+
+        const slot = player.curWeapIdx;
+        const weapon = player.weapons[slot];
+        const weaponDef = GameObjectDefs.typeToDefSafe(weapon.type);
+        if (!weaponDef || weaponDef.type !== "gun") return false;
+        if (player.specOpsUpgradedWeapons.has(weapon.type)) return false;
+        if (player.specOpsCash < ZombieUpgradeCost) return false;
+
+        this.grantCash(player, -ZombieUpgradeCost);
+        player.specOpsUpgradedWeapons.add(weapon.type);
+        const ammo = player.weaponManager.getAmmoStats(weaponDef, weapon.type);
+        weapon.ammo = ammo.maxClip;
+        player.invManager.give(weaponDef.ammo as InventoryItem, ammo.maxClip * 2);
+        player.weapsDirty = true;
+        bench.button.onOff = !bench.button.onOff;
+        bench.button.seq++;
+        bench.setDirty();
+        this.game.playerBarn.addMapPing("ping_unlock", bench.pos);
+        return true;
+    }
+
+    /** Next free lobby spawn on Last Call (lastCallLayout.ts), or undefined on other maps. */
+    private lastCallPlayerSpawn(): Vec2 | undefined {
+        if (!this.zombieMode || this.game.config.mapName !== LastCallMapName) return undefined;
+        const complex = this.game.map.buildings.find((b) => b.type === LastCallBuildingType);
+        if (!complex) return undefined;
+        const spots = LastCallPlayerSpawns.map((p) => v2.add(complex.pos, lastCallToLocal(p.x, p.y)));
+        const taken = this.livingHumans();
+        const free = spots.find((spot) => taken.every((h) => v2.distance(h.pos, spot) > 1.5));
+        return free ?? spots[taken.length % spots.length];
+    }
+
+    private configureLastCallSystems(): void {
+        if (!this.zombieMode || this.game.config.mapName !== "specops_complex") return;
+        this.zombiePowerOn = false;
+        for (const obstacle of this.game.map.obstacles) {
+            if (obstacle.type === "zombie_upgrade_bench" && obstacle.button) {
+                obstacle.button.canUse = false;
+                obstacle.button.onOff = false;
+                obstacle.button.seq++;
+                obstacle.setDirty();
+            }
         }
     }
 
@@ -6137,6 +6562,7 @@ export class SpecOpsManager implements PracticeHost {
         this.shopSkipLock = ShopSkipLockTime;
         this.hudDirty = true;
         this.game.gas.setSpecOpsCountdown(this.phaseTimer, this.phaseDuration);
+        this.configureLastCallSystems();
         this.placeStations();
     }
 
@@ -6150,7 +6576,20 @@ export class SpecOpsManager implements PracticeHost {
             return;
         }
 
-        if (!this.operatorSpawn) {
+        const lastCallSpawn = this.lastCallPlayerSpawn();
+        if (lastCallSpawn) {
+            // Last Call: the squad lines up on the lobby rug, never through a wall.
+            v2.set(player.pos, lastCallSpawn);
+            player.game.grid.updateObject(player);
+            player.setDirty();
+            if (!this.operatorSpawn) this.operatorSpawn = v2.copy(player.pos);
+        } else if (!this.operatorSpawn) {
+            if (this.zombieMode && this.game.map.mapDef.gameMode.indoorMode) {
+                const indoorSpawn = this.pickSpawnNear(this.game.map.center, 0, 5);
+                v2.set(player.pos, indoorSpawn);
+                player.game.grid.updateObject(player);
+                player.setDirty();
+            }
             this.operatorSpawn = v2.copy(player.pos);
         } else {
             const nearby = this.pickSpawnNear(this.operatorSpawn, 4, 10);
@@ -6246,6 +6685,7 @@ export class SpecOpsManager implements PracticeHost {
             if (next <= 0) this.buyCooldown.delete(id);
             else this.buyCooldown.set(id, next);
         }
+        this.tickMysteryBox(dt);
 
         for (let i = this.pendingVestExplosions.length - 1; i >= 0; i--) {
             const fuse = this.pendingVestExplosions[i];
@@ -6344,9 +6784,11 @@ export class SpecOpsManager implements PracticeHost {
                     this.contracts.update(dt);
                     this.syncContractHud();
                 }
-                this.tickGloryHorde();
-                this.tickGloryHelpers(dt);
-                if (this.gloryWipeActive) {
+                if (!this.zombieMode) {
+                    this.tickGloryHorde();
+                    this.tickGloryHelpers(dt);
+                }
+                if (!this.zombieMode && this.gloryWipeActive) {
                     // Keep the executioner invulnerable during the wipe / truce.
                     if (this.gloryExecutioner && !this.gloryExecutioner.dead) {
                         this.gloryExecutioner.specOpsImmunityTicker = math.max(
@@ -6550,15 +6992,18 @@ export class SpecOpsManager implements PracticeHost {
         this.lastContractHudCode = -1;
         this.syncContractHud();
         this.game.gas.clearSpecOpsCountdown();
-        this.game.logger.info(`Spec Ops wave ${this.wave}`);
+        this.game.logger.info(`${this.zombieMode ? "Zombie" : "Spec Ops"} wave ${this.wave}`);
         this.buffLivingSupport();
 
         const humans = this.livingHumans();
-        let roster = composeWave(this.wave, humans.length, this.difficulty);
+        let roster: EnemyClass[] = this.zombieMode
+            ? composeZombieWave(this.wave, humans.length, this.difficulty)
+            : composeWave(this.wave, humans.length, this.difficulty);
 
         // Wave 30: the glory executioner is already on the field — bring his men,
         // don't spawn a duplicate event boss.
-        const keepExecutioner = this.wave === SpecOpsFinalWave
+        const keepExecutioner = !this.zombieMode
+            && this.wave === SpecOpsFinalWave
             && this.gloryExecutioner
             && !this.gloryExecutioner.dead;
         if (keepExecutioner) {
@@ -6595,7 +7040,7 @@ export class SpecOpsManager implements PracticeHost {
 
         const clustered = this.humansClustered(humans, 36);
         const sharedAngle = util.random(0, Math.PI * 2);
-        const gloryPacks = this.wave === 29 ? 4 : 0;
+        const gloryPacks = !this.zombieMode && this.wave === 29 ? 4 : 0;
 
         for (let h = 0; h < hostCount; h++) {
             const host = humans[h];
@@ -6632,7 +7077,7 @@ export class SpecOpsManager implements PracticeHost {
         this.tickWaveSpawns(999);
         this.huntClock = 0;
         this.gloryHelpersThisWave = 0;
-        this.gloryHelperTicker = this.wave >= SpecOpsHelperStartWave
+        this.gloryHelperTicker = !this.zombieMode && this.wave >= SpecOpsHelperStartWave
             ? SpecOpsHelperInterval
             : 0;
         this.resetPushPressure();
@@ -6790,6 +7235,23 @@ export class SpecOpsManager implements PracticeHost {
             this.grantCash(humans[i], bonus);
         }
 
+        // Zombie Survival always gives players a short, predictable breather.
+        // The full lock prevents the Start Wave station from skipping this pause.
+        if (this.zombieMode) {
+            this.phase = "intermission";
+            this.onBreak = false;
+            this.breakVotes.clear();
+            this.lastBreakVoteCode = -1;
+            this.breakBonusSeconds = 0;
+            this.phaseDuration = ZombieWaveIntermissionTime;
+            this.phaseTimer = ZombieWaveIntermissionTime;
+            this.shopSkipLock = ZombieWaveIntermissionTime;
+            this.lastHudSecond = -1;
+            this.hudDirty = true;
+            this.game.gas.setSpecOpsCountdown(this.phaseTimer, this.phaseDuration);
+            return;
+        }
+
         // Continuous waves: chain the next wave immediately (no shop countdown).
         // Opening prep and the wave-29 glory truce still use their timers.
         if (this.endless) {
@@ -6868,14 +7330,54 @@ export class SpecOpsManager implements PracticeHost {
         minRad: number,
         host: Player | undefined,
         humans: Player[],
+        /** Minimum gap to other enemies; Last Call windows pack zombies tighter. */
+        crowdDist = 4,
     ): boolean {
         this.game.map.clampToMapBounds(pos, 10);
-        if (!this.game.map.canPlayerSpawn(pos)) return false;
+        if (!this.canCombatantSpawn(pos)) return false;
         if (v2.distance(pos, origin) < minRad) return false;
         if (this.spawnTooClose(pos, host, humans, minRad)) return false;
+        if (this.zombieMode && this.game.map.mapDef.gameMode.indoorMode && humans.length) {
+            const target = host
+                ?? humans.reduce((nearest, human) =>
+                    v2.distance(pos, human.pos) < v2.distance(pos, nearest.pos) ? human : nearest
+                );
+            const route = this.ensureNavGraph().path(
+                this.game,
+                pos,
+                target.pos,
+                0,
+                util.toGroundLayer(target.layer),
+                0,
+            );
+            if (route === null) return false;
+        }
         for (const brain of this.brains.values()) {
             if (brain.kind !== "enemy" || brain.player.dead) continue;
-            if (v2.distance(pos, brain.player.pos) < 4) return false;
+            if (v2.distance(pos, brain.player.pos) < crowdDist) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Normal map spawning rejects building floor and zoom regions. Indoor
+     * survival deliberately accepts those regions while still rejecting walls,
+     * closed doors, props and water.
+     */
+    private canCombatantSpawn(pos: Vec2): boolean {
+        const map = this.game.map;
+        if (!map.mapDef.gameMode.indoorMode) return map.canPlayerSpawn(pos);
+        if (map.isOnWater(pos, 0) || !buildingContaining(this.game, pos, 0)) return false;
+        // Last Call: never in a room behind a shutter the squad hasn't bought.
+        if (!lastCallPosReachable(this.game, pos)) return false;
+
+        const circle = collider.createCircle(pos, GameConfig.player.radius);
+        const objs = this.game.grid.intersectCollider(circle);
+        for (let i = 0; i < objs.length; i++) {
+            const obj = objs[i];
+            if (obj.__type !== ObjectType.Obstacle || !util.sameLayer(obj.layer, 0)) continue;
+            const obstacle = obj as Obstacle;
+            if (obstacle.collidable && coldet.test(circle, obstacle.collider)) return false;
         }
         return true;
     }
@@ -6886,9 +7388,25 @@ export class SpecOpsManager implements PracticeHost {
             const pos = v2.add(origin, util.randomPointInCircle(maxRad));
             const dist = v2.distance(pos, origin);
             map.clampToMapBounds(pos, 8);
-            if (dist >= minRad && map.canPlayerSpawn(pos)) {
+            if (dist >= minRad && this.canCombatantSpawn(pos)) {
                 return pos;
             }
+        }
+        if (map.mapDef.gameMode.indoorMode) {
+            const fallback = v2.copy(origin);
+            map.clampToMapBounds(fallback, 8);
+            if (this.canCombatantSpawn(fallback)) return fallback;
+            for (let ring = 2; ring <= maxRad; ring += 2) {
+                for (let i = 0; i < 16; i++) {
+                    const angle = (i / 16) * Math.PI * 2;
+                    const pos = v2.add(
+                        origin,
+                        v2.create(Math.cos(angle) * ring, Math.sin(angle) * ring),
+                    );
+                    if (this.canCombatantSpawn(pos)) return pos;
+                }
+            }
+            return fallback;
         }
         return map.getRandomSpawnPos(() => {
             return v2.add(origin, util.randomPointInCircle(maxRad));
@@ -6970,7 +7488,31 @@ export class SpecOpsManager implements PracticeHost {
         humans: Player[],
         indexInSquad = 0,
         squadSize = 1,
-    ): Vec2 {
+    ): Vec2 | undefined {
+        if (this.zombieMode && this.game.config.mapName === "specops_complex") {
+            // Zombies climb in through the windows (and manholes) of opened rooms only.
+            const open = lastCallOpenZones(this.game);
+            const entries = this.game.map.obstacles.filter((obstacle) =>
+                obstacle.type === "zombie_spawn_point" && lastCallPosReachable(this.game, obstacle.pos, open)
+            );
+            const start = entries.length
+                ? (indexInSquad + this.waveSpawnPulseIndex * 3) % entries.length
+                : 0;
+            // Prefer windows away from the squad; if they're camping every one, allow closer.
+            for (const minDist of [8, 4, 2.5]) {
+                for (let e = 0; e < entries.length; e++) {
+                    const entry = entries[(start + e) % entries.length];
+                    // the window first, then a growing patch of floor just inside it
+                    for (let attempt = 0; attempt < 12; attempt++) {
+                        const pos = attempt === 0
+                            ? v2.copy(entry.pos)
+                            : v2.add(entry.pos, util.randomPointInCircle(attempt < 6 ? 2.5 : 5.5));
+                        if (this.enemySpawnOk(pos, origin, minDist, host, humans, 2.4)) return pos;
+                    }
+                }
+            }
+        }
+
         const map = this.game.map;
         const tryPos = (angle: number, radius: number): Vec2 | undefined => {
             const pos = v2.add(
@@ -7026,11 +7568,26 @@ export class SpecOpsManager implements PracticeHost {
         for (let step = minRad; step < Math.max(map.width, map.height); step += 6) {
             const pos = v2.add(origin, v2.mul(dir, step));
             map.clampToMapBounds(pos, 10);
-            if (map.canPlayerSpawn(pos) && !this.spawnTooClose(pos, host, humans, minRad)) {
+            if (this.enemySpawnOk(pos, origin, minRad, host, humans)) {
                 return pos;
             }
         }
-        return fallback;
+        // Tight starting rooms can lack a legal point at the normal outdoor
+        // radius. Prefer a closer reachable spawn over placing a zombie behind
+        // a route gate that players have not opened.
+        if (this.zombieMode && this.game.map.mapDef.gameMode.indoorMode) {
+            for (let radius = 8; radius <= maxRad; radius += 4) {
+                for (let i = 0; i < 24; i++) {
+                    const angle = (i / 24) * Math.PI * 2;
+                    const pos = v2.add(
+                        origin,
+                        v2.create(Math.cos(angle) * radius, Math.sin(angle) * radius),
+                    );
+                    if (this.enemySpawnOk(pos, origin, 4, host, humans)) return pos;
+                }
+            }
+        }
+        return undefined;
     }
 
     private spawnEnemy(
@@ -7074,6 +7631,10 @@ export class SpecOpsManager implements PracticeHost {
             indexInSquad,
             squadSize,
         );
+        if (!pos) {
+            this.game.logger.warn(`No reachable spawn point for ${kind}`);
+            return undefined;
+        }
 
         const template = Loadouts[kind];
         const gun = pickGun(kind, this.wave);
@@ -7390,6 +7951,12 @@ export class SpecOpsManager implements PracticeHost {
     private placeStations(): void {
         if (this.practice) return;
         if (this.stationsPlaced || !this.operatorSpawn) return;
+        if (this.zombieMode && this.game.config.mapName === "specops_complex") {
+            // Last Call has authored wall buys and stations from the layout PDF.
+            this.stationsPlaced = true;
+            this.game.map.serializeMapMsg();
+            return;
+        }
         this.stationsPlaced = true;
 
         const origin = this.operatorSpawn;
@@ -7518,6 +8085,10 @@ export class SpecOpsManager implements PracticeHost {
     private assignStationTargets(slots: BuildingStationSlot[]): void {
         for (let i = 0; i < slots.length; i++) {
             const slot = slots[i];
+            if (slot.building.type === "zombie_branching_complex_01") {
+                slot.target = slot.maxTotal;
+                continue;
+            }
             const near = i < 6; // nearest buildings get shops first
             if (slot.size === "small") {
                 // 0–1 indoors only; nearest shacks/huts more likely to get one.
@@ -8581,7 +9152,11 @@ export class SpecOpsManager implements PracticeHost {
         classId?: EnemyClass,
     ): void {
         player.specOpsKind = kind;
-        player.specOpsBounty = classId ? (SpecOpsKillBounty[classId] ?? 100) : 0;
+        player.specOpsBounty = isZombieClass(classId)
+            ? ZombieKillBounty
+            : classId
+            ? (SpecOpsKillBounty[classId] ?? 100)
+            : 0;
         player.specOpsSuicideVest = !!loadout.suicideVest;
         player.specOpsStrobeTank = !!loadout.strobeTank;
         player.specOpsMirvCrawl = !!loadout.mirvCrawl;
@@ -8700,7 +9275,9 @@ export class SpecOpsManager implements PracticeHost {
                 }
             }
             player.specOpsArmor = 0;
-            player.health = specOpsEnemyHealth(this.wave || 1, classId ?? "rifle", this.difficulty);
+            player.health = isZombieClass(classId)
+                ? zombieEnemyHealth(this.wave || 1, this.difficulty)
+                : specOpsEnemyHealth(this.wave || 1, classId ?? "rifle", this.difficulty);
             // Cobalt / event bosses hit harder in the late-game fights.
             if (classId?.startsWith("cobalt_") || isEventBoss) {
                 player.specOpsDamageMult = math.max(player.specOpsDamageMult, 1.15);
@@ -8855,6 +9432,10 @@ export class SpecOpsManager implements PracticeHost {
                 i,
                 stuck.length,
             );
+            if (!pos) {
+                brain.relocateCooldown = 2;
+                continue;
+            }
             v2.set(brain.player.pos, pos);
             brain.player.game.grid.updateObject(brain.player);
             brain.player.setDirty();

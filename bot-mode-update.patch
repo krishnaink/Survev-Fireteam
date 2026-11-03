@@ -1,20 +1,142 @@
-diff --git a/client/css/specops-menu.css b/client/css/specops-menu.css
-index 8b08bf2..422da30 100644
---- a/client/css/specops-menu.css
-+++ b/client/css/specops-menu.css
-@@ -2441,12 +2441,15 @@ body.steam-deck .specops-start .specops-lb-sidebar {
+From 15012e31681517d5ac07716233b3604d4c4fe959 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 3 Nov 2026 03:29:37 +0000
+Subject: [PATCH] feat (zombie): bigger perk machines with a colored glow
+
+- PerkMachineScale (1.25) grows the sprite, collision and use range.
+- Each machine sits on a soft light in its own color (map-light-01,
+  gentle flicker, not dimmed by the night tint), drawn under the machine
+  and players.
+- Perk art packed at 0.22 instead of 0.11 so the larger machines are
+  sharper, not blurrier.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Q7cKHmNDkdjVLMChSeFSrG
+---
+ client/atlas-builder/atlasDefs.ts | 11 ++++---
+ shared/defs/lastCallObjectDefs.ts | 53 ++++++++++++++++++++++++++++---
+ 2 files changed, 55 insertions(+), 9 deletions(-)
+
+diff --git a/client/atlas-builder/atlasDefs.ts b/client/atlas-builder/atlasDefs.ts
+index 9414bc3..9a9e4a6 100644
+--- a/client/atlas-builder/atlasDefs.ts
++++ b/client/atlas-builder/atlasDefs.ts
+@@ -58,11 +58,12 @@ export const AtlasResolutions: Record<AtlasRes, number> = {
+ export const scaledSprites: Record<string, number> = {
+     "map/map-zombie-mystery-box-closed.png": 0.09,
+     "map/map-zombie-mystery-box-open.png": 0.115,
+-    "map/map-zombie-perk-juggernog.png": 0.11,
+-    "map/map-zombie-perk-speed-cola.png": 0.11,
+-    "map/map-zombie-perk-quick-revive.png": 0.11,
+-    "map/map-zombie-perk-stamin-up.png": 0.11,
+-    "map/map-zombie-perk-double-tap.png": 0.11,
++    // Perk machines: 0.22 keeps them sharp at PerkMachineScale 1.25 (lastCallObjectDefs.ts).
++    "map/map-zombie-perk-juggernog.png": 0.22,
++    "map/map-zombie-perk-speed-cola.png": 0.22,
++    "map/map-zombie-perk-quick-revive.png": 0.22,
++    "map/map-zombie-perk-stamin-up.png": 0.22,
++    "map/map-zombie-perk-double-tap.png": 0.22,
+     // Smaller ceilings
+     "map/map-building-house-ceiling.svg": 0.75,
+     "map/map-building-hut-ceiling-01.svg": 0.75,
+diff --git a/shared/defs/lastCallObjectDefs.ts b/shared/defs/lastCallObjectDefs.ts
+index 23f6e3b..b533634 100644
+--- a/shared/defs/lastCallObjectDefs.ts
++++ b/shared/defs/lastCallObjectDefs.ts
+@@ -21,6 +21,7 @@ import {
+     type LastCallZoneId,
+     LastCallZones,
+ } from "./maps/lastCallLayout.ts";
++import { type ZombiePerkMachineType, ZombiePerkMachineTypes } from "./maps/zombiePerks.ts";
  
-   .specops-menu-stage:not(.specops-menu-stage--team) > .specops-lb-sidebar {
-     align-self: stretch;
-+    /* Let the adjacent menu size the grid row; scroll scores inside that height. */
-+    contain: size;
-     display: flex;
-     flex-direction: column;
-     grid-column: 2;
-     grid-row: 2;
-     max-height: none;
-     min-height: 0;
-+    overflow: hidden;
-     width: 100%;
-   }
+ /**
+  * Map objects for Last Call (see maps/lastCallLayout.ts).
+@@ -162,6 +163,24 @@ const ZoneMapColor: Record<LastCallZoneId, number> = {
+     garage: 0x2f3038,
+ };
  
++/** Perk machine size (1 = original). Collision and use range grow with it. */
++const PerkMachineScale = 1.25;
++
++/** Glow under perk machines: `scale` 1 ≈ 9 units across; `alpha` 0–1 is brightness. */
++const PerkGlow = { scale: 1.2, alpha: 0.6 };
++
++const PerkGlowColor: Record<ZombiePerkMachineType, number> = {
++    zombie_perk_machine_juggernog: 0xff4d57,
++    zombie_perk_machine_speed_cola: 0x4f9dff,
++    zombie_perk_machine_quick_revive: 0x6ff5ff,
++    zombie_perk_machine_stamin_up: 0xb6f04a,
++    zombie_perk_machine_double_tap: 0xff9a3c,
++};
++
++function perkGlowType(machine: ZombiePerkMachineType): string {
++    return machine.replace("zombie_perk_machine_", "zombie_perk_glow_");
++}
++
+ function at(p: Vec2): Vec2 {
+     return lastCallToLocal(p.x, p.y);
+ }
+@@ -189,7 +208,10 @@ function buildingMapObjects(): BuildingDef["mapObjects"] {
+     }
+ 
+     for (const p of LastCallProps) add(p.type, at(p.pos), p.ori ?? 0);
+-    for (const machine of LastCallPerkMachines) add(machine.type, at(machine.pos));
++    for (const machine of LastCallPerkMachines) {
++        add(perkGlowType(machine.type), at(machine.pos));
++        add(machine.type, at(machine.pos));
++    }
+     // Zombies climb in at these (boarded windows are painted on the walls).
+     for (const e of LastCallEntries) add("zombie_spawn_point", at(e.pos));
+ 
+@@ -288,16 +310,16 @@ function lastCallDefs(): Record<string, MapObjectDef> {
+ 
+     const perkMachine = (sprite: string, mapColor: number): ObstacleDef => ({
+         ...lastCallSolidBlock({
+-            extents: v2.create(2.15, 1.35),
++            extents: v2.create(2.15 * PerkMachineScale, 1.35 * PerkMachineScale),
+             height: 1,
+             sprite,
+-            spriteScale: 1,
++            spriteScale: PerkMachineScale,
+             metal: true,
+             zIdx: 10,
+         }),
+         map: { display: true, color: mapColor, scale: 1.15 },
+         button: {
+-            interactionRad: 2.5,
++            interactionRad: 2.5 * PerkMachineScale,
+             interactionText: "game-use",
+             useOnce: false,
+             useType: "",
+@@ -313,6 +335,29 @@ function lastCallDefs(): Record<string, MapObjectDef> {
+     defs.zombie_perk_machine_stamin_up = perkMachine("map-zombie-perk-stamin-up.img", 0x72932e);
+     defs.zombie_perk_machine_double_tap = perkMachine("map-zombie-perk-double-tap.img", 0xcf6a24);
+ 
++    // Soft colored light under each machine (same light sprite as lab lamps).
++    for (const type of ZombiePerkMachineTypes) {
++        defs[perkGlowType(type)] = {
++            type: "decal",
++            collision: collider.createAabbExtents(v2.create(0, 0), v2.create(3.5, 3.5)),
++            height: 1,
++            lifetime: 1e10,
++            img: {
++                sprite: "map-light-01.img",
++                scale: PerkGlow.scale,
++                alpha: PerkGlow.alpha,
++                tint: PerkGlowColor[type],
++                // Above the floor, below the machine and players.
++                zIdx: 5,
++                flicker: true,
++                flickerMin: 0.94,
++                flickerMax: 1.06,
++                flickerRate: 0.6,
++                ignoreAdjust: true,
++            },
++        };
++    }
++
+     defs[LastCallBuildingType] = complexDef();
+     return defs;
+ }
+-- 
+2.43.0
