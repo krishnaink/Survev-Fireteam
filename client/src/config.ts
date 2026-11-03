@@ -147,6 +147,10 @@ const defaultConfig = {
     gameModeIdx: 2,
     teamAutoFill: true,
     teamMapName: "random",
+    /** Home page Mode / Map dropdowns. */
+    homeMode: "fireteam",
+    homeFireteamMap: "random",
+    homeZombieMap: "",
     teamSquadSize: 4,
     teamSquadName: "",
     teamDifficulty: "regular",

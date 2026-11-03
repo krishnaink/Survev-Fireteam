@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import pkgJson from "../../../package.json" with { type: "json" };
 import type { MapDefKey } from "../../../shared/defs/mapDefs.ts";
 import { isPracticeMapName } from "../../../shared/defs/maps/practiceDefs.ts";
+import { SpecOpsMapPool } from "../../../shared/defs/maps/specOpsDefs.ts";
 import { TeamMode } from "../../../shared/gameConfig.ts";
 import {
     type FindGameResponse,
@@ -166,13 +167,23 @@ app.post("/api/find_game_v2", validateParams(zFindGameBody), async (c) => {
         return c.json<FindGameResponse>({ type: "error", error: "mode_disabled" });
     }
 
+    // The home page picks a Fireteam or Zombies map; "random" is any Fireteam map.
+    if (
+        !practice
+        && body.mapName !== undefined
+        && body.mapName !== "random"
+        && !(SpecOpsMapPool as readonly string[]).includes(body.mapName)
+    ) {
+        return c.json<FindGameResponse>({ type: "error", error: "mode_disabled" });
+    }
+
     const mode = practice
         ? { mapName: body.practiceMap as MapDefKey, teamMode: TeamMode.Solo, enabled: true }
         : (() => {
             const configured = server.modes[body.gameModeIdx];
-            return configured && body.mapName
-                ? { ...configured, mapName: body.mapName as MapDefKey }
-                : configured;
+            if (!configured || !body.mapName) return configured;
+            const mapName = body.mapName === "random" ? "specops" : body.mapName;
+            return { ...configured, mapName: mapName as MapDefKey };
         })();
     if (!mode || !mode.enabled) {
         return c.json<FindGameResponse>({ type: "error", error: "mode_disabled" });

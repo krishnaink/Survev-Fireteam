@@ -14,6 +14,7 @@ import {
     zombieWaveCount,
 } from "../../server/src/game/zombieMode.ts";
 import { MapDefs } from "../../shared/defs/mapDefs.ts";
+import { FireteamMapPool, ZombieMapPool } from "../../shared/defs/maps/specOpsDefs.ts";
 import { ZombiePerkMachines, ZombiePerkMachineTypes } from "../../shared/defs/maps/zombiePerks.ts";
 import { GameObjectDefs, MapObjectDefs } from "../../shared/defs/register.ts";
 import { GameConfig, TeamMode } from "../../shared/gameConfig.ts";
@@ -35,58 +36,28 @@ test("Zombie Survival uses a dedicated, scaling zombie wave profile", () => {
     ).toBe(true);
 });
 
-test("Live survival maps expose Zombie Survival while keeping Spec Ops internals", () => {
-    expect(MapDefs.specops.desc.name).toBe("Zombie Survival");
-    expect(MapDefs.specops.gameMode.zombieMode).toBe(true);
-    expect(MapDefs.specops.gameMode.specOpsMode).toBe(true);
-    expect(MapDefs.specops.gameMode.indoorMode).toBe(true);
-    expect(MapDefs.specops_outdoor.gameMode.indoorMode).not.toBe(true);
+test("Fireteam maps run classic Spec Ops and Zombies maps run zombie rules", () => {
+    for (const key of FireteamMapPool) {
+        expect(MapDefs[key].gameMode.specOpsMode).toBe(true);
+        expect(MapDefs[key].gameMode.zombieMode).not.toBe(true);
+        expect(MapDefs[key].gameMode.indoorMode).not.toBe(true);
+    }
+    expect(MapDefs.specops.gameMode.zombieMode).not.toBe(true);
+    for (const key of ZombieMapPool) {
+        expect(MapDefs[key].desc.name).toBe("Zombie Survival");
+        expect(MapDefs[key].gameMode.specOpsMode).toBe(true);
+        expect(MapDefs[key].gameMode.zombieMode).toBe(true);
+        expect(MapDefs[key].gameMode.indoorMode).toBe(true);
+    }
     expect(MapDefs.practice_specops.gameMode.zombieMode).toBe(false);
+    expect(MapObjectDefs).not.toHaveProperty("zombie_indoor_arena_01");
 });
 
-test("Zombie Survival generates an enclosed nine-room arena with working doors", () => {
-    const game = createGame(TeamMode.Solo, "specops");
-    const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
+test("Fireteam matches spawn soldiers, not zombies", () => {
+    const game = createGame(TeamMode.Solo, "specops_woods");
+    game.playerBarn.addTestPlayer({ name: "Operator" });
     game.update(0.1);
-
-    expect(game.map.width).toBe(128);
-    expect(game.map.height).toBe(112);
-    const arena = game.map.buildings.find(
-        (building) => building.type === "zombie_indoor_arena_01",
-    );
-    expect(arena).toBeDefined();
-    expect(arena?.surfaces).toHaveLength(9);
-    const wallTypes = new Set(
-        game.map.obstacles
-            .filter((obstacle) => obstacle.isWall)
-            .map((obstacle) => obstacle.type),
-    );
-    expect(wallTypes.has("reserve_wall_int_10")).toBe(true);
-    expect(wallTypes.has("police_wall_int_10")).toBe(true);
-    expect(wallTypes.has("mansion_wall_int_10")).toBe(true);
-    expect(wallTypes.has("club_wall_int_10")).toBe(true);
-    expect(wallTypes.has("zombie_wall_outer_10")).toBe(true);
-    expect(
-        game.map.obstacles
-            .filter((obstacle) => obstacle.type.startsWith("zombie_wall_shell_"))
-            .every((obstacle) => !obstacle.destructible),
-    ).toBe(true);
-    const doors = game.map.obstacles.filter((obstacle) => obstacle.isDoor);
-    expect(doors).toHaveLength(8);
-    expect(doors.every((door) => door.isDoor && door.door?.canUse)).toBe(true);
-    expect(doors.filter((door) => door.type === "zombie_door_01")).toHaveLength(1);
-    expect(doors.filter((door) => door.type.startsWith("house_door_"))).toHaveLength(7);
-    expect(game.map.obstacles.filter((obstacle) => obstacle.type.startsWith("specops_station_")))
-        .toHaveLength(5);
-    const mysteryBox = game.map.obstacles.find(
-        (obstacle) => obstacle.type === "zombie_mystery_box",
-    )!;
-    const mysteryBoxBounds = collider.toAabb(mysteryBox.collider);
-    expect(mysteryBoxBounds.max.x - mysteryBoxBounds.min.x).toBeCloseTo(8.8, 1);
-    expect(mysteryBoxBounds.max.y - mysteryBoxBounds.min.y).toBeCloseTo(3.7, 1);
-    expect(operator.indoors).toBe(true);
-    expect(Math.abs(operator.pos.x - game.map.center.x)).toBeLessThan(8);
-    expect(Math.abs(operator.pos.y - game.map.center.y)).toBeLessThan(8);
+    expect(game.specOps?.zombieMode).toBe(false);
 });
 
 test("Last Call generates its furnished motel, club, courtyard and garage routes", () => {
@@ -306,7 +277,7 @@ test("Last Call relocates the Mystery Box after repeated uses", () => {
 });
 
 test("Zombie wave one spawns unarmed melee walkers with cash bounties", () => {
-    const game = createGame(TeamMode.Solo, "specops");
+    const game = createGame(TeamMode.Solo, "specops_complex");
     game.playerBarn.addTestPlayer({ name: "Operator" });
     game.update(0.1);
 
@@ -333,88 +304,8 @@ test("Zombie wave one spawns unarmed melee walkers with cash bounties", () => {
     expect(v2.distance(zombies[0].pos, start)).toBeGreaterThan(0.05);
 });
 
-test("Zombies pursue operators through multiple rooms and hinged doors", () => {
-    const game = createGame(TeamMode.Solo, "specops");
-    const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
-    game.update(0.1);
-
-    v2.set(operator.pos, v2.create(30, 29));
-    game.grid.updateObject(operator);
-    const zombie = game.specOps!.spawnEnemyPublic("zombie_walker");
-    v2.set(zombie.pos, v2.create(98, 83));
-    game.grid.updateObject(zombie);
-    game.specOps!.getBrainPublic(zombie)?.alertTo(operator.pos);
-
-    const startDistance = v2.distance(zombie.pos, operator.pos);
-    game.step(15);
-
-    expect(startDistance).toBeGreaterThan(80);
-    expect(v2.distance(zombie.pos, operator.pos)).toBeLessThan(15);
-    expect(
-        game.map.obstacles.some(
-            (obstacle) => obstacle.type.startsWith("house_door_") && obstacle.door?.open,
-        ),
-    ).toBe(true);
-});
-
-test("Indoor zombies remember room portals and yield to the zombie ahead at doors", () => {
-    const game = createGame(TeamMode.Solo, "specops");
-    const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
-    game.update(0.1);
-
-    v2.set(operator.pos, v2.create(30, 50));
-    game.grid.updateObject(operator);
-    const leader = game.specOps!.spawnEnemyPublic("zombie_walker");
-    const trailer = game.specOps!.spawnEnemyPublic("zombie_walker");
-    v2.set(leader.pos, v2.create(30, 76.5));
-    v2.set(trailer.pos, v2.create(30, 79));
-    game.grid.updateObject(leader);
-    game.grid.updateObject(trailer);
-    const leaderBrain = game.specOps!.getBrainPublic(leader)!;
-    const trailerBrain = game.specOps!.getBrainPublic(trailer)!;
-    leaderBrain.alertTo(operator.pos);
-    trailerBrain.alertTo(operator.pos);
-
-    game.update(0.1);
-
-    expect(leaderBrain.indoorRouteGoalCell).toBe("0,1");
-    expect(trailerBrain.indoorRouteGoalCell).toBe("0,1");
-    expect(leaderBrain.indoorRoute.length).toBeGreaterThan(0);
-    expect(trailerBrain.indoorRoute.length).toBeGreaterThan(0);
-    expect(leaderBrain.indoorRouteLane).not.toBe(trailerBrain.indoorRouteLane);
-    expect(leaderBrain.doorYieldTicker).toBe(0);
-    expect(trailerBrain.doorYieldTicker).toBeGreaterThan(0);
-});
-
-test("Indoor zombies recover from repeated stalls and rebuild their remembered route", () => {
-    const game = createGame(TeamMode.Solo, "specops");
-    const operator = game.playerBarn.addTestPlayer({ name: "Operator" });
-    game.update(0.1);
-
-    v2.set(operator.pos, v2.create(30, 29));
-    game.grid.updateObject(operator);
-    const zombie = game.specOps!.spawnEnemyPublic("zombie_walker");
-    v2.set(zombie.pos, v2.create(98, 83));
-    game.grid.updateObject(zombie);
-    const brain = game.specOps!.getBrainPublic(zombie)!;
-    brain.alertTo(operator.pos);
-    brain.stuckTicker = 0.8;
-    brain.stuckStrikes = 2;
-    brain.lastPos = v2.copy(zombie.pos);
-    brain.indoorRoute = [v2.create(1, 1)];
-    brain.indoorRouteGoalCell = "stale";
-    const start = v2.copy(zombie.pos);
-
-    game.update(0.1);
-
-    expect(brain.stuckStrikes).toBe(1);
-    expect(v2.distance(zombie.pos, start)).toBeGreaterThan(0.2);
-    expect(brain.indoorRouteGoalCell).toBe("0,0");
-    expect(brain.indoorRoute.length).toBeGreaterThan(1);
-});
-
 test("Mystery Box charges once, synchronizes its roll, and replaces the held gun", () => {
-    const game = createGame(TeamMode.Duo, "specops");
+    const game = createGame(TeamMode.Duo, "specops_complex");
     const buyer = game.playerBarn.addTestPlayer({ name: "Buyer" });
     const teammate = game.playerBarn.addTestPlayer({ name: "Teammate" });
     game.update(0.1);
@@ -475,7 +366,7 @@ test("Mystery Box charges once, synchronizes its roll, and replaces the held gun
 });
 
 test("Mystery Box fills an empty gun slot when the player takes it while holding fists", () => {
-    const game = createGame(TeamMode.Solo, "specops");
+    const game = createGame(TeamMode.Solo, "specops_complex");
     const buyer = game.playerBarn.addTestPlayer({ name: "Buyer" });
     game.update(0.1);
     const box = game.map.obstacles.find((obstacle) => obstacle.type === "zombie_mystery_box")!;

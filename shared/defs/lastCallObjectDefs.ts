@@ -240,7 +240,7 @@ function complexDef(): BuildingDef {
         ceiling: {
             // Every zone (courtyard and alley too) counts as indoors: Zombie
             // Survival only spawns and routes inside zoom regions.
-            zoomRegions: LastCallZones.map((z) => ({ zoomIn: zoneAabb(z.id) })),
+            zoomRegions: LastCallZones.map((z) => ({ zoomIn: zoneAabb(z.id), zoom: 36 })),
             vision: { dist: 7, width: 3, linger: 0.2, fadeRate: 11 },
             imgs: [],
         },

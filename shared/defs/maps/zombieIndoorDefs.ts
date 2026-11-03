@@ -5,18 +5,13 @@ import type { PartialMapDef } from "./baseDefs.ts";
 import { SpecOps } from "./specOpsDefs.ts";
 
 /**
- * The player-facing Zombie Survival map. Legacy outdoor Spec Ops maps remain
- * registered separately, while normal survival matchmaking starts here.
+ * Shared settings for indoor Zombie Survival maps: zombie rules, a small dark
+ * map with no rivers, and one building placed in the middle.
  */
-export const ZombieIndoor = util.mergeDeep(
+const zombieIndoorBase = util.mergeDeep(
     {},
     SpecOps,
     {
-        desc: {
-            name: "Zombie Survival",
-            buttonText: "Neon Complex",
-            backgroundImg: "img/main_splash.png",
-        },
         gameMode: {
             indoorMode: true,
             specOpsMode: true,
@@ -53,29 +48,10 @@ export const ZombieIndoor = util.mergeDeep(
                     masks: [],
                 },
             },
-            places: [
-                {
-                    name: "Neon Complex",
-                    pos: v2.create(0.5, 0.5),
-                    dontSpawnObjects: true,
-                },
-            ],
-            customSpawnRules: {
-                locationSpawns: [
-                    {
-                        type: "zombie_indoor_arena_01",
-                        pos: v2.create(0.5, 0.5),
-                        rad: 0,
-                        retryOnFailure: true,
-                    },
-                ],
-                placeSpawns: [],
-            },
             densitySpawns: [{}],
             fixedSpawns: [{}],
             randomSpawns: [],
             spawnReplacements: [{}],
-            importantSpawns: ["zombie_indoor_arena_01"],
         },
     } satisfies PartialMapDef,
 ) as MapDef;
@@ -86,7 +62,7 @@ export const ZombieIndoor = util.mergeDeep(
  */
 export const ZombieBranchingComplex = util.mergeDeep(
     {},
-    ZombieIndoor,
+    zombieIndoorBase,
     {
         desc: {
             name: "Zombie Survival",

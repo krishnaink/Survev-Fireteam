@@ -46,7 +46,7 @@ import { Woods } from "./maps/woodsDefs.ts";
 import { WoodsSnow } from "./maps/woodsSnowDefs.ts";
 import { WoodsSpring } from "./maps/woodsSpringDefs.ts";
 import { WoodsSummer } from "./maps/woodsSummerDefs.ts";
-import { ZombieBranchingComplex, ZombieIndoor } from "./maps/zombieIndoorDefs.ts";
+import { ZombieBranchingComplex } from "./maps/zombieIndoorDefs.ts";
 
 export type Atlas =
     | "gradient"
@@ -85,7 +85,7 @@ const _MapDefs = {
     turkey: Turkey,
     birthday: Birthday,
     beach: Beach,
-    specops: ZombieIndoor,
+    specops: SpecOps,
     specops_complex: ZombieBranchingComplex,
     specops_outdoor: SpecOps,
     specops_woods: SpecOpsWoods,

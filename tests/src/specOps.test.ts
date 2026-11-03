@@ -14,7 +14,14 @@ import { GunDefs } from "../../shared/defs/gameObjects/gunDefs.ts";
 import { MeleeDefs } from "../../shared/defs/gameObjects/meleeDefs.ts";
 import { PerkDefs } from "../../shared/defs/gameObjects/perkDefs.ts";
 import { MapDefs } from "../../shared/defs/mapDefs.ts";
-import { isSpecOpsMapName, pickSpecOpsMapName, SpecOpsMapPool } from "../../shared/defs/maps/specOpsDefs.ts";
+import {
+    FireteamMapPool,
+    isSpecOpsMapName,
+    pickSpecOpsMapName,
+    SpecOpsMapPool,
+    specOpsMapMatches,
+    ZombieMapPool,
+} from "../../shared/defs/maps/specOpsDefs.ts";
 import {
     shopApproachBlocked,
     specOpsAllyDamageMult,
@@ -127,12 +134,20 @@ test("Spec Ops starts with one operator and no gas", () => {
     expect(game.modeManager.aliveCount()).toBe(1);
 });
 
-test("Zombie Survival defaults to the indoor map while legacy biomes remain addressable", () => {
-    expect(SpecOpsMapPool).toEqual(["specops", "specops_complex"]);
+test("Random picks a Fireteam map; specific Fireteam and Zombies maps are kept", () => {
+    expect(SpecOpsMapPool).toEqual([...FireteamMapPool, ...ZombieMapPool]);
+    expect(ZombieMapPool).toEqual(["specops_complex"]);
     expect(pickSpecOpsMapName("test_specops")).toBe("test_specops");
-    expect(pickSpecOpsMapName("specops")).toBe("specops");
-    expect(pickSpecOpsMapName("random")).toBe("specops");
+    for (let i = 0; i < 20; i++) {
+        expect(FireteamMapPool).toContain(pickSpecOpsMapName("specops"));
+        expect(FireteamMapPool).toContain(pickSpecOpsMapName("random"));
+    }
     expect(pickSpecOpsMapName("specops_desert")).toBe("specops_desert");
+    expect(pickSpecOpsMapName("specops_complex")).toBe("specops_complex");
+    expect(specOpsMapMatches("random", "specops_woods")).toBe(true);
+    expect(specOpsMapMatches("random", "specops_complex")).toBe(false);
+    expect(specOpsMapMatches("specops_complex", "specops_complex")).toBe(true);
+    expect(specOpsMapMatches("specops_outdoor", "specops_woods")).toBe(false);
     expect(isSpecOpsMapName("specops_woods")).toBe(true);
     expect(isSpecOpsMapName("specops_outdoor")).toBe(true);
     expect(isSpecOpsMapName("main")).toBe(false);

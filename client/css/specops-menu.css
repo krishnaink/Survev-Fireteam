@@ -10,11 +10,6 @@
   display: none !important;
 }
 
-#practice-map-select option {
-      background-color: #0d120a; /* Replace with your menu background color */
-      color: #b8d47b;            /* Replace with your menu font color */
-}
-
 .specops-start #background {
   filter: saturate(1.08) brightness(0.72);
 }
@@ -2927,14 +2922,374 @@ body.steam-deck .specops-start .specops-lb-sidebar {
   font-size: 9px;
   letter-spacing: 0.02em;
 }
-.specops-mode-map-select {
-  display: none;
+
+/* ── Home page (surviv-style): loadout · play panel · leaderboards ── */
+
+/* Night map behind the menu (overrides the cached map splash set inline). */
+.specops-start #background {
+  filter: saturate(1.05) brightness(0.92);
+  background-color: #142813;
+  background-image: url(/img/gui/zurvev-menu-bg.svg) !important;
+  background-position: center;
+  background-repeat: repeat;
+  background-size: 960px 720px;
 }
 
-.specops-mode-map-note {
-  margin: 5px 0 0;
-  color: rgba(225, 237, 247, 0.7);
+.specops-start #btn-discord-top-right {
+  display: none !important;
+}
+
+/* Every dropdown on the menu is dark, including the open option list. */
+.specops-start select.specops-select,
+.specops-start select.specops-select.menu-option {
+  appearance: none;
+  background: rgba(0, 0, 0, 0.45) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%239dff9d' d='M1 1l5 5 5-5'/%3E%3C/svg%3E") no-repeat right 12px center !important;
+  background-color: rgba(0, 0, 0, 0.45) !important;
+  border: 1px solid rgba(107, 143, 60, 0.35);
+  border-radius: 6px;
+  box-sizing: border-box;
+  color: #eef6d4;
+  color-scheme: dark;
+  cursor: pointer;
+  font-size: 14px;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 32px 0 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.specops-start select.specops-select option,
+.specops-start select.specops-select optgroup {
+  background-color: #0d140b;
+  color: #eef6d4;
+}
+
+.specops-start .zv-home {
+  gap: 12px;
+}
+
+.specops-start .zv-home .specops-field {
+  min-width: 0;
+}
+
+.specops-start .zv-home .specops-field-label {
   font-size: 12px;
+  letter-spacing: 0.12em;
+  text-align: left;
+}
+
+.specops-start .zv-home .player-name-input.menu-option {
+  box-sizing: border-box;
+  margin: 0;
+  width: 100% !important;
+}
+
+.zv-field-pair {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.zv-play-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.specops-start .zv-play-btn.menu-option {
+  align-items: center;
+  background: #6fae3e;
+  border: 0;
+  border-bottom: 4px solid #3f6b22;
+  border-radius: 8px;
+  box-sizing: border-box;
+  color: #0f2108;
+  display: flex;
+  gap: 10px;
+  height: 50px;
+  justify-content: space-between;
+  line-height: 1.1;
+  margin: 0;
+  min-width: 0;
+  padding: 0 16px;
+  text-decoration: none;
+}
+
+.specops-start .zv-play-btn.menu-option:hover,
+.specops-start .zv-play-btn.menu-option.menu-gamepad-focus {
+  background: #82c64d;
+  filter: none;
+}
+
+.specops-start .zv-play-btn.menu-option:active {
+  border-bottom-width: 2px;
+  transform: translateY(2px);
+}
+
+.zv-play-label {
+  font-size: 18px;
+  font-weight: 700;
   letter-spacing: 0.04em;
-  text-align: center;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zv-play-sub {
+  color: rgba(20, 45, 10, 0.75);
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.specops-start .zv-play-btn.is-loading {
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.specops-start .zv-play-btn.is-loading .zv-play-sub {
+  animation: zv-spin 0.8s linear infinite;
+  border: 3px solid rgba(15, 33, 8, 0.25);
+  border-radius: 50%;
+  border-top-color: #0f2108;
+  color: transparent;
+  height: 16px;
+  overflow: hidden;
+  width: 16px;
+}
+
+@keyframes zv-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.zv-team-row {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.specops-start .zv-team-btn.menu-option {
+  background: #3a8d84;
+  border: 0;
+  border-bottom: 3px solid #245852;
+  border-radius: 7px;
+  box-sizing: border-box;
+  color: #e9fffb;
+  font-size: 14px;
+  font-weight: 700;
+  height: 40px;
+  line-height: 37px;
+  margin: 0;
+  overflow: hidden;
+  padding: 0 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.specops-start .zv-team-btn--outline.menu-option {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid #3a8d84;
+  color: #9fe1d8;
+  line-height: 38px;
+}
+
+.specops-start .zv-home .specops-secondary-btn.menu-option {
+  margin: 0;
+}
+
+.specops-start .zv-home .specops-footer-actions {
+  grid-template-columns: 1fr;
+}
+
+/* Loadout column */
+
+.specops-start #zv-loadout.specops-panel {
+  background: rgba(6, 10, 6, 0.82);
+  border: 1px solid rgba(107, 143, 60, 0.45);
+  border-radius: 10px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 10px 10px;
+}
+
+.specops-start #zv-loadout > .specops-panel-accent {
+  margin: 0 -10px 4px;
+  width: auto;
+}
+
+.zv-loadout-title {
+  color: #8faa6e;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.zv-loadout-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.specops-start .zv-loadout-btn.menu-option {
+  align-items: center;
+  background: rgba(22, 36, 15, 0.9);
+  border: 1px solid rgba(107, 143, 60, 0.3);
+  border-radius: 8px;
+  box-sizing: border-box;
+  color: #d7f0a2;
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 4px;
+  height: auto;
+  justify-content: center;
+  line-height: 1.2;
+  margin: 0;
+  min-width: 0;
+  padding: 10px 4px 8px;
+  text-decoration: none;
+}
+
+.specops-start .zv-loadout-btn.menu-option:hover,
+.specops-start .zv-loadout-btn.menu-option.menu-gamepad-focus {
+  border-color: #6fae3e;
+  color: #eef6d4;
+  filter: none;
+}
+
+.zv-loadout-btn > span:last-child {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zv-loadout-icon {
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  display: block;
+  height: 30px;
+  width: 30px;
+}
+
+/* Lobby open: only the lobby card shows. */
+.specops-menu-stage--team > .zv-loadout,
+.specops-menu-stage:has(.specops-hub-center--team) > .zv-loadout {
+  display: none !important;
+}
+
+/* Stacked (narrow) layout: play panel first, then loadout as a row, then scores. */
+.specops-menu-stage > .specops-hero-brand {
+  order: 0;
+}
+
+.specops-menu-stage > .specops-menu-column {
+  order: 1;
+}
+
+.specops-menu-stage > .zv-loadout {
+  order: 2;
+  width: min(420px, 94vw);
+}
+
+.specops-menu-stage > .specops-lb-sidebar {
+  order: 3;
+}
+
+.specops-menu-stage > .zv-loadout .zv-loadout-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .specops-menu-stage > .zv-loadout {
+    width: 100%;
+  }
+}
+
+/* Side-by-side (existing breakpoint): menu + scores, loadout row underneath. */
+@media
+  ((min-width: 880px) and (min-height: 520px)),
+  ((orientation: landscape) and (min-width: 700px) and (min-height: 420px)) {
+  .specops-menu-stage:not(.specops-menu-stage--team) > .zv-loadout {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    width: 100%;
+  }
+}
+
+/* Wide: loadout · play panel · leaderboards in three columns, like the mockup. */
+@media (min-width: 980px) and (min-height: 560px) {
+  .specops-menu-stage:not(.specops-menu-stage--team) {
+    grid-template-columns: 128px minmax(0, 400px) minmax(0, 300px);
+    width: min(880px, 96vw);
+  }
+
+  .specops-menu-stage:not(.specops-menu-stage--team) > .zv-loadout {
+    align-self: start;
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .specops-menu-stage:not(.specops-menu-stage--team) > .specops-menu-column {
+    grid-column: 2;
+  }
+
+  .specops-menu-stage:not(.specops-menu-stage--team) > .specops-lb-sidebar {
+    grid-column: 3;
+  }
+
+  .specops-menu-stage:not(.specops-menu-stage--team) > .zv-loadout .zv-loadout-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .specops-start .zv-loadout-btn.menu-option {
+    padding: 14px 4px 10px;
+  }
+}
+
+@media (max-width: 360px) {
+  .zv-field-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .zv-play-label {
+    font-size: 16px;
+  }
+}
+
+/* Panels: borders inside their width so nothing pokes past the column. */
+.specops-start #start-menu.specops-panel,
+.specops-start #specops-lb-sidebar.specops-panel {
+  box-sizing: border-box;
+}
+
+/* Phones: keep the bottom bar inside the screen. */
+@media (max-width: 520px) {
+  .specops-start .language-select {
+    max-width: 120px;
+    width: 120px;
+  }
+
+  .specops-start #start-bottom-middle {
+    flex-basis: 100%;
+    max-width: 100%;
+  }
+
+  .specops-start .specops-credit-legal,
+  .specops-start .specops-credit-legal * {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
 }

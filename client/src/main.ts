@@ -1,6 +1,11 @@
 import $ from "jquery";
 import * as PIXI from "pixi.js-legacy";
 import { PracticeDefaultMap, PracticeMapPool } from "../../shared/defs/maps/practiceDefs.ts";
+import {
+    FireteamMapPool,
+    specOpsMapDisplayName,
+    ZombieMapPool,
+} from "../../shared/defs/maps/specOpsDefs.ts";
 import { parseSpecOpsDifficulty } from "../../shared/defs/maps/specOpsShop.ts";
 import { GameConfig, TeamMode } from "../../shared/gameConfig.ts";
 import * as net from "../../shared/net/net.ts";
@@ -73,15 +78,15 @@ import { ServerBrowser } from "./ui/serverBrowser.ts";
 import { teamHashJoin, TeamMenu } from "./ui/teamMenu.ts";
 import { loadStaticDomImages } from "./ui/ui2.ts";
 
+const HomeModes = ["fireteam", "zombies", "practice"] as const;
+type HomeMode = (typeof HomeModes)[number];
+
 export class Application {
     nameInput = $("#player-name-input-solo");
     serverSelect = $("#server-select-main");
-    playMode0Btn = $("#btn-start-mode-0");
-    playMode1Btn = $("#btn-start-mode-1");
-    playMode2Btn = $("#btn-start-mode-2");
-    deployBtn = $("#btn-specops-deploy");
+    playModeBtns = $(".zv-play-btn");
     gameModeSelect = $<HTMLSelectElement>("#game-mode-select");
-    createGameModeSelect = $<HTMLSelectElement>("#create-game-mode-select");
+    gameMapSelect = $<HTMLSelectElement>("#game-map-select");
     muteBtns = $(".btn-sound-toggle");
     aimLineBtn = $("#btn-game-aim-line");
     masterSliders = $<HTMLInputElement>(".sl-master-volume");
@@ -179,6 +184,7 @@ export class Application {
             this.game?.editor?.setDebugAllowed(!!info.allowEditMsg);
             this.game?.editor?.setSpecOpsNpcSpawn(!!info.specOpsNpcSpawn);
             this.teamMenu.resetMapSelectOptions();
+            this.updateHomePlayButtons();
             this.pingTest.syncFromRegistry();
             this.checkedPingTest = false;
             this.startPingTest();
@@ -244,65 +250,42 @@ export class Application {
 
             this.nameInput.attr("maxLength", net.Constants.PlayerNameMaxLen);
 
-            const modeBtns = [this.playMode0Btn, this.playMode1Btn, this.playMode2Btn];
-            for (let i = 0; i < modeBtns.length; i++) {
-                modeBtns[i].on("click", () => {
-                    this.selectedGameModeIdx = i;
-                    this.updateSpecOpsModeTabs();
-                    return false;
-                });
+            // Home page: Mode picks the map list; Play solo/duo/squad starts matchmaking.
+            const savedMode = String(this.config.get("homeMode") || "");
+            if ((HomeModes as readonly string[]).includes(savedMode)) {
+                this.gameModeSelect.val(savedMode);
             }
-            const practiceSelect = $<HTMLSelectElement>("#practice-map-select");
-            const updateGameModeFields = () => {
-                const mode = String(this.gameModeSelect.val() || "fireteam");
-                const practice = mode === "practice";
-                practiceSelect.toggle(practice);
-                $("#home-team-size-field").toggle(!practice);
-                $("#selected-mode-map")
-                    .toggle(!practice)
-                    .text(mode === "zombies" ? "Zombies · Last Call" : "Fireteam · Neon Complex");
-            };
-            this.gameModeSelect.on("change", updateGameModeFields);
-            updateGameModeFields();
+            this.gameModeSelect.on("change", () => {
+                this.config.set("homeMode", this.homeMode());
+                this.updateHomeModeFields();
+            });
+            this.gameMapSelect.on("change", () => {
+                const mode = this.homeMode();
+                const map = String(this.gameMapSelect.val() || "");
+                if (mode === "practice") {
+                    try {
+                        localStorage.setItem("practiceMap", map);
+                    } catch {
+                        // Not remembered; harmless.
+                    }
+                } else {
+                    this.config.set(mode === "zombies" ? "homeZombieMap" : "homeFireteamMap", map);
+                }
+            });
+            this.updateHomeModeFields();
 
-            this.deployBtn.on("click", () => {
+            this.playModeBtns.on("click", (e) => {
+                const modeIdx = Number($(e.currentTarget).data("mode-idx")) || 0;
+                this.selectedGameModeIdx = modeIdx;
                 SDK.requestMidGameAd(() => {
-                    const mode = String(this.gameModeSelect.val() || "fireteam");
-                    if (mode === "practice") {
-                        this.tryQuickStartGame(
-                            0,
-                            String(practiceSelect.val() || PracticeDefaultMap),
-                        );
+                    const map = String(this.gameMapSelect.val() || "");
+                    if (this.homeMode() === "practice") {
+                        this.tryQuickStartGame(0, map || PracticeDefaultMap);
                     } else {
-                        this.tryQuickStartGame(
-                            this.selectedGameModeIdx,
-                            undefined,
-                            mode === "zombies" ? "specops_complex" : "specops",
-                        );
+                        this.tryQuickStartGame(modeIdx, undefined, map || "random");
                     }
                 });
                 return false;
-            });
-
-            // Practice vs bots: map picker + start button (always solo, private).
-            for (const practiceMap of PracticeMapPool) {
-                practiceSelect.append($("<option>").val(practiceMap.key).text(practiceMap.label));
-            }
-            let savedPracticeMap: string = PracticeDefaultMap;
-            try {
-                savedPracticeMap = localStorage.getItem("practiceMap") || PracticeDefaultMap;
-            } catch {
-                // Storage unavailable: use the default arena.
-            }
-            if (PracticeMapPool.some((m) => m.key === savedPracticeMap)) {
-                practiceSelect.val(savedPracticeMap);
-            }
-            practiceSelect.on("change", () => {
-                try {
-                    localStorage.setItem("practiceMap", String(practiceSelect.val()));
-                } catch {
-                    // Not remembered; harmless.
-                }
             });
 
             this.menuLeaderboard = new MenuLeaderboard(this.localization);
@@ -392,20 +375,8 @@ export class Application {
                 }
             });
             $("#btn-create-team").on("click", () => {
-                const mode = String(this.createGameModeSelect.val() || "fireteam");
-                if (mode === "practice") {
-                    this.tryQuickStartGame(
-                        0,
-                        String($("#practice-map-select").val() || PracticeDefaultMap),
-                    );
-                    return false;
-                }
-                // Carry start-menu Solo/Duo/Squad + selected server into the lobby.
-                this.config.set("gameModeIdx", this.selectedGameModeIdx);
-                this.config.set(
-                    "teamMapName",
-                    mode === "zombies" ? "specops_complex" : "specops",
-                );
+                // Carry the selected map + server into the lobby.
+                this.config.set("teamMapName", String(this.gameMapSelect.val() || "random"));
                 this.setConfigFromDOM();
                 this.tryJoinTeam(true);
                 return false;
@@ -902,31 +873,62 @@ export class Application {
             this.serverWarning.html(this.errorMessage);
         }
 
-        const updateButton = (_ele: JQuery<HTMLElement>, _gameModeIdx: number) => {};
-
-        updateButton(this.playMode0Btn, 0);
-        updateButton(this.playMode1Btn, 1);
-        updateButton(this.playMode2Btn, 2);
-        this.updateSpecOpsModeTabs();
-        this.updateSpecOpsDeployBtn();
+        this.updateHomePlayButtons();
     }
 
-    updateSpecOpsModeTabs() {
-        const tabs = [this.playMode0Btn, this.playMode1Btn, this.playMode2Btn];
-        for (let i = 0; i < tabs.length; i++) {
-            tabs[i].toggleClass("is-active", i === this.selectedGameModeIdx);
-        }
+    homeMode(): HomeMode {
+        const picked = String(this.gameModeSelect.val() || "");
+        return (HomeModes as readonly string[]).includes(picked) ? picked as HomeMode : "fireteam";
     }
 
-    updateSpecOpsDeployBtn() {
-        const label = this.deployBtn.find(".specops-deploy-label");
-        const loading = this.quickPlayPendingModeIdx !== -1;
-        this.deployBtn.toggleClass("is-loading", loading);
-        if (loading) {
-            label.html("<div class=\"ui-spinner\"></div>");
+    /** Fill the Map dropdown for the selected mode and hide what that mode can't use. */
+    updateHomeModeFields() {
+        const mode = this.homeMode();
+        const options: Array<{ value: string; text: string }> = [];
+        let saved = "";
+        if (mode === "practice") {
+            for (const m of PracticeMapPool) options.push({ value: m.key, text: m.label });
+            try {
+                saved = localStorage.getItem("practiceMap") || PracticeDefaultMap;
+            } catch {
+                saved = PracticeDefaultMap;
+            }
+        } else if (mode === "zombies") {
+            for (const key of ZombieMapPool) {
+                options.push({ value: key, text: specOpsMapDisplayName(key) });
+            }
+            saved = this.config.get("homeZombieMap") || "";
         } else {
-            label.text(this.localization.translate("index-specops-deploy-now"));
+            options.push({ value: "random", text: specOpsMapDisplayName("random") });
+            for (const key of FireteamMapPool) {
+                options.push({ value: key, text: specOpsMapDisplayName(key) });
+            }
+            saved = this.config.get("homeFireteamMap") || "random";
         }
+        this.gameMapSelect.empty();
+        for (const opt of options) {
+            this.gameMapSelect.append($("<option>").val(opt.value).text(opt.text));
+        }
+        this.gameMapSelect.val(options.some((o) => o.value === saved) ? saved : options[0].value);
+
+        // Practice is always a private solo match.
+        const practice = mode === "practice";
+        $("#start-menu .zv-team-row").toggle(!practice);
+        this.updateHomePlayButtons();
+    }
+
+    /** Show Play buttons for enabled server modes and a spinner on the one that is matchmaking. */
+    updateHomePlayButtons() {
+        const practice = this.homeMode() === "practice";
+        const modes = this.siteInfo.info.modes;
+        const pending = this.quickPlayPendingModeIdx;
+        this.playModeBtns.each((_i, el) => {
+            const btn = $(el);
+            const idx = Number(btn.data("mode-idx")) || 0;
+            const enabled = practice ? idx === 0 : (modes?.[idx]?.enabled ?? true);
+            btn.toggle(enabled);
+            btn.toggleClass("is-loading", idx === pending);
+        });
     }
 
     waitOnAccount(cb: () => void) {
@@ -1041,7 +1043,7 @@ export class Application {
     tryQuickStartGame(
         gameModeIdx: number,
         practiceMap?: string,
-        mapName?: "specops" | "specops_complex",
+        mapName?: string,
     ) {
         if (this.quickPlayPendingModeIdx === -1) {
             requestSteamDeckFullscreen();

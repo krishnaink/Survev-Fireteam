@@ -162,7 +162,7 @@ function stationPlanForBuilding(type: string):
     >
     | undefined
 {
-    if (type === "zombie_indoor_arena_01" || type === "zombie_branching_complex_01") {
+    if (type === "zombie_branching_complex_01") {
         return { size: "large", maxIndoor: 5, maxOutdoor: 0, maxTotal: 5 };
     }
     if (
@@ -3509,57 +3509,6 @@ function isDoorCandidate(pos: Vec2, building?: Building): boolean {
     return false;
 }
 
-function zombieArenaCell(pos: Vec2, center: Vec2): { col: number; row: number } {
-    const local = v2.sub(pos, center);
-    return {
-        col: local.x < -18 ? 0 : (local.x < 18 ? 1 : 2),
-        row: local.y < -14 ? 0 : (local.y < 14 ? 1 : 2),
-    };
-}
-
-function zombieArenaCellKey(game: Game, pos: Vec2): string {
-    const cell = zombieArenaCell(pos, game.map.center);
-    return `${cell.col},${cell.row}`;
-}
-
-/** Full portal route through the 3 x 3 Neon Complex. */
-function zombieArenaRoute(game: Game, from: Vec2, goal: Vec2, lane: number): Vec2[] {
-    if (!game.map.mapDef.gameMode.indoorMode) return [];
-    if (!game.map.buildings.some((b) => b.type === "zombie_indoor_arena_01")) {
-        return [];
-    }
-
-    const center = game.map.center;
-    const start = zombieArenaCell(from, center);
-    const end = zombieArenaCell(goal, center);
-    let col = start.col;
-    let row = start.row;
-    const rowDoorX = [-34, 0, 34];
-    const points: Vec2[] = [];
-    for (let guard = 0; guard < 8 && (col !== end.col || row !== end.row); guard++) {
-        if (row !== 1) {
-            const exitY = row === 0 ? -10.6 : 10.6;
-            points.push(v2.add(center, v2.create(rowDoorX[col] + lane, exitY)));
-            row = 1;
-            continue;
-        }
-        if (col !== end.col) {
-            const step = col < end.col ? 1 : -1;
-            const boundaryX = step > 0
-                ? (col === 0 ? -18 : 18)
-                : (col === 2 ? 18 : -18);
-            points.push(v2.add(center, v2.create(boundaryX + step * 3.4, lane)));
-            col += step;
-            continue;
-        }
-        const step = end.row < row ? -1 : 1;
-        const boundaryY = step < 0 ? -14 : 14;
-        points.push(v2.add(center, v2.create(rowDoorX[col] + lane, boundaryY + step * 3.4)));
-        row += step;
-    }
-    return points;
-}
-
 function canAiOccupy(game: Game, player: Player, pos: Vec2): boolean {
     if (game.map.isOnWater(pos, util.toGroundLayer(player.layer))) return false;
     const circle = collider.createCircle(pos, player.rad);
@@ -3899,9 +3848,6 @@ class AiBrain {
     stuckStrikes = 0;
     routeRefreshTicker = 0;
     /** Remembered room-to-room portal sequence for indoor zombies. */
-    indoorRoute: Vec2[] = [];
-    indoorRouteGoalCell = "";
-    indoorRouteLane = 0;
     doorYieldTicker = 0;
     lookScanTicker = util.random(0.4, 1.2);
     lookScanSign = Math.random() < 0.5 ? 1 : -1;
@@ -3981,47 +3927,6 @@ class AiBrain {
         } else if (loadout.role === "grenadier" || enemyClass === "grenadier") {
             this.nadeCooldown = util.random(0.45, 1.0);
         }
-        this.indoorRouteLane = ((player.__id % 3) - 1) * 0.35;
-    }
-
-    resetIndoorRoute(): void {
-        this.indoorRoute.length = 0;
-        this.indoorRouteGoalCell = "";
-    }
-
-    private indoorRouteWaypoint(goal: Vec2): Vec2 | undefined {
-        if (!isZombieClass(this.enemyClass)) return undefined;
-        const game = this.player.game;
-        if (!game.map.mapDef.gameMode.indoorMode) return undefined;
-
-        const goalCell = zombieArenaCellKey(game, goal);
-        if (goalCell !== this.indoorRouteGoalCell) {
-            this.indoorRouteGoalCell = goalCell;
-            this.indoorRoute = zombieArenaRoute(
-                game,
-                this.player.pos,
-                goal,
-                this.indoorRouteLane,
-            );
-        }
-        while (
-            this.indoorRoute.length
-            && v2.distance(this.player.pos, this.indoorRoute[0]) < 2.1
-        ) {
-            this.indoorRoute.shift();
-        }
-        if (!this.indoorRoute.length) {
-            const currentCell = zombieArenaCellKey(game, this.player.pos);
-            if (currentCell !== goalCell) {
-                this.indoorRoute = zombieArenaRoute(
-                    game,
-                    this.player.pos,
-                    goal,
-                    this.indoorRouteLane,
-                );
-            }
-        }
-        return this.indoorRoute[0];
     }
 
     resolveAnchor(manager: SpecOpsManager): void {
@@ -4557,8 +4462,9 @@ class AiBrain {
                     field.penalize(player.pos, looping ? 3.2 : 2.1);
                     if (this.detourPos) {
                         field.penalizeToward(player.pos, this.detourPos, 2.4);
-                        if (indoorZombie) this.resetIndoorRoute();
-                        else this.failedWaypoints.push({ pos: v2.copy(this.detourPos), ttl: 3.2 });
+                        if (!indoorZombie) {
+                            this.failedWaypoints.push({ pos: v2.copy(this.detourPos), ttl: 3.2 });
+                        }
                         this.detourPos = undefined;
                         this.trail.length = 0;
                     }
@@ -4578,10 +4484,7 @@ class AiBrain {
                     const detourGoal = this.stairTarget
                         ? (this.assaultDest ?? target.pos)
                         : target.pos;
-                    const detour = zombieMelee
-                        ? (this.indoorRouteWaypoint(detourGoal)
-                            ?? findRouteWaypoint(player.game, player, detourGoal, field, this))
-                        : findRouteWaypoint(player.game, player, detourGoal, field, this);
+                    const detour = findRouteWaypoint(player.game, player, detourGoal, field, this);
                     if (detour) {
                         this.detourPos = detour;
                         field.occupy(detour, 1.6);
@@ -4603,7 +4506,6 @@ class AiBrain {
                             player.setDirty();
                             break;
                         }
-                        this.resetIndoorRoute();
                         this.stuckStrikes = 1;
                     } else if (this.stuckStrikes >= 5) {
                         const escape = steerAroundWalls(
@@ -4652,10 +4554,7 @@ class AiBrain {
                 const routeGoal = this.stairTarget
                     ? (this.assaultDest ?? target.pos)
                     : (this.assaultDest ?? target.pos);
-                const next = zombieMelee
-                    ? (this.indoorRouteWaypoint(routeGoal)
-                        ?? findRouteWaypoint(player.game, player, routeGoal, field, this))
-                    : findRouteWaypoint(player.game, player, routeGoal, field, this);
+                const next = findRouteWaypoint(player.game, player, routeGoal, field, this);
                 if (next) {
                     this.detourPos = next;
                     field.occupy(next, 1.4);
@@ -8186,10 +8085,7 @@ export class SpecOpsManager implements PracticeHost {
     private assignStationTargets(slots: BuildingStationSlot[]): void {
         for (let i = 0; i < slots.length; i++) {
             const slot = slots[i];
-            if (
-                slot.building.type === "zombie_indoor_arena_01"
-                || slot.building.type === "zombie_branching_complex_01"
-            ) {
+            if (slot.building.type === "zombie_branching_complex_01") {
                 slot.target = slot.maxTotal;
                 continue;
             }
@@ -9544,7 +9440,6 @@ export class SpecOpsManager implements PracticeHost {
             brain.player.game.grid.updateObject(brain.player);
             brain.player.setDirty();
             brain.detourPos = undefined;
-            brain.resetIndoorRoute();
             brain.coverPos = undefined;
             brain.stuckStrikes = 0;
             brain.idleTicker = 0;
